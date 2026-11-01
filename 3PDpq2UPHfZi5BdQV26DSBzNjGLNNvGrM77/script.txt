@@ -1,0 +1,1614 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let SEP = "__"
+
+let MULT6 = 1000000
+
+let MULT7 = 10000000
+
+let MULT8 = 100000000
+
+let MULT14 = 100000000000000
+
+let E8 = 271828183
+
+let MINSHOPPAYMENT = 100000
+
+let DAY_MILLIS = 86400000
+
+let USDT2ACRES_MULTIPLIER = 10
+
+let ONE_PERCENT_DIVISOR = 100
+
+let RANDOM_DELAY = 2
+
+let NFT_CHEST_PRICE_USDT = 5000000
+
+let ACRES_WEEKLY_PRIZE = 25000000
+
+let chain = take(drop(this.bytes, 1), 1)
+
+let promoStartEndBlocks = match chain {
+    case _ => 
+        if ((base58'2W' == $match0))
+            then [[4492439, 4505760]]
+            else if ((base58'2T' == $match0))
+                then [[3430275, 3431715]]
+                else throw("Unknown chain")
+}
+
+let DAY_BLOCKS = match chain {
+    case _ => 
+        if ((base58'2W' == $match0))
+            then 1440
+            else if ((base58'2T' == $match0))
+                then 60
+                else throw("Unknown chain")
+}
+
+let WEEK_BLOCKS = match chain {
+    case _ => 
+        if ((base58'2W' == $match0))
+            then 10080
+            else if ((base58'2T' == $match0))
+                then 180
+                else throw("Unknown chain")
+}
+
+let VRF_OFFSET = match chain {
+    case _ => 
+        if ((base58'2W' == $match0))
+            then 0
+            else if ((base58'2T' == $match0))
+                then 1146000
+                else throw("Unknown chain")
+}
+
+let usdtAssetId = match chain {
+    case _ => 
+        if ((base58'2W' == $match0))
+            then base58'9wc3LXNA4TEBsXyKtoLE9mrbDD7WMHXvXrCjZvabLAsi'
+            else if ((base58'2T' == $match0))
+                then base58'6mWwf9mZBjVgkC54idpyaZLQfAosD914wT8fGf2iiY63'
+                else throw("Unknown chain")
+}
+
+let defaultRest2AddressStr = match chain {
+    case _ => 
+        if ((base58'2W' == $match0))
+            then "3PFwYta8biEz31zpeFe5DJK8wE5trSpQVF8"
+            else if ((base58'2T' == $match0))
+                then "3N7UuYar6264P58FBhVWKPQAh4Yua2hgngv"
+                else throw("Unknown chain")
+}
+
+let defaultRestAddressStr = match chain {
+    case _ => 
+        if ((base58'2W' == $match0))
+            then "3PQCuvFbvh4LkPUnrnU1z3jnbA1p9m3WNhv"
+            else if ((base58'2T' == $match0))
+                then "3MumkGGztCKAXpWDqxkddofqXSUbqQkvSJy"
+                else throw("Unknown chain")
+}
+
+let arbitrageDelay = match chain {
+    case _ => 
+        if ((base58'2W' == $match0))
+            then DAY_MILLIS
+            else if ((base58'2T' == $match0))
+                then 60000
+                else throw("Unknown chain")
+}
+
+let oldStakingContractStr = match chain {
+    case _ => 
+        if ((base58'2W' == $match0))
+            then "3PLncXtS1U83D6cQbFD3H8rBHPLgzxSFKZ1"
+            else if ((base58'2T' == $match0))
+                then "3NDCyBG5q85JuaRiigUeEtainyjCQT3XpZm"
+                else throw("Unknown chain")
+}
+
+let economyContractStr = match chain {
+    case _ => 
+        if ((base58'2W' == $match0))
+            then "3P2sk1KncSxRaZs8b4CWGPw2jkvvav74u4D"
+            else if ((base58'2T' == $match0))
+                then "3N8y4wxX3JC4TdrCJBXX16SjWf6X256hrep"
+                else throw("Unknown chain")
+}
+
+func getStringOrFail (address,key) = valueOrErrorMessage(getString(address, key), makeString(["mandatory ", toString(address), ".", key, " is not defined"], ""))
+
+
+func getIntOrElse (key,defaultVal) = valueOrElse(getInteger(this, key), defaultVal)
+
+
+let IdxCfgAcres2Dapp = 1
+
+let IdxCfgWlgDapp = 2
+
+let IdxCfgGovernanceDapp = 3
+
+let IdxCfgPuzzlePoolDapp = 4
+
+let IdxCfgInvestFundDapp = 5
+
+let IdxCfgMarketDapp = 6
+
+func keyRestCfg () = "%s__restConfig"
+
+
+func keyRest2Address () = "%s__rest2Addr"
+
+
+func keyRestAddress () = "%s__restAddr"
+
+
+let restContract = addressFromStringValue(valueOrElse(getString(this, keyRestAddress()), defaultRestAddressStr))
+
+func readRestCfgOrFail (rest) = split_4C(getStringOrFail(rest, keyRestCfg()), SEP)
+
+
+func getContractAddressOrFail (rest2Cfg,idx) = valueOrErrorMessage(addressFromString(rest2Cfg[idx]), ("Rest cfg doesn't contain address at index " + toString(idx)))
+
+
+let IdxCfgStakingDapp = 1
+
+let IdxCfgAcresDapp = 8
+
+let restCfg = readRestCfgOrFail(restContract)
+
+let stakingContract = getContractAddressOrFail(restCfg, IdxCfgStakingDapp)
+
+let acresContract = getContractAddressOrFail(restCfg, IdxCfgAcresDapp)
+
+let rest2Contract = addressFromStringValue(valueOrElse(getString(this, keyRest2Address()), defaultRest2AddressStr))
+
+let rest2Cfg = readRestCfgOrFail(rest2Contract)
+
+let acres2Contract = getContractAddressOrFail(rest2Cfg, IdxCfgAcres2Dapp)
+
+let wlgContract = getContractAddressOrFail(rest2Cfg, IdxCfgWlgDapp)
+
+let puzzlePoolContract = getContractAddressOrFail(rest2Cfg, IdxCfgPuzzlePoolDapp)
+
+let investFundContract = getContractAddressOrFail(rest2Cfg, IdxCfgInvestFundDapp)
+
+let marketContract = getContractAddressOrFail(rest2Cfg, IdxCfgMarketDapp)
+
+let oldAcresContractKey = "oldAcresContract"
+
+func keyBlocked () = "contractsBlocked"
+
+
+func keyLastWeekTxIdByUser (addr) = ("lastWeekTxIdByUser_" + addr)
+
+
+func keyCurWeekTxIdByUser (addr) = ("curWeekTxIdByUser_" + addr)
+
+
+func keyCommit (address) = ("finishBlockFor_" + address)
+
+
+let wlgAssetIdKey = "wlg_assetId"
+
+let wlgAssetId = valueOrErrorMessage(getBinary(wlgContract, wlgAssetIdKey), "WLGOLD is not issued yet")
+
+let acresIssuedAmountKey = "acresIssuedAmount"
+
+let acresAssetIdKey = "acresAssetId"
+
+let acresAssetId = valueOrErrorMessage(getBinary(acres2Contract, acresAssetIdKey), "ACRES is not issued yet")
+
+let acresIdStr = toBase58String(acresAssetId)
+
+func keyAcresStakedTimeByUser (addr) = ("acresStakedTimeByUser_" + addr)
+
+
+func keyStakedLandsByOwner (ownerAddr) = ("stakedLandsByOwner_" + ownerAddr)
+
+
+func keyStakedDuckByOwner (ownerAddr) = ("stakedDuckByOwner_" + ownerAddr)
+
+
+func keyStakedTimeByAssetId (assetId) = ("st_" + assetId)
+
+
+func keyStakedTimeByAssetIdAndOwner (assetId,addr) = ((("st_" + assetId) + "_") + addr)
+
+
+func keyStakedNFTsByOwner (ownerAddr) = ("stakedNFTsByOwner_" + ownerAddr)
+
+
+func keyAddressToCustomName (addr) = ("accountCustomNameByAddr_" + addr)
+
+
+func keyAddressRefBy (addr) = ("accRefBy_" + addr)
+
+
+func keyAddressReferrals (addr) = ("accReferrals_" + addr)
+
+
+func keyUserBet (addr) = ("userBet_" + addr)
+
+
+func keyUserWeekTickets (addr,week) = ((("userWeekTickets_" + addr) + "_") + toString(week))
+
+
+func keyTotalWeekTickets (week) = ("totalWeekTickets_" + toString(week))
+
+
+func keyTotalWeekParticipants (week) = ("totalWeekParticipants_" + toString(week))
+
+
+func keyNumPrizes2Draw (week) = ("numPrizes2Draw_" + toString(week))
+
+
+func keyNumNFTDrawn (week) = ("numNFTDrawn_" + toString(week))
+
+
+func keyAcresDrawn (week) = ("acresDrawn_" + toString(week))
+
+
+func keyWeekWinners (week) = ("weekWinners_" + toString(week))
+
+
+func winningBet (day) = {
+    let b = (day * DAY_BLOCKS)
+    let h = if ((b > VRF_OFFSET))
+        then b
+        else (b + VRF_OFFSET)
+    (toInt(value(value(blockInfoByHeight(h)).vrf)) % 4)
+    }
+
+
+func keySellerByAssetId (assetId) = ("seller_" + assetId)
+
+
+func keyPriceByAssetId (assetId) = ("price_" + assetId)
+
+
+func keyAssetIdsBySeller (addr) = ("assetIds_" + addr)
+
+
+let keyLastPromoRound = "lastPromoRound"
+
+func keyUserPromoAcres (address) = ("promoAcres_" + address)
+
+
+func keyUserPromoRoundAcres (roundId,address) = ((("promoRoundAcres_" + toString(roundId)) + "_") + address)
+
+
+func keyUserPromoTickets (address) = ("promoTickets_" + address)
+
+
+func keyUserPromoRoundTickets (roundId,address) = ((("promoRoundTickets_" + toString(roundId)) + "_") + address)
+
+
+let keyTotalPromoTickets = "totalPromoTickets"
+
+func keyTotalPromoRoundTickets (roundId) = ("totalPromoRoundTickets_" + toString(roundId))
+
+
+let keyPromoMap = "promoMap"
+
+func keyPromoRoundMap (roundId) = ("promoRoundMap_" + toString(roundId))
+
+
+func keyPromoRoundWinners (roundId) = ("promoRoundWinners_" + toString(roundId))
+
+
+let promoRoundAwards = [[0, 500000000, 100000000, 100000000, 100000000, 100000000, 100000000]]
+
+let ixWlgAmount = 0
+
+let ixWlgWlg = 1
+
+let ixWlgPrice = 2
+
+let ixWlgFunds = 3
+
+let ixWlgActivity = 4
+
+let ixWlgAcres2 = 5
+
+let ixWlgArbitrage = 6
+
+let ixWlgPool = 7
+
+let ixWlgIssueTime = 8
+
+let ixWlgLastTeamActTime = 9
+
+let ixWlgTeamTotal = 10
+
+let ixWlgTeamAmLeft = 11
+
+let ixWlgTeamAmAvailNow = 12
+
+let ixWlgTeamWlgold = 13
+
+let ixWlgActTotal = 14
+
+let ixWlgActAmLeft = 15
+
+let ixWlgActAmAvailNow = 16
+
+let ixWlgActWlgold = 17
+
+let ixWlgCurPeriod = 18
+
+let ixWlgAmLeftTotal = 19
+
+let ixWlgCurPeriodDistribution = 20
+
+let ixWlgLastUserTime = 21
+
+let ixWlgInvestFundAmount = 22
+
+let ixWlgUserAmAvailNow = 23
+
+let ixWlgEffUserTime = 24
+
+let ixWlgIssue10Amount = 25
+
+let ixWlgMarketingIssue10Amount = 26
+
+let ixWlgTeamIssue10Amount = 27
+
+let ixWlgUser10part = 28
+
+let ixWlgIssue10Time = 29
+
+let ixWlgTotalFarmingPower = 30
+
+let ixWlgAcresStakedTotal = 31
+
+let ixWlgNftTotalIssued = 32
+
+let ixWlgNftTotalBurned = 33
+
+let ixWlgWlNftTotalStaked = 34
+
+let ixWlgWlNftUserStaked = 35
+
+func asString (v) = match v {
+    case s: String => 
+        s
+    case _ => 
+        throw("fail to cast into String")
+}
+
+
+func asInt (v) = match v {
+    case n: Int => 
+        n
+    case _ => 
+        throw("fail to cast into Int")
+}
+
+
+func asAnyList (v) = match v {
+    case l: List[Any] => 
+        l
+    case _ => 
+        throw("fail to cast into List[Any]")
+}
+
+
+func asBoolean (v) = match v {
+    case s: Boolean => 
+        s
+    case _ => 
+        throw("fail to cast into Boolean")
+}
+
+
+func asTuple5Ints (val) = match val {
+    case t: (Int, Int, Int, Int, Int) => 
+        t
+    case _ => 
+        throw("fail to cast into (Int, Int, Int, Int, Int)")
+}
+
+
+func asTuple4Ints (val) = match val {
+    case t: (Int, Int, Int, Int) => 
+        t
+    case _ => 
+        throw("fail to cast into (Int, Int, Int, Int)")
+}
+
+
+func asTuple3Ints (val) = match val {
+    case t: (Int, Int, Int) => 
+        t
+    case _ => 
+        throw("fail to cast into (Int, Int, Int)")
+}
+
+
+func asTuple2Ints (val) = match val {
+    case t: (Int, Int) => 
+        t
+    case _ => 
+        throw("fail to cast into (Int, Int)")
+}
+
+
+func fixedPoint (val,decimals) = {
+    let tenPow = pow(10, 0, decimals, 0, 0, DOWN)
+    let lowPart = toString((val % tenPow))
+    let zeroes = drop(toString(tenPow), (1 + size(lowPart)))
+    (((toString((val / tenPow)) + ".") + zeroes) + lowPart)
+    }
+
+
+func getRandomNumber (maxValue,salt,entropy) = if ((0 >= maxValue))
+    then throw("maxValue should be > 0")
+    else {
+        let randomHash = sha256_16Kb((salt + entropy))
+        (toInt(randomHash) % maxValue)
+        }
+
+
+func padL (val,len) = {
+    let valS = toString(val)
+    let zeroes = drop(toString(pow(10, 0, (len - size(valS)), 0, 0, DOWN)), 1)
+    (zeroes + valS)
+    }
+
+
+let M4 = 10000
+
+let SCALE8 = 100000000
+
+let xpLevelScale = 3200
+
+let xpLevelRecipScale = 31250
+
+let xpLevelPow = 25000
+
+let xpLevelRecipPow = 4000
+
+let DEFAULTHP = 100
+
+let strengthToHpBase = 10391
+
+let numPointsOnLevelUp = 3
+
+let wlgBaseAmountXp = 100000000000
+
+let requirements = ["Strength", "Accuracy", "Intellect", "Endurance", "Dexterity", "Level", "Health"]
+
+let charStrength = 0
+
+let charAccuracy = 1
+
+let charIntellect = 2
+
+let charEndurance = 3
+
+let charDexterity = 4
+
+let segments = ["backpack", "back", "belt", "hands", "head", "body"]
+
+let segBackpack = 0
+
+let segBack = 1
+
+let segBelt = 2
+
+let segHands = 3
+
+let segHead = 4
+
+let segBody = 5
+
+let NUMSEGMENTS = 6
+
+let NUMMAINAUX = 2
+
+let MAXSLOTS = 2
+
+let MAXPRODINSLOT = 30
+
+let landRobStates = ["free", "locked", "afterLockCooldown", "robbedCooldown", "defendedCooldown"]
+
+let duckRobStates = ["free", "preparingRob"]
+
+func keyDuckHealth (duckAssetId) = ("duckHealth_" + duckAssetId)
+
+
+func keyDuckChars (duckAssetId) = ("duckChars_" + duckAssetId)
+
+
+func keyDuckXP (duckAssetId) = ("duckXP_" + duckAssetId)
+
+
+func keyDuckLevel (duckAssetId) = ("duckLevel_" + duckAssetId)
+
+
+func keyDuckFreePoints (duckAssetId) = ("duckFreePoints_" + duckAssetId)
+
+
+func keyDuckEquipment (duckAssetId) = ("duckEquipment_" + duckAssetId)
+
+
+func keyUserXP (addr) = ("userXP_" + addr)
+
+
+func keyUserLevel (addr) = ("userLevel_" + addr)
+
+
+func keyUserFreePoints (addr) = ("userFreePoints_" + addr)
+
+
+func keySavedHealth (duckAssetId) = ("savedHealth_" + duckAssetId)
+
+
+func keySavedLocation (duckAssetId) = ("savedLocation_" + duckAssetId)
+
+
+func keyDuckBuffs (duckAssetId) = ("duckBuffs_" + duckAssetId)
+
+
+func keyDuckRobberyCount (duckAssetId) = ("totalRobberyCountByDuck_" + duckAssetId)
+
+
+func keyUserLastRobberyDay (addr) = ("userLastRobberyDay_" + addr)
+
+
+func keyDuckDeliveryCount (duckAssetId) = ("totalDeliveryCountByDuck_" + duckAssetId)
+
+
+func keyUserDeliveryCount (addr) = ("userDeliveryCount_" + addr)
+
+
+func keyUserLastDeliveryDay (addr) = ("userLastDeliveryDay_" + addr)
+
+
+let xpClaim = 10000
+
+let xpTrade = 10000
+
+let xpCraft = 10000
+
+let xpSellToEs = 10000
+
+let xpCallES = 100000
+
+let xpShop = 10000
+
+let xpCustomName = 1000000
+
+let xpNewSLand = 5000000
+
+let xpUpgradeInfra = 10000
+
+let xpMerge = 1000000
+
+let xpOnboard = 1000000
+
+let xpHeal = 10000
+
+let xpWlg = 10000
+
+func levelByXP (xp) = fraction(xpLevelScale, pow(xp, 4, xpLevelRecipPow, 4, 4, DOWN), SCALE8)
+
+
+func maxHealth (level) = (100 + level)
+
+
+func levelUp (currLevel,newXP) = {
+    let newLevel = levelByXP(newXP)
+[newLevel, (numPointsOnLevelUp * (newLevel - currLevel))]
+    }
+
+
+func tanh (v) = {
+    let double = (2 * v)
+    let exp2 = pow(271828183, 8, double, 8, 8, HALFUP)
+    fraction((exp2 - SCALE8), SCALE8, (exp2 + SCALE8), HALFUP)
+    }
+
+
+func dodgeProbability (chars,buffs,equipmentPerc) = {
+    let intel = (parseIntValue(chars[charIntellect]) + parseIntValue(buffs[charIntellect]))
+    let dex = (parseIntValue(chars[charDexterity]) + parseIntValue(buffs[charDexterity]))
+    let first8 = (tanh(fraction(dex, SCALE8, 200)) / 4)
+    let second8 = fraction(equipmentPerc, (SCALE8 + fraction(7000000, intel, (1 + intel), HALFUP)), 100, HALFUP)
+    (first8 + second8)
+    }
+
+
+func damageAbsorption (chars,buffs,equipmentAbsor) = {
+    let intel = (parseIntValue(chars[charIntellect]) + parseIntValue(buffs[charIntellect]))
+    let endur = (parseIntValue(chars[charEndurance]) + parseIntValue(buffs[charEndurance]))
+    let dex = (parseIntValue(chars[charDexterity]) + parseIntValue(buffs[charDexterity]))
+    let first8 = (equipmentAbsor * (SCALE8 + fraction(14000000, intel, (1 + intel), HALFUP)))
+    let second8 = (sqrt(dex, 0, 8, HALFUP) / 10)
+    let third8 = ((SCALE8 / 5) * endur)
+    ((first8 + second8) + third8)
+    }
+
+
+func isWin (userTickets,totalTickets,numPrizes,random4) = {
+    let a4 = fraction(M4, (totalTickets - userTickets), totalTickets)
+    let p4 = pow(a4, 4, numPrizes, 0, 4, DOWN)
+    ((M4 - random4) > p4)
+    }
+
+
+let M6 = 1000000
+
+let M8 = 100000000
+
+let MILLION6 = 100000000000000
+
+let TEAMSHARE = 200000
+
+let ACTIVITYSHARE = 100000
+
+let PLAYERSHARE = 400000
+
+let YEARMILLIS = 31557600000
+
+let CHECKTIME = 47336400000
+
+let DAYMILLIS = 86400000
+
+let BANK_FEE = 50000
+
+let ch = take(drop(this.bytes, 1), 1)
+
+let USDT_TVL_CORRECTION = match ch {
+    case _ => 
+        if ((base58'2W' == $match0))
+            then 1208630000
+            else if ((base58'2T' == $match0))
+                then 0
+                else throw("Unknown chain")
+}
+
+let teamAddrKey = "teamAddr"
+
+let lastTeamTimeKey = "lastClaimedTime_team"
+
+let teamAmountLeftKey = "teamAmountLeft"
+
+let lastActivitiesTimeKey = "lastClaimedTime_activities"
+
+let actAmountLeftKey = "activitiesAmountLeft"
+
+let stakersAmountLeftKey = "stakersAmountLeft"
+
+func keyLastClaimedTimeByUserOld (addr) = ("lastClaimedTimeUserOld_" + addr)
+
+
+func keyLastClaimedTimeByUser (addr) = ("lastClaimedTimeUser_" + addr)
+
+
+func keyLastWlgTradeTimeByUser (addr) = ("lastArbTimeUser_" + addr)
+
+
+func keyLastWlgTradeLimitByUser (addr) = ("lastWlgLimitUser_" + addr)
+
+
+func distributionByPeriod (period) = fraction(MILLION6, (PLAYERSHARE * (period + 1)), (6 * M6))
+
+
+let wlgIssueTimeKey = "wlg_issueTime"
+
+let wlgIssuedAmountKey = "wlg_issuedAmount"
+
+let zbIssuedAmountKey = "zbill_issuedAmount"
+
+func keyAcresStakedAmountByUser (addr) = ("acresStakedAmountByUser_" + addr)
+
+
+func keyAcresLockedAmountByUser (addr) = ("acresLockedAmountByUser_" + addr)
+
+
+func keyAcresLockedEtaByUser (addr) = ("acresLockedEtaByUser_" + addr)
+
+
+let acresStakedTotalKey = "acresStakedAmountTotal"
+
+func keyWlgStakedAmountByUser (addr) = ("wlgStakedAmountByUser_" + addr)
+
+
+let wlgStakedTotalKey = "wlgStakedAmountTotal"
+
+func keyWlgStakedTimeByUser (addr) = ("wlgStakedTimeByUser_" + addr)
+
+
+let dappRest = 0
+
+let dappStaking = 1
+
+let dappEconomy = 2
+
+let dappWlg = 3
+
+let dappPuzzle = 4
+
+let dappInvestFund = 5
+
+let dappAcres = 6
+
+func getLands (userAddrStrOrEmpty,stakingContract,acresContract) = {
+    let props = split(valueOrElse(getString(stakingContract, "resTypesProportions"), "0_0_0_0_0_0"), "_")
+    func adder (acc,item) =     (acc + parseIntValue(item))
+
+    let totalPieces = {
+        let $l = props
+        let $s = size($l)
+        let $acc0 = 0
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else adder($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 6")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6)
+        }
+    let userPieces = valueOrElse(getInteger(stakingContract, ("stakedPiecesByOwner_" + userAddrStrOrEmpty)), 0)
+    let totalAcres = valueOrElse(getInteger(acresContract, acresStakedTotalKey), 0)
+    let userAcres = valueOrElse(getInteger(acresContract, keyAcresStakedAmountByUser(userAddrStrOrEmpty)), 0)
+[totalPieces, userPieces, totalAcres, userAcres]
+    }
+
+
+let idxTotalPieces = 0
+
+let idxUserPieces = 1
+
+let idxTotalAcres = 2
+
+let idxUserAcres = 3
+
+let OLD_STAKING_DEADL = 1733346000000
+
+let MAX_LANDS_TO_CONVERT = 14
+
+func getWlgStats (userAddrOpt,contracts,usdtId,usdtBalanceCorrection,userProportion6) = {
+    let issuedAmount = valueOrErrorMessage(getInteger(contracts[dappWlg], wlgIssuedAmountKey), "WLGOLD is not issued yet")
+    let economyUsd = assetBalance(contracts[dappEconomy], usdtId)
+    let restUsd = assetBalance(contracts[dappRest], usdtId)
+    let wlgUsd = (assetBalance(contracts[dappWlg], usdtId) - usdtBalanceCorrection)
+    let puzzleUsd = assetBalance(contracts[dappPuzzle], usdtId)
+    let investFndContract = contracts[dappInvestFund]
+    let investFundTotal = (assetBalance(investFndContract, usdtId) + valueOrElse(getInteger(investFndContract, zbIssuedAmountKey), 0))
+    let totalFundsUsd = ((economyUsd + wlgUsd) + investFundTotal)
+    let wlgId = valueOrErrorMessage(getBinary(contracts[dappWlg], "wlg_assetId"), "Not initialized yet")
+    let now = lastBlock.timestamp
+    let issueTime = valueOrErrorMessage(getInteger(contracts[dappWlg], wlgIssueTimeKey), "Not initialized")
+    let bankWlgold = assetBalance(contracts[dappStaking], wlgId)
+    let teamTotal = fraction(MILLION6, TEAMSHARE, M6)
+    let teamAmountLeft = valueOrElse(getInteger(contracts[dappWlg], teamAmountLeftKey), teamTotal)
+    let lastTeamTime = valueOrElse(getInteger(contracts[dappWlg], lastTeamTimeKey), issueTime)
+    let teamAddr = addressFromStringValue(value(getString(contracts[dappWlg], teamAddrKey)))
+    let teamAmountAvailableNow = min([fraction(teamTotal, (now - lastTeamTime), (3 * YEARMILLIS)), teamAmountLeft])
+    let teamWlgold = assetBalance(teamAddr, wlgId)
+    let actTotal = fraction(MILLION6, ACTIVITYSHARE, M6)
+    let actAmountLeft = valueOrElse(getInteger(contracts[dappWlg], actAmountLeftKey), actTotal)
+    let lastActivitiesTime = valueOrElse(getInteger(contracts[dappWlg], lastActivitiesTimeKey), issueTime)
+    let actAmountAvailableNow = min([fraction(actTotal, (now - lastActivitiesTime), (3 * YEARMILLIS)), actAmountLeft])
+    let actWlgold = assetBalance(contracts[dappRest], wlgId)
+    let lastUserTime = valueOrElse(getInteger(contracts[dappWlg], keyLastClaimedTimeByUserOld(userAddrOpt)), issueTime)
+    let lastUserPeriod = ((lastUserTime - issueTime) / YEARMILLIS)
+    let nowLimited = min([min([now, (issueTime + (3 * YEARMILLIS))]), OLD_STAKING_DEADL])
+    let curPeriod = min([((now - issueTime) / YEARMILLIS), 2])
+    let eff = getLands(userAddrOpt, contracts[dappStaking], contracts[dappAcres])
+    let curPeriodDistribution = distributionByPeriod(curPeriod)
+    let $t079143 = if ((lastUserPeriod == curPeriod))
+        then {
+            let a0 = fraction(curPeriodDistribution, (nowLimited - lastUserTime), YEARMILLIS)
+            let userPart = fraction(a0, userProportion6, M6)
+            let effTime = (lastUserTime + fraction((nowLimited - lastUserTime), userProportion6, M6))
+            $Tuple3(userPart, a0, effTime)
+            }
+        else if ((lastUserPeriod == (curPeriod - 1)))
+            then {
+                let a1 = fraction(distributionByPeriod((curPeriod - 1)), ((issueTime + (YEARMILLIS * curPeriod)) - lastUserTime), YEARMILLIS)
+                let a0 = fraction(curPeriodDistribution, (nowLimited - (issueTime + (YEARMILLIS * curPeriod))), YEARMILLIS)
+                let avail = (a1 + a0)
+                let userPart = fraction(avail, userProportion6, M6)
+                let effTime = if ((a1 >= userPart))
+                    then (lastUserTime + fraction(YEARMILLIS, userPart, distributionByPeriod((curPeriod - 1))))
+                    else ((issueTime + (YEARMILLIS * curPeriod)) + fraction(YEARMILLIS, (userPart - a1), curPeriodDistribution))
+                $Tuple3(userPart, avail, effTime)
+                }
+            else {
+                let a2 = fraction(distributionByPeriod((curPeriod - 2)), ((issueTime + (YEARMILLIS * (curPeriod - 1))) - lastUserTime), YEARMILLIS)
+                let a1 = distributionByPeriod((curPeriod - 1))
+                let a0 = fraction(curPeriodDistribution, (nowLimited - (issueTime + (YEARMILLIS * curPeriod))), YEARMILLIS)
+                let avail = ((a2 + a1) + a0)
+                let userPart = fraction(avail, userProportion6, M6)
+                let effTime = if ((a2 >= userPart))
+                    then (lastUserTime + fraction(YEARMILLIS, userPart, distributionByPeriod((curPeriod - 2))))
+                    else if (((a2 + a1) >= userPart))
+                        then ((issueTime + (YEARMILLIS * (curPeriod - 1))) + fraction(YEARMILLIS, (userPart - a2), distributionByPeriod((curPeriod - 1))))
+                        else ((issueTime + (YEARMILLIS * curPeriod)) + fraction(YEARMILLIS, ((userPart - a2) - a1), curPeriodDistribution))
+                $Tuple3(userPart, avail, effTime)
+                }
+    let userAmount = $t079143._1
+    let userAvailable = $t079143._2
+    let effLastTime = $t079143._3
+    let sLandDailyAmount = fraction(fraction(curPeriodDistribution, DAYMILLIS, YEARMILLIS), 25, eff[idxTotalPieces])
+    let amountLeftTotal = valueOrElse(getInteger(contracts[dappWlg], stakersAmountLeftKey), 0)
+    let userTemp = fraction(userAmount, ((eff[idxUserPieces] * M8) + eff[idxUserAcres]), ((eff[idxTotalPieces] * M8) + eff[idxTotalAcres]))
+    let bankFromUser = fraction(userTemp, BANK_FEE, M6)
+    let robbedUser = (userTemp - bankFromUser)
+    let unrobbedUser = fraction(userAvailable, ((eff[idxUserPieces] * M8) + eff[idxUserAcres]), ((eff[idxTotalPieces] * M8) + eff[idxTotalAcres]))
+[issuedAmount, fraction((totalFundsUsd - USDT_TVL_CORRECTION), M8, issuedAmount), totalFundsUsd, economyUsd, restUsd, wlgUsd, puzzleUsd, issueTime, lastTeamTime, teamTotal, teamAmountLeft, teamAmountAvailableNow, teamWlgold, actTotal, actAmountLeft, actAmountAvailableNow, actWlgold, curPeriod, amountLeftTotal, curPeriodDistribution, lastUserTime, robbedUser, sLandDailyAmount, investFundTotal, unrobbedUser, effLastTime, bankWlgold]
+    }
+
+
+let M6_ = 1000000
+
+let M8_ = 100000000
+
+let MILL6 = 100000000000000
+
+let TEAM_SHARE = 200000
+
+let ACTIVITY_SHARE = 100000
+
+let PLAYER_SHARE = 400000
+
+let YEAR_MILLIS = 31557600000
+
+let DAY_MS = 86400000
+
+let ISSUE10 = 1000000000
+
+let PLAYERS10_SHARE = 800000
+
+let MARKETING10_SHARE = 100000
+
+let TEAM10_SHARE = 100000
+
+let NEW_STAKING_START = 1731279600000
+
+let BONUS_FP_DIVISOR = 10
+
+let marketingAddrKey = "marketingAddr"
+
+let teamAdrKey = "teamAddr"
+
+let lastTeamTimKey = "lastClaimedTime_team"
+
+let teamAmtLeftKey = "teamAmountLeft"
+
+let lastActivitiesTimKey = "lastClaimedTime_activities"
+
+let actAmtLeftKey = "activitiesAmountLeft"
+
+let stakersAmtLeftKey = "stakersAmountLeft"
+
+func keyLastClaimTimeByUser (addr) = ("lastClaimedTimeUser_" + addr)
+
+
+func distrByPeriod (issuedAmount,period) = fraction(issuedAmount, (PLAYER_SHARE * (period + 1)), (6 * M6_))
+
+
+let wlgIssue10TimeKey = "wlg_issue10Time"
+
+let wlgIssueTimKey = "wlg_issueTime"
+
+let wlgIssuedAmtKey = "wlg_issuedAmount"
+
+let zbIssuedAmtKey = "zbill_issuedAmount"
+
+func keyAcresStakedAmtByUser (addr) = ("acresStakedAmountByUser_" + addr)
+
+
+func keyFarmingPowerByUser (addr) = ("farmingPowerByUser_" + addr)
+
+
+let acresStakdTotalKey = "acresStakedAmountTotal"
+
+let totalFarmingPowerKey = "totalFarmingPower"
+
+let dapp2Rest = 0
+
+let dapp2Staking = 1
+
+let dapp2Wlg = 2
+
+let dapp2Puzzle = 3
+
+let dapp2InvestFund = 4
+
+let IdxDtx3PercConversion = 0
+
+let IdxDtx1PercGemWinner = 1
+
+let IdxNextAvailableIndex = 2
+
+let DEFAULT_WEEKLY_PRIZES = 5
+
+let MAX_WL_NFTS = 3
+
+let MAX_ARK_NFTS = 1
+
+let ARK_NFT_BONUS = 5000
+
+let ACRES_FOR_BET = 100000000
+
+let keyNftTotalIssued = "nftTotalIssued"
+
+let keyNftTotalBurned = "nftTotalBurned"
+
+let keyWlNftTotalStaked = "WlNftTotalStaked"
+
+let keyArkNftTotalStaked = "ArkNftTotalStaked"
+
+func keyNftNumberByAssetId (assetId) = ("nftNumberByAssetId_" + assetId)
+
+
+func keyUserWlNftNumber (addr) = ("userWlNftNumber_" + addr)
+
+
+func keyUserArkNftNumber (addr) = ("userArkNftNumber_" + addr)
+
+
+func keyUserFullBonus (addr) = ("userFullBonus_" + addr)
+
+
+let levelAcres = [0, 10, 20, 40, 80, 150, 250, 400, 700, 1000]
+
+func getLevelByAcres (acres) = {
+    let acr = ((acres + 99999999) / M8_)
+    func checker (acc,item) =     if ((item >= acr))
+        then acc
+        else (acc + 1)
+
+    let $l = levelAcres
+    let $s = size($l)
+    let $acc0 = 0
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else checker($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 10")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+    }
+
+
+func getFarmingPowerByAcres (acres) = ((acres * 20) * (getLevelByAcres(acres) + 4))
+
+
+func getFarmingPowerByAcresAndBonus (acres,bonus6) = {
+    let notBonused = getFarmingPowerByAcres(acres)
+    $Tuple2(fraction(notBonused, (M6_ + bonus6), M6_), notBonused)
+    }
+
+
+func getFarmingPowers (userAddrStrOrEmpty,acres2Contract) = {
+    let totalFP = valueOrElse(getInteger(acres2Contract, totalFarmingPowerKey), 0)
+    let userAcres = valueOrElse(getInteger(acres2Contract, keyAcresStakedAmtByUser(userAddrStrOrEmpty)), 0)
+    let userBonus = valueOrElse(getInteger(acres2Contract, keyUserFullBonus(userAddrStrOrEmpty)), 0)
+    let $t079143 = getFarmingPowerByAcresAndBonus(userAcres, userBonus)
+    let userFPbonused = $t079143._1
+    let userFPnotBonused = $t079143._2
+[totalFP, userFPbonused, userFPnotBonused, userBonus]
+    }
+
+
+let idxTotalFP = 0
+
+let idxUserFPbonused = 1
+
+let idxUserFPnotBonused = 2
+
+let idxUserBonus = 3
+
+func getWlgStats2 (userAddrOpt,contracts,usdtId,usdtBalanceCorrection,now) = {
+    let issuedAmount = valueOrErrorMessage(getInteger(contracts[dapp2Wlg], wlgIssuedAmtKey), "WLGOLD is not issued yet")
+    let restUsd = assetBalance(contracts[dapp2Rest], usdtId)
+    let wlgUsd = (assetBalance(contracts[dapp2Wlg], usdtId) - usdtBalanceCorrection)
+    let puzzleUsd = assetBalance(contracts[dapp2Puzzle], usdtId)
+    let acres2Usd = assetBalance(contracts[dapp2Staking], usdtId)
+    let investFndContract = contracts[dapp2InvestFund]
+    let investFundTotal = (assetBalance(investFndContract, usdtId) + valueOrElse(getInteger(investFndContract, zbIssuedAmtKey), 0))
+    let totalFundsUsd = ((acres2Usd + wlgUsd) + investFundTotal)
+    let wlgId = valueOrErrorMessage(getBinary(contracts[dapp2Wlg], "wlg_assetId"), "Not initialized yet")
+    let issueTime = valueOrErrorMessage(getInteger(contracts[dapp2Wlg], wlgIssueTimKey), "Not initialized")
+    let wlgWlg = assetBalance(contracts[dapp2Wlg], wlgId)
+    let teamTotal = fraction(issuedAmount, TEAM_SHARE, M6_)
+    let teamAmountLeft = valueOrElse(getInteger(contracts[dapp2Wlg], teamAmtLeftKey), teamTotal)
+    let lastTeamTime = valueOrElse(getInteger(contracts[dapp2Wlg], lastTeamTimKey), issueTime)
+    let teamAddr = addressFromStringValue(value(getString(contracts[dapp2Wlg], teamAdrKey)))
+    let teamAmountAvailableNow = min([fraction(teamTotal, (now - lastTeamTime), (3 * YEAR_MILLIS)), teamAmountLeft])
+    let teamWlgold = assetBalance(teamAddr, wlgId)
+    let actTotal = fraction(issuedAmount, ACTIVITY_SHARE, M6_)
+    let actAmountLeft = valueOrElse(getInteger(contracts[dapp2Wlg], actAmtLeftKey), actTotal)
+    let lastActivitiesTime = valueOrElse(getInteger(contracts[dapp2Wlg], lastActivitiesTimKey), issueTime)
+    let actAmountAvailableNow = min([fraction(actTotal, (now - lastActivitiesTime), (3 * YEAR_MILLIS)), actAmountLeft])
+    let actWlgold = assetBalance(contracts[dapp2Rest], wlgId)
+    let lastUserTime = valueOrElse(getInteger(contracts[dapp2Wlg], keyLastClaimTimeByUser(userAddrOpt)), issueTime)
+    let lastUserPeriod = ((lastUserTime - issueTime) / YEAR_MILLIS)
+    let nowLimited = min([now, (issueTime + (3 * YEAR_MILLIS))])
+    let curPeriod = min([((now - issueTime) / YEAR_MILLIS), 2])
+    let eff = getFarmingPowers(userAddrOpt, contracts[dapp2Staking])
+    let curPeriodDistribution = distrByPeriod(issuedAmount, curPeriod)
+    let prevPeriodEnd = (issueTime + (YEAR_MILLIS * curPeriod))
+    let prevPrevPeriodEnd = (issueTime + (YEAR_MILLIS * (curPeriod - 1)))
+    let a0 = fraction(curPeriodDistribution, (nowLimited - lastUserTime), YEAR_MILLIS)
+    let userAvailable = if ((lastUserPeriod == curPeriod))
+        then a0
+        else if ((lastUserPeriod == (curPeriod - 1)))
+            then {
+                let a1 = fraction(distrByPeriod(issuedAmount, (curPeriod - 1)), (prevPeriodEnd - lastUserTime), YEAR_MILLIS)
+                (a1 + a0)
+                }
+            else {
+                let a2 = fraction(distrByPeriod(issuedAmount, (curPeriod - 2)), (prevPrevPeriodEnd - lastUserTime), YEAR_MILLIS)
+                let a1 = distrByPeriod(issuedAmount, (curPeriod - 1))
+                ((a2 + a1) + a0)
+                }
+    let amountLeftTotal = valueOrElse(getInteger(contracts[dapp2Wlg], stakersAmtLeftKey), 0)
+    let userAmount = if ((eff[idxTotalFP] != 0))
+        then fraction(userAvailable, eff[idxUserFPbonused], eff[idxTotalFP])
+        else 0
+    let lastIssue10Time = valueOrElse(getInteger(contracts[dapp2Wlg], wlgIssue10TimeKey), NEW_STAKING_START)
+    let issue10Amount = fraction(ISSUE10, max([(now - lastIssue10Time), 0]), DAY_MS)
+    let marketingIssue10Amount = fraction(issue10Amount, MARKETING10_SHARE, M6_)
+    let teamIssue10Amount = fraction(issue10Amount, TEAM10_SHARE, M6_)
+    let user10Interval = max([(now - max([NEW_STAKING_START, lastUserTime])), 0])
+    let user10part = if ((eff[idxTotalFP] != 0))
+        then fraction(fraction(fraction(ISSUE10, user10Interval, DAY_MS), eff[idxUserFPbonused], eff[idxTotalFP]), PLAYERS10_SHARE, M6_)
+        else 0
+    let newIssue10Time = max([NEW_STAKING_START, now])
+    let acresStakedTotal = valueOrElse(getInteger(contracts[dapp2Staking], acresStakdTotalKey), 0)
+    let nftTotalIssued = valueOrElse(getInteger(contracts[dapp2Staking], keyNftTotalIssued), 0)
+    let nftTotalBurned = valueOrElse(getInteger(contracts[dapp2Staking], keyNftTotalBurned), 0)
+    let wlNftTotalStaked = valueOrElse(getInteger(contracts[dapp2Staking], keyWlNftTotalStaked), 0)
+    let wlNftUserStaked = valueOrElse(getInteger(contracts[dapp2Staking], keyUserWlNftNumber(valueOrElse(userAddrOpt, ""))), 0)
+[issuedAmount, wlgWlg, fraction(totalFundsUsd, M8_, issuedAmount), totalFundsUsd, restUsd, acres2Usd, wlgUsd, puzzleUsd, issueTime, lastTeamTime, teamTotal, teamAmountLeft, teamAmountAvailableNow, teamWlgold, actTotal, actAmountLeft, actAmountAvailableNow, actWlgold, curPeriod, amountLeftTotal, curPeriodDistribution, lastUserTime, investFundTotal, userAmount, nowLimited, issue10Amount, marketingIssue10Amount, teamIssue10Amount, user10part, newIssue10Time, eff[idxTotalFP], acresStakedTotal, nftTotalIssued, nftTotalBurned, wlNftTotalStaked, wlNftUserStaked]
+    }
+
+
+let profitAddrKey = "profitAddr"
+
+let stakersAmountPaidTotalKey = "stakersAmountPaidTotal"
+
+func keyStakersAmountPaidUser (addr) = ("stakersAmountPaidUser_" + addr)
+
+
+func prolog2 () = asInt(reentrantInvoke(acres2Contract, "saveLastTx", nil, nil))
+
+
+func getSwapLimitWlgold (addr) = {
+    let lastTime = valueOrElse(getInteger(keyLastWlgTradeTimeByUser(addr)), 0)
+    let defaultLimit = valueOrElse(getInteger(acres2Contract, keyAcresStakedAmountByUser(addr)), 0)
+    let lastLimitLeft = valueOrElse(getInteger(keyLastWlgTradeLimitByUser(addr)), defaultLimit)
+    let currentLimit = (lastLimitLeft + fraction(defaultLimit, (lastBlock.timestamp - lastTime), DAY_MILLIS))
+    min([currentLimit, defaultLimit])
+    }
+
+
+let idxWlgAmount = 0
+
+let idxWlgPrice = 1
+
+let idxWlgFunds = 2
+
+let idxWlgEconomy = 3
+
+let idxWlgActivity = 4
+
+let idxWlgArbitrage = 5
+
+let idxWlgPool = 6
+
+let idxWlgIssueTime = 7
+
+let idxWlgLastTeamActTime = 8
+
+let idxWlgTeamTotal = 9
+
+let idxWlgTeamAmLeft = 10
+
+let idxWlgTeamAmAvailNow = 11
+
+let idxWlgTeamWlgold = 12
+
+let idxWlgActTotal = 13
+
+let idxWlgActAmLeft = 14
+
+let idxWlgActAmAvailNow = 15
+
+let idxWlgActWlgold = 16
+
+let idxWlgCurPeriod = 17
+
+let idxWlgAmLeftTotal = 18
+
+let idxWlgCurPeriodDistribution = 19
+
+let idxWlgLastUserTime = 20
+
+let idxWlgUserAmAvailNow = 21
+
+let idxWlgSLandDailyAmount = 22
+
+let idxWlgInvestFundAmount = 23
+
+let idxWlgUserTotalAvail = 24
+
+let idxWlgEffUserTime = 25
+
+let idxWlgBankWlgold = 26
+
+func claimInternal (addr) = {
+    let caller = addressFromStringValue(addr)
+    let economyContract = addressFromStringValue(economyContractStr)
+    let curStats = getWlgStats(addr, [restContract, stakingContract, economyContract, wlgContract, puzzlePoolContract, investFundContract, acresContract], usdtAssetId, 0, MULT6)
+    let now = lastBlock.timestamp
+    let teamAmountLeft = curStats[idxWlgTeamAmLeft]
+    let teamAmount = curStats[idxWlgTeamAmAvailNow]
+    let actAmountLeft = curStats[idxWlgActAmLeft]
+    let actAmount = curStats[idxWlgActAmAvailNow]
+    let userAmount = curStats[idxWlgUserTotalAvail]
+    let userKey = keyStakersAmountPaidUser(addr)
+    let userTotal = curStats[idxWlgUserTotalAvail]
+    let userEffTime = curStats[idxWlgEffUserTime]
+    $Tuple2([ScriptTransfer(addressFromStringValue(value(getString(teamAddrKey))), teamAmount, wlgAssetId), ScriptTransfer(restContract, actAmount, wlgAssetId), IntegerEntry(userKey, (valueOrElse(getInteger(userKey), 0) + userAmount)), IntegerEntry(stakersAmountPaidTotalKey, (valueOrElse(getInteger(stakersAmountPaidTotalKey), 0) + userTotal)), IntegerEntry(stakersAmountLeftKey, (curStats[idxWlgAmLeftTotal] - userTotal)), IntegerEntry(teamAmountLeftKey, (teamAmountLeft - teamAmount)), IntegerEntry(lastTeamTimeKey, now), IntegerEntry(actAmountLeftKey, (actAmountLeft - actAmount)), IntegerEntry(lastActivitiesTimeKey, now), IntegerEntry(keyLastClaimedTimeByUserOld(addr), userEffTime)], userAmount)
+    }
+
+
+func claimInternal2 (addr) = {
+    let curStats = getWlgStats2(addr, [rest2Contract, acres2Contract, wlgContract, puzzlePoolContract, investFundContract], usdtAssetId, 0, lastBlock.timestamp)
+    let userTimeKey = keyLastClaimTimeByUser(addr)
+    let lastUserTime = valueOrElse(getInteger(userTimeKey), 0)
+    let userEffTime = curStats[ixWlgEffUserTime]
+    if ((lastUserTime == userEffTime))
+        then $Tuple2(nil, 0)
+        else {
+            let now = lastBlock.timestamp
+            let issueTime = curStats[ixWlgIssueTime]
+            let teamAmountLeft = curStats[ixWlgTeamAmLeft]
+            let teamAmount = (curStats[ixWlgTeamAmAvailNow] + curStats[ixWlgTeamIssue10Amount])
+            let teamActions = if ((teamAmount > 0))
+                then [IntegerEntry(teamAmountLeftKey, ((teamAmountLeft - teamAmount) + curStats[ixWlgTeamIssue10Amount])), IntegerEntry(lastTeamTimeKey, now), ScriptTransfer(addressFromStringValue(value(getString(teamAddrKey))), teamAmount, wlgAssetId)]
+                else nil
+            let actAmountLeft = curStats[ixWlgActAmLeft]
+            let actAmount = curStats[ixWlgActAmAvailNow]
+            let actActions = if ((actAmount > 0))
+                then [IntegerEntry(actAmountLeftKey, (actAmountLeft - actAmount)), IntegerEntry(lastActivitiesTimeKey, now), ScriptTransfer(restContract, actAmount, wlgAssetId)]
+                else nil
+            let marketingAmount = curStats[ixWlgMarketingIssue10Amount]
+            let marketingTransfer = if ((marketingAmount > 0))
+                then [ScriptTransfer(addressFromStringValue(value(getString(marketingAddrKey))), marketingAmount, wlgAssetId)]
+                else nil
+            let userAmount = curStats[ixWlgUserAmAvailNow]
+            let userKey = keyStakersAmountPaidUser(addr)
+            let userTotal = (userAmount + curStats[ixWlgUser10part])
+            let issued10Amount = curStats[ixWlgIssue10Amount]
+            $Tuple2(((([Reissue(wlgAssetId, issued10Amount, true), IntegerEntry(wlgIssuedAmountKey, (curStats[ixWlgAmount] + issued10Amount)), IntegerEntry(wlgIssue10TimeKey, curStats[ixWlgIssue10Time]), IntegerEntry(userKey, (valueOrElse(getInteger(userKey), 0) + userAmount)), IntegerEntry(stakersAmountPaidTotalKey, (valueOrElse(getInteger(stakersAmountPaidTotalKey), 0) + userAmount)), IntegerEntry(stakersAmountLeftKey, (curStats[ixWlgAmLeftTotal] - userAmount)), IntegerEntry(userTimeKey, userEffTime)] ++ teamActions) ++ actActions) ++ marketingTransfer), userTotal)
+            }
+    }
+
+
+func takeXpInternal (addr,delta) = {
+    let now = lastBlock.timestamp
+    let timeKey = keyWlgStakedTimeByUser(addr)
+    let amountKey = keyWlgStakedAmountByUser(addr)
+    let lastTime = valueOrElse(getInteger(timeKey), 0)
+    let oldUser = valueOrElse(getInteger(amountKey), 0)
+    let oldTotal = valueOrElse(getInteger(wlgStakedTotalKey), 0)
+    let xp = fraction(fraction(xpWlg, oldUser, wlgBaseAmountXp), (lastTime - now), DAYMILLIS)
+    $Tuple3([IntegerEntry(timeKey, now), IntegerEntry(amountKey, (oldUser + delta)), IntegerEntry(wlgStakedTotalKey, (oldTotal + delta))], xp, oldUser)
+    }
+
+
+func openChestInternal (addr,week,userTickets,totalTickets,lastWeekNumTx) = {
+    let drawWeek = (week - 1)
+    let numPrizes = valueOrElse(getInteger(keyNumPrizes2Draw(drawWeek)), DEFAULT_WEEKLY_PRIZES)
+    let entropy = value(value(blockInfoByHeight((week * WEEK_BLOCKS))).vrf)
+    let salt = fromBase58String(split(lastWeekNumTx, "_")[1])
+    let random4 = getRandomNumber(M4, salt, entropy)
+    if (isWin(userTickets, totalTickets, numPrizes, random4))
+        then {
+            let rnd = getRandomNumber(100, (base58'29' + salt), entropy)
+            let $t083628819 = if ((rnd >= 90))
+                then {
+                    let nftKey = keyNumNFTDrawn(drawWeek)
+                    $Tuple2(invoke(acres2Contract, "issuePickC1", [addr], nil), IntegerEntry(nftKey, (valueOrElse(getInteger(nftKey), 0) + 1)))
+                    }
+                else {
+                    let acresKey = keyAcresDrawn(drawWeek)
+                    $Tuple2(invoke(acresContract, "sendAcresFor", [addr, ACRES_WEEKLY_PRIZE], nil), IntegerEntry(acresKey, (valueOrElse(getInteger(acresKey), 0) + ACRES_WEEKLY_PRIZE)))
+                    }
+            let prizeResult = $t083628819._1
+            let prizeAction = $t083628819._2
+            let winners = getString(keyWeekWinners(drawWeek))
+            let newWinners = if (isDefined(winners))
+                then ((value(winners) + "_") + addr)
+                else addr
+            $Tuple2([prizeAction, DeleteEntry(keyUserWeekTickets(addr, drawWeek)), StringEntry(keyWeekWinners(drawWeek), newWinners)], $Tuple3(prizeResult, random4, rnd))
+            }
+        else {
+            let random1 = (getRandomNumber(9, (base58'29' + salt), entropy) + 1)
+            let consTickets = fraction(userTickets, random1, 10)
+            let ticketsKey = keyUserWeekTickets(addr, week)
+            let oldTickets = valueOrElse(getInteger(ticketsKey), 0)
+            $Tuple2(((if ((consTickets == 0))
+                then nil
+                else {
+                    let commonActions = [IntegerEntry(keyTotalWeekTickets(week), (valueOrElse(getInteger(keyTotalWeekTickets(week)), 0) + consTickets)), IntegerEntry(ticketsKey, (oldTickets + consTickets))]
+                    if ((oldTickets > 0))
+                        then commonActions
+                        else (commonActions :+ IntegerEntry(keyTotalWeekParticipants(week), (valueOrElse(getInteger(keyTotalWeekParticipants(week)), 0) + 1)))
+                    }) :+ DeleteEntry(keyUserWeekTickets(addr, drawWeek))), $Tuple3(consTickets, random4, random1))
+            }
+    }
+
+
+func claimTicketsInternal (addr,userBetStr) = {
+    let week = (height / WEEK_BLOCKS)
+    let ticketsKey = keyUserWeekTickets(addr, week)
+    let dayBet = split(userBetStr, "_")
+    let oldTotalTickets = valueOrElse(getInteger(keyTotalWeekTickets(week)), 0)
+    let oldTickets = valueOrElse(getInteger(ticketsKey), 0)
+    let deltaTickets = if ((winningBet(parseIntValue(dayBet[0])) == parseIntValue(dayBet[1])))
+        then 1
+        else 0
+    let oldParticipants = valueOrElse(getInteger(keyTotalWeekParticipants(week)), 0)
+    let updateParticipants = if (if ((oldTickets == 0))
+        then (deltaTickets == 1)
+        else false)
+        then [IntegerEntry(keyTotalWeekParticipants(week), (oldParticipants + 1))]
+        else nil
+    $Tuple2(if ((deltaTickets == 0))
+        then nil
+        else ((updateParticipants :+ IntegerEntry(ticketsKey, (oldTickets + deltaTickets))) :+ IntegerEntry(keyTotalWeekTickets(week), (oldTotalTickets + deltaTickets))), deltaTickets)
+    }
+
+
+@Callable(i)
+func constructorV1 (restAddr,marketingAddr,teamAddr,profitAddr) = if ((i.caller != this))
+    then throw("Permission denied")
+    else if (isDefined(getBinary(wlgAssetIdKey)))
+        then throw("Already initialized")
+        else {
+            let issuedAmount = MILLION6
+            let issue = Issue("WLGOLD", "WavesLands Gold investment token", issuedAmount, 8, true, unit, 0)
+            let assetId = calculateAssetId(issue)
+[issue, IntegerEntry(wlgIssueTimeKey, lastBlock.timestamp), IntegerEntry(wlgIssuedAmountKey, issuedAmount), IntegerEntry(stakersAmountPaidTotalKey, 0), IntegerEntry(stakersAmountLeftKey, fraction(MILLION6, PLAYERSHARE, MULT6)), BinaryEntry(wlgAssetIdKey, assetId), StringEntry(keyRestAddress(), restAddr), StringEntry(marketingAddrKey, marketingAddr), StringEntry(teamAddrKey, teamAddr), StringEntry(profitAddrKey, profitAddr)]
+            }
+
+
+
+@Callable(i)
+func constructorV2 (rest2Addr) = if ((i.caller != this))
+    then throw("Permission denied")
+    else [StringEntry(keyRest2Address(), rest2Addr)]
+
+
+
+@Callable(i)
+func buyWlg (minToReceive) = {
+    let prologResult = prolog2()
+    if ((prologResult == prologResult))
+        then if ((size(i.payments) != 1))
+            then throw("exactly 1 payment must be attached")
+            else {
+                let pmt = i.payments[0]
+                let usdtAmt = pmt.amount
+                if (if (!(isDefined(pmt.assetId)))
+                    then true
+                    else (value(pmt.assetId) != usdtAssetId))
+                    then throw("USDT payments only!")
+                    else {
+                        let caller = i.caller
+                        let addr = toString(caller)
+                        if ((MINSHOPPAYMENT > usdtAmt))
+                            then throw((("You can trade min " + fixedPoint(MINSHOPPAYMENT, 6)) + " USDT"))
+                            else {
+                                let curStats = getWlgStats2("", [rest2Contract, acres2Contract, wlgContract, puzzlePoolContract, investFundContract], usdtAssetId, usdtAmt, lastBlock.timestamp)
+                                let curWlgAmount = curStats[ixWlgAmount]
+                                let wlgPrice = curStats[ixWlgPrice]
+                                let buyPrice = fraction(wlgPrice, 6, 5, CEILING)
+                                let wlgAmount = fraction(usdtAmt, MULT8, buyPrice)
+                                let maxWlg = getSwapLimitWlgold(addr)
+                                if ((wlgAmount > maxWlg))
+                                    then throw((("You can get max " + fixedPoint(maxWlg, 8)) + " WLGOLD at the moment"))
+                                    else if ((minToReceive > wlgAmount))
+                                        then throw("Price changed during operation, please try again")
+                                        else {
+                                            let profitAmount = (usdtAmt / 6)
+                                            $Tuple2([Reissue(wlgAssetId, wlgAmount, true), IntegerEntry(wlgIssuedAmountKey, (curWlgAmount + wlgAmount)), IntegerEntry(keyLastWlgTradeTimeByUser(addr), lastBlock.timestamp), IntegerEntry(keyLastWlgTradeLimitByUser(addr), (maxWlg - wlgAmount)), ScriptTransfer(addressFromStringValue(value(getString(profitAddrKey))), profitAmount, usdtAssetId), ScriptTransfer(caller, wlgAmount, wlgAssetId)], prologResult)
+                                            }
+                                }
+                        }
+                }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func buyWlgREADONLY (address,usdtAmt) = {
+    let curStats = getWlgStats2("", [rest2Contract, acres2Contract, wlgContract, puzzlePoolContract, investFundContract], usdtAssetId, usdtAmt, lastBlock.timestamp)
+    let wlgPrice = curStats[ixWlgPrice]
+    let buyPrice = fraction(wlgPrice, 6, 5, CEILING)
+    let wlgAmount = fraction(usdtAmt, MULT8, buyPrice)
+    let maxWlg = getSwapLimitWlgold(address)
+    let maxUsdt = fraction(maxWlg, buyPrice, MULT8)
+    let profitAmount = (usdtAmt / 6)
+    $Tuple2(nil, [wlgAmount, MINSHOPPAYMENT, maxUsdt, profitAmount])
+    }
+
+
+
+@Callable(i)
+func sellWlg (minAmount) = {
+    let prologResult = prolog2()
+    if ((prologResult == prologResult))
+        then if ((size(i.payments) != 1))
+            then throw("exactly 1 payment must be attached")
+            else {
+                let pmt = i.payments[0]
+                let wlgAmt = pmt.amount
+                let caller = i.caller
+                let addr = toString(caller)
+                let maxWlg = getSwapLimitWlgold(addr)
+                if ((wlgAmt > maxWlg))
+                    then throw((("You can spend max " + fixedPoint(maxWlg, 8)) + " WLGOLD at the moment"))
+                    else if (if (!(isDefined(pmt.assetId)))
+                        then true
+                        else (value(pmt.assetId) != wlgAssetId))
+                        then throw("WLGOLD payments only!")
+                        else {
+                            let curStats = getWlgStats2("", [rest2Contract, acres2Contract, wlgContract, puzzlePoolContract, investFundContract], usdtAssetId, 0, lastBlock.timestamp)
+                            let curWlgAmount = curStats[ixWlgAmount]
+                            let sellPrice = (curStats[ixWlgPrice] / 2)
+                            let usdtAmt = fraction(wlgAmt, sellPrice, MULT8)
+                            if ((MINSHOPPAYMENT > usdtAmt))
+                                then throw((("You can trade min " + fixedPoint(MINSHOPPAYMENT, 6)) + " USDT"))
+                                else if ((minAmount > usdtAmt))
+                                    then throw("Price changed during operation, please try again")
+                                    else {
+                                        let profitAmount = (usdtAmt / 5)
+                                        $Tuple2([Burn(wlgAssetId, wlgAmt), IntegerEntry(wlgIssuedAmountKey, (curWlgAmount - wlgAmt)), IntegerEntry(keyLastWlgTradeTimeByUser(addr), lastBlock.timestamp), IntegerEntry(keyLastWlgTradeLimitByUser(addr), (maxWlg - wlgAmt)), ScriptTransfer(addressFromStringValue(value(getString(profitAddrKey))), profitAmount, usdtAssetId), ScriptTransfer(caller, usdtAmt, usdtAssetId)], prologResult)
+                                        }
+                            }
+                }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func sellWlgREADONLY (address,wlgAmt) = {
+    let maxWlg = getSwapLimitWlgold(address)
+    let curStats = getWlgStats2("", [rest2Contract, acres2Contract, wlgContract, puzzlePoolContract, investFundContract], usdtAssetId, 0, lastBlock.timestamp)
+    let sellPrice = (curStats[ixWlgPrice] / 2)
+    let usdtAmt = fraction(wlgAmt, sellPrice, MULT8)
+    let minWlg = fraction(MINSHOPPAYMENT, MULT8, sellPrice)
+    let profitAmount = (usdtAmt / 5)
+    $Tuple2(nil, [usdtAmt, minWlg, maxWlg, profitAmount])
+    }
+
+
+
+@Callable(i)
+func claim () = {
+    let prologResult = prolog2()
+    if ((prologResult == prologResult))
+        then if ((size(i.payments) != 0))
+            then throw("No payments required")
+            else {
+                let $t01663016699 = claimInternal2(toString(i.caller))
+                let actions = $t01663016699._1
+                let wlgClaimedAmount = $t01663016699._2
+                $Tuple2((actions :+ ScriptTransfer(i.caller, wlgClaimedAmount, wlgAssetId)), prologResult)
+                }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func onStakeUnstakeLand (addr) = if (if (if ((i.caller != stakingContract))
+    then (i.caller != acresContract)
+    else false)
+    then (i.caller != acres2Contract)
+    else false)
+    then throw("Permission denied")
+    else {
+        let $t01701917076 = claimInternal2(addr)
+        if (($t01701917076 == $t01701917076))
+            then {
+                let wlgClaimedAmount = $t01701917076._2
+                let actions = $t01701917076._1
+                $Tuple2(if ((wlgClaimedAmount > 0))
+                    then (actions :+ ScriptTransfer(addressFromStringValue(addr), wlgClaimedAmount, wlgAssetId))
+                    else actions, wlgClaimedAmount)
+                }
+            else throw("Strict value is not equal to itself.")
+        }
+
+
+
+@Callable(i)
+func onStakeUnstakeLandOld (addr) = if (if (if ((i.caller != stakingContract))
+    then (i.caller != acresContract)
+    else false)
+    then (i.caller != acres2Contract)
+    else false)
+    then throw("Permission denied")
+    else {
+        let $t01745917515 = claimInternal(addr)
+        if (($t01745917515 == $t01745917515))
+            then {
+                let wlgClaimedAmount = $t01745917515._2
+                let actions = $t01745917515._1
+                $Tuple2(if ((wlgClaimedAmount > 0))
+                    then (actions :+ ScriptTransfer(addressFromStringValue(addr), wlgClaimedAmount, wlgAssetId))
+                    else nil, wlgClaimedAmount)
+                }
+            else throw("Strict value is not equal to itself.")
+        }
+
+
+
+@Callable(i)
+func burnWlgold (wlgAmt) = if (if ((i.caller != acres2Contract))
+    then (i.caller != marketContract)
+    else false)
+    then throw("Permission denied")
+    else {
+        let curStats = getWlgStats2("", [rest2Contract, acres2Contract, wlgContract, puzzlePoolContract, investFundContract], usdtAssetId, 0, lastBlock.timestamp)
+        if ((wlgAmt > curStats[ixWlgWlg]))
+            then throw(((("Only " + fixedPoint(curStats[ixWlgWlg], 8)) + " WLGOLD left on contract, can't burn ") + fixedPoint(wlgAmt, 8)))
+            else {
+                let wlgAmountLeft = (curStats[ixWlgAmount] - wlgAmt)
+                $Tuple2([Burn(wlgAssetId, wlgAmt), IntegerEntry(wlgIssuedAmountKey, wlgAmountLeft)], wlgAmountLeft)
+                }
+        }
+
+
+
+@Callable(i)
+func betForTicket (bet) = {
+    let prologResult = prolog2()
+    if ((prologResult == prologResult))
+        then if ((size(i.payments) != 0))
+            then throw("No payments required")
+            else {
+                let addr = toString(i.caller)
+                let drawWeek = ((height / WEEK_BLOCKS) - 1)
+                let userTickets = valueOrElse(getInteger(keyUserWeekTickets(addr, drawWeek)), 0)
+                let weekTickets = valueOrElse(getInteger(keyTotalWeekTickets(drawWeek)), 0)
+                if (if ((userTickets > 0))
+                    then (weekTickets > 0)
+                    else false)
+                    then throw("Please open the chest first")
+                    else if (((bet / 4) != 0))
+                        then throw("Invalid bet: should be 0..3")
+                        else {
+                            let moment = (height % DAY_BLOCKS)
+                            if ((moment > (DAY_BLOCKS - 3)))
+                                then throw((("Cannot bet: the day is almost ended, please wait " + toString((DAY_BLOCKS - moment))) + " blocks"))
+                                else {
+                                    let stakedAcres = valueOrElse(getInteger(acres2Contract, keyAcresStakedAmtByUser(addr)), 0)
+                                    if ((ACRES_FOR_BET > stakedAcres))
+                                        then throw((("You need to stake at least " + fixedPoint(ACRES_FOR_BET, 8)) + " ACRES to bet"))
+                                        else {
+                                            let tomorrow = ((height / DAY_BLOCKS) + 1)
+                                            let betKey = keyUserBet(addr)
+                                            let oldUserBetStr = getString(betKey)
+                                            let newBetEntry = StringEntry(betKey, ((toString(tomorrow) + "_") + toString(bet)))
+                                            if (isDefined(oldUserBetStr))
+                                                then {
+                                                    let userBet = value(oldUserBetStr)
+                                                    if ((split(userBet, "_")[0] == toString(tomorrow)))
+                                                        then throw("You already bet for tomorrow")
+                                                        else {
+                                                            let r = claimTicketsInternal(addr, userBet)
+                                                            $Tuple2((r._1 :+ newBetEntry), r._2)
+                                                            }
+                                                    }
+                                                else $Tuple2([newBetEntry], 0)
+                                            }
+                                    }
+                            }
+                }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func takeWlgXp (addr) = if ((i.caller != stakingContract))
+    then throw("Permission denied")
+    else {
+        let $t02016820211 = takeXpInternal(addr, 0)
+        let actions = $t02016820211._1
+        let xp = $t02016820211._2
+        $Tuple2(actions, xp)
+        }
+
+
+
+@Callable(i)
+func checkWlgXpREADONLY (addr) = {
+    let $t02028820336 = takeXpInternal(addr, 0)
+    let ignored = $t02028820336._1
+    let deltaXP = $t02028820336._2
+    let newXP = (valueOrElse(getInteger(stakingContract, keyUserXP(addr)), 0) + deltaXP)
+    let lvlPoints = levelUp(valueOrElse(getInteger(stakingContract, keyUserLevel(addr)), 0), newXP)
+    $Tuple2(nil, (lvlPoints :+ newXP))
+    }
+
+
+
+@Callable(i)
+func setNumPrizes (numPrizes) = if ((i.caller != this))
+    then throw("Permission denied")
+    else {
+        let week = (height / WEEK_BLOCKS)
+        $Tuple2([IntegerEntry(keyNumPrizes2Draw(week), numPrizes)], numPrizes)
+        }
+
+
+
+@Callable(i)
+func openChest () = {
+    let prologResult = prolog2()
+    if ((prologResult == prologResult))
+        then if ((size(i.payments) != 0))
+            then throw("No payments required")
+            else {
+                let week = (height / WEEK_BLOCKS)
+                let drawWeek = (week - 1)
+                let addr = toString(i.caller)
+                let userTickets = valueOrElse(getInteger(keyUserWeekTickets(addr, drawWeek)), 0)
+                if ((0 >= userTickets))
+                    then throw("No gems to open the chest")
+                    else {
+                        let totalTickets = valueOrElse(getInteger(keyTotalWeekTickets(drawWeek)), 0)
+                        if ((0 >= totalTickets))
+                            then throw("No participants")
+                            else {
+                                let lastWeekNumTx = valueOrElse(getString(acres2Contract, keyLastWeekTxIdByUser(addr)), "42_DEFAULT")
+                                openChestInternal(addr, week, userTickets, totalTickets, lastWeekNumTx)
+                                }
+                        }
+                }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func addGemsFor (addr,deltaTickets) = if ((i.caller != this))
+    then throw("Permission denied")
+    else {
+        let week = (height / WEEK_BLOCKS)
+        let ticketsKey = keyUserWeekTickets(addr, week)
+        let oldTotalTickets = valueOrElse(getInteger(keyTotalWeekTickets(week)), 0)
+        let oldTickets = valueOrElse(getInteger(ticketsKey), 0)
+        let oldParticipants = valueOrElse(getInteger(keyTotalWeekParticipants(week)), 0)
+        let updateParticipants = if (if ((oldTickets == 0))
+            then (deltaTickets == 1)
+            else false)
+            then [IntegerEntry(keyTotalWeekParticipants(week), (oldParticipants + 1))]
+            else nil
+        $Tuple2(((updateParticipants :+ IntegerEntry(ticketsKey, (oldTickets + deltaTickets))) :+ IntegerEntry(keyTotalWeekTickets(week), (oldTotalTickets + deltaTickets))), deltaTickets)
+        }
+

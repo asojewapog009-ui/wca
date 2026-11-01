@@ -1,0 +1,522 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let separator = "__"
+
+let MULT8 = 100000000
+
+let wavesString = "WAVES"
+
+let statusInProgress = "inProgress"
+
+let statusAccepted = "accepted"
+
+let statusRejected = "rejected"
+
+func wrapErr (msg) = makeString(["voting_verified_v2.ride:", msg], " ")
+
+
+func throwErr (msg) = throw(wrapErr(msg))
+
+
+func asInt (val) = match val {
+    case valInt: Int => 
+        valInt
+    case _ => 
+        throw("Failed to cast into Integer")
+}
+
+
+func parseAssetId (input) = if ((input == wavesString))
+    then unit
+    else fromBase58String(input)
+
+
+func assetIdToString (input) = if ((input == unit))
+    then wavesString
+    else toBase58String(value(input))
+
+
+func getIntegerOrZero (address,key) = valueOrElse(getInteger(address, key), 0)
+
+
+func getIntegerOrFail (address,key) = valueOrErrorMessage(getInteger(address, key), wrapErr((key + " is not defined")))
+
+
+func getStringOrEmpty (address,key) = valueOrElse(getString(address, key), "")
+
+
+func getStringOrFail (address,key) = valueOrErrorMessage(getString(address, key), wrapErr((key + " is not defined")))
+
+
+let keyBoostingContract = makeString(["%s", "boostingContract"], separator)
+
+let keyEmissionContract = makeString(["%s", "emissionContract"], separator)
+
+let keyAssetsStoreContract = makeString(["%s", "assetsStoreContract"], separator)
+
+let boostingContract = addressFromStringValue(getStringValue(keyBoostingContract))
+
+let emissionContract = addressFromStringValue(getStringValue(keyEmissionContract))
+
+let assetsStoreContract = addressFromStringValue(getStringValue(keyAssetsStoreContract))
+
+let keyEmissionConfig = makeString(["%s", "config"], separator)
+
+let wxAssetIdStr = split(getStringOrFail(emissionContract, keyEmissionConfig), separator)[1]
+
+let wxAssetId = parseAssetId(wxAssetIdStr)
+
+let keyVotingThresholdAdd = makeString(["%s%s", "votingThreshold", "add"], separator)
+
+let keyVotingThresholdRemove = makeString(["%s%s", "votingThreshold", "remove"], separator)
+
+let keyPeriodLengthRemove = makeString(["%s", "periodLengthRemove"], separator)
+
+let keyMaxPeriodLength = makeString(["%s", "maxPeriodLength"], separator)
+
+let keyMinPeriodLength = makeString(["%s", "minPeriodLength"], separator)
+
+func keyVotingRewardAssetId (assetId,index) = makeString(["%s%s%d", "votingRewardAssetId", assetId, toString(index)], separator)
+
+
+func keyVotingReward (userAddress,assetId,index) = makeString(["%s%s%s%d", "votingReward", toString(userAddress), assetId, toString(index)], separator)
+
+
+func keyTotalVotingReward (assetId,index) = makeString(["%s%s%d", "totalVotingReward", assetId, toString(index)], separator)
+
+
+let keyFinalizeCallRewardAmount = makeString(["%s", "finalizeCallRewardAmount"], separator)
+
+let keyMinSuggestRemoveBalance = makeString(["%s", "minSuggestRemoveBalance"], separator)
+
+func keyCurrentIndex (assetId) = makeString(["%s%s", "currentIndex", assetId], separator)
+
+
+func keyVote (assetId,index,caller) = makeString(["%s%s%d%s", "vote", assetId, toString(index), toString(caller)], separator)
+
+
+func voteValue (inFavor,gwxAmount) = makeString(["%s%d", toString(inFavor), toString(gwxAmount)], separator)
+
+
+func keySuggestIssuer (assetId,index) = makeString(["%s%s%d", "suggestIssuer", assetId, toString(index)], separator)
+
+
+func keyClaimHistory (userAddress,assetId,index) = makeString(["%s%s%s%d", "history", toString(userAddress), assetId, toString(index)], separator)
+
+
+let keyFeePerBlock = makeString(["%s", "feePerBlock"], separator)
+
+let feePerBlock = getIntegerOrFail(this, keyFeePerBlock)
+
+let keyMinWxMinForSuggestAddAmountRequired = makeString(["%s", "wxMinForSuggestAddAmountRequired"], separator)
+
+let keyWxForSuggestRemoveAmountRequired = makeString(["%s", "wxForSuggestRemoveAmountRequired"], separator)
+
+func keyVotingInfo (assetId,index) = makeString(["%s%s%d", "votingInfo", assetId, toString(index)], separator)
+
+
+func votingInfoValue (isRewardExist,rewardAssetId,rewardAmount,votingType,status,votingStartHeight,votingEndHeight,votesQuorum,votesFor,votesAgainst) = makeString(["%s%s%d%s%s%d%d%d%d%d", toString(isRewardExist), rewardAssetId, toString(rewardAmount), votingType, status, toString(votingStartHeight), toString(votingEndHeight), toString(votesQuorum), toString(votesFor), toString(votesAgainst)], separator)
+
+
+func keyAssetImage (assetId) = makeString(["%s%s", "assetImage", assetId], separator)
+
+
+func getUserGwxAmountAtHeight (userAddress,targetHeight) = {
+    let gwxAmount = invoke(boostingContract, "getUserGwxAmountAtHeightREADONLY", [userAddress, targetHeight], nil)
+    asInt(gwxAmount)
+    }
+
+
+func keyManagerVaultAddress () = "%s__managerVaultAddress"
+
+
+func keyManagerPublicKey () = "%s__managerPublicKey"
+
+
+func getManagerVaultAddressOrThis () = match getString(keyManagerVaultAddress()) {
+    case s: String => 
+        addressFromStringValue(s)
+    case _ => 
+        this
+}
+
+
+func managerPublicKeyOrUnit () = {
+    let managerVaultAddress = getManagerVaultAddressOrThis()
+    match getString(managerVaultAddress, keyManagerPublicKey()) {
+        case s: String => 
+            fromBase58String(s)
+        case _: Unit => 
+            unit
+        case _ => 
+            throw("Match error")
+    }
+    }
+
+
+func getVotingInfoParts (votingInfo) = {
+    let votingInfoParts = split(votingInfo, separator)
+    let isRewardExistStr = votingInfoParts[1]
+    let isRewardExist = if ((isRewardExistStr == "true"))
+        then true
+        else false
+    let rewardAssetId = votingInfoParts[2]
+    let rewardAmount = parseIntValue(votingInfoParts[3])
+    let votingType = votingInfoParts[4]
+    let status = votingInfoParts[5]
+    let votingStartHeight = parseIntValue(votingInfoParts[6])
+    let votingEndHeight = parseIntValue(votingInfoParts[7])
+    let votesQuorum = parseIntValue(votingInfoParts[8])
+    let votesFor = parseIntValue(votingInfoParts[9])
+    let votesAgainst = parseIntValue(votingInfoParts[10])
+    $Tuple10(isRewardExist, rewardAssetId, rewardAmount, votingType, status, votingStartHeight, votingEndHeight, votesQuorum, votesFor, votesAgainst)
+    }
+
+
+func votingExistChecks (assetId,currentIndex) = {
+    let votingInfo = valueOrErrorMessage(getString(keyVotingInfo(assetId, currentIndex)), wrapErr("voting info not found"))
+    let votingInfoArray = split(votingInfo, separator)
+    let status = votingInfoArray[5]
+    let votingEndHeight = valueOrErrorMessage(parseIntValue(votingInfoArray[7]), wrapErr("voting start height not found"))
+    let suggestIssuer = valueOrErrorMessage(getString(keySuggestIssuer(assetId, currentIndex)), wrapErr("voting issuer not found"))
+    let checks = [if ((status == statusInProgress))
+        then true
+        else throwErr("no voting in progress"), if ((votingEndHeight > height))
+        then true
+        else throwErr("voting expired")]
+    if ((checks == checks))
+        then $Tuple3(status, votingEndHeight, suggestIssuer)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func calculateReward (voter,assetId,index) = {
+    let voteKey = keyVote(assetId, index, voter)
+    let lastVote = valueOrErrorMessage(getString(voteKey), wrapErr("you have not voted"))
+    let lastVoteParts = split(lastVote, separator)
+    let gwxAmount = parseIntValue(lastVoteParts[2])
+    let votingInfoStr = valueOrErrorMessage(getString(keyVotingInfo(assetId, index)), wrapErr("voting info not found"))
+    let votingParts = getVotingInfoParts(votingInfoStr)
+    let status = votingParts._5
+    let votesFor = votingParts._9
+    let votesAgainst = votingParts._10
+    let partOfTheTotalVotesX8 = fraction(gwxAmount, MULT8, (votesFor + votesAgainst))
+    let totalVotingReward = valueOrElse(getInteger(keyTotalVotingReward(assetId, index)), 0)
+    let voterRewardAmount = fraction(partOfTheTotalVotesX8, totalVotingReward, MULT8, FLOOR)
+    let canClaim = if ((status == statusAccepted))
+        then (voterRewardAmount > 0)
+        else false
+    $Tuple2(voterRewardAmount, canClaim)
+    }
+
+
+@Callable(i)
+func suggestAdd (assetId,periodLength,assetImage) = {
+    let wxPayment = i.payments[0]
+    let wxPaymentAssetId = value(wxPayment.assetId)
+    let wxPaymentAmount = value(wxPayment.amount)
+    let minPeriodLength = getIntegerValue(keyMinPeriodLength)
+    let maxPeriodLength = getIntegerValue(keyMaxPeriodLength)
+    let tokenIsVerified = {
+        let @ = invoke(assetsStoreContract, "isVerifiedREADONLY", [assetId], nil)
+        if ($isInstanceOf(@, "Boolean"))
+            then @
+            else throw(($getType(@) + " couldn't be cast to Boolean"))
+        }
+    let checks = [if (if ((periodLength >= minPeriodLength))
+        then (maxPeriodLength >= periodLength)
+        else false)
+        then true
+        else throwErr("invalid periodLength"), if ((tokenIsVerified == false))
+        then true
+        else throwErr("token already verified"), if ((wxPaymentAssetId == wxAssetId))
+        then true
+        else throwErr("payment[0] should be in wx"), if ((wxPaymentAmount >= (periodLength * feePerBlock)))
+        then true
+        else throwErr("not enough wx for given period"), if ((wxPaymentAmount >= getIntegerValue(keyMinWxMinForSuggestAddAmountRequired)))
+        then true
+        else throwErr("payment less then min for suggest")]
+    if ((checks == checks))
+        then {
+            let currentIndexKey = keyCurrentIndex(assetId)
+            let currentIndex = getInteger(currentIndexKey)
+            let newIndex = if (isDefined(currentIndex))
+                then (value(currentIndex) + 1)
+                else 0
+            let $t093339966 = if ((size(i.payments) > 1))
+                then {
+                    let votingRewardPayment = i.payments[1]
+                    let votingRewardPaymentAssetId = assetIdToString(votingRewardPayment.assetId)
+                    let votingRewardPaymentAmount = value(votingRewardPayment.amount)
+                    $Tuple4(true, votingRewardPaymentAssetId, votingRewardPaymentAmount, [StringEntry(keyVotingRewardAssetId(assetId, newIndex), votingRewardPaymentAssetId), IntegerEntry(keyTotalVotingReward(assetId, newIndex), votingRewardPaymentAmount)])
+                    }
+                else $Tuple4(false, "EMPTY", 0, nil)
+            let isRewardExist = $t093339966._1
+            let rewardAssetId = $t093339966._2
+            let rewardAmount = $t093339966._3
+            let votingRewardActions = $t093339966._4
+            let votesQuorum = valueOrErrorMessage(getInteger(keyVotingThresholdAdd), wrapErr("votingThresholdAdd not set"))
+            let votingInfo = votingInfoValue(isRewardExist, rewardAssetId, rewardAmount, "verification", statusInProgress, height, (height + periodLength), votesQuorum, 0, 0)
+            let finalizeCallRewardAmount = getIntegerValue(keyFinalizeCallRewardAmount)
+            let burnWxAmount = (wxPaymentAmount - finalizeCallRewardAmount)
+            ([IntegerEntry(currentIndexKey, newIndex), StringEntry(keySuggestIssuer(assetId, newIndex), toString(i.caller)), StringEntry(keyVotingInfo(assetId, newIndex), votingInfo), StringEntry(keyAssetImage(assetId), assetImage), Burn(wxPaymentAssetId, burnWxAmount)] ++ votingRewardActions)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func suggestRemove (assetId) = {
+    let gwxAmountAtNow = getUserGwxAmountAtHeight(toString(i.caller), height)
+    let minSuggestRemoveBalance = getIntegerValue(keyMinSuggestRemoveBalance)
+    let wxPayment = i.payments[0]
+    let wxPaymentAssetId = value(wxPayment.assetId)
+    let wxPaymentAmount = value(wxPayment.amount)
+    let tokenIsVerified = {
+        let @ = invoke(assetsStoreContract, "isVerifiedREADONLY", [assetId], nil)
+        if ($isInstanceOf(@, "Boolean"))
+            then @
+            else throw(($getType(@) + " couldn't be cast to Boolean"))
+        }
+    let checks = [if (tokenIsVerified)
+        then true
+        else throwErr("token not verified"), if ((gwxAmountAtNow >= minSuggestRemoveBalance))
+        then true
+        else throwErr("not enough gWXes"), if ((wxPaymentAssetId == wxAssetId))
+        then true
+        else throwErr("payment should be in wx"), if ((wxPaymentAmount >= getIntegerValue(keyWxForSuggestRemoveAmountRequired)))
+        then true
+        else throwErr("payment less then min for suggest")]
+    if ((checks == checks))
+        then {
+            let currentIndexKey = keyCurrentIndex(assetId)
+            let currentIndex = getInteger(currentIndexKey)
+            let newIndex = if (isDefined(currentIndex))
+                then (value(currentIndex) + 1)
+                else 0
+            let periodLength = valueOrErrorMessage(getInteger(keyPeriodLengthRemove), wrapErr("periodLengthRemove not set"))
+            let votingEndHeight = (height + periodLength)
+            let votesQuorum = valueOrErrorMessage(getInteger(keyVotingThresholdRemove), wrapErr("votingThresholdRemove not set"))
+            let votingInfo = votingInfoValue(false, "EMPTY", 0, "deverification", statusInProgress, height, (height + periodLength), votesQuorum, 0, 0)
+            let setAssetImageAction =             match getString(keyAssetImage(assetId)) {
+                case s: String => 
+                    nil
+                case _: Unit => 
+                    let assetsStoreAssetImage = {
+                        let @ = invoke(assetsStoreContract, "getAssetLogoREADONLY", [assetId], nil)
+                        if ($isInstanceOf(@, "String"))
+                            then @
+                            else throw(($getType(@) + " couldn't be cast to String"))
+                        }
+[StringEntry(keyAssetImage(assetId), assetsStoreAssetImage)]
+                case _ => 
+                    throw("Match error")
+            }
+            ([IntegerEntry(currentIndexKey, newIndex), StringEntry(keySuggestIssuer(assetId, newIndex), toString(i.caller)), StringEntry(keyVotingInfo(assetId, newIndex), votingInfo)] ++ setAssetImageAction)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func vote (assetId,inFavor) = {
+    let currentIndexKey = keyCurrentIndex(assetId)
+    let currentIndex = valueOrErrorMessage(getInteger(currentIndexKey), wrapErr("voting does not exist"))
+    let votingInfo = votingExistChecks(assetId, currentIndex)
+    if ((votingInfo == votingInfo))
+        then {
+            let currentVotingEndHeight = votingInfo._2
+            let gwxAmountAtEnd = getUserGwxAmountAtHeight(toString(i.caller), currentVotingEndHeight)
+            let voteKey = keyVote(assetId, currentIndex, i.caller)
+            let checks = [if ((getString(voteKey) == unit))
+                then true
+                else throwErr("You have already voted"), if ((gwxAmountAtEnd > 0))
+                then true
+                else throw("You'll not have gWX at the end of voting")]
+            if ((checks == checks))
+                then {
+                    let votingInfoStr = valueOrErrorMessage(getString(keyVotingInfo(assetId, currentIndex)), wrapErr("voting info not found"))
+                    let votingInfoParts = getVotingInfoParts(votingInfoStr)
+                    let votesFor = votingInfoParts._9
+                    let votesAgainst = votingInfoParts._10
+                    let $t01370513866 = if (inFavor)
+                        then $Tuple2((votesFor + gwxAmountAtEnd), votesAgainst)
+                        else $Tuple2(votesFor, (votesAgainst + gwxAmountAtEnd))
+                    let newVotesFor = $t01370513866._1
+                    let newVotesAgainst = $t01370513866._2
+                    let newVotingInfoValue = votingInfoValue(votingInfoParts._1, votingInfoParts._2, votingInfoParts._3, votingInfoParts._4, votingInfoParts._5, votingInfoParts._6, votingInfoParts._7, votingInfoParts._8, newVotesFor, newVotesAgainst)
+                    let votingRewardAction =                     match getString(keyVotingRewardAssetId(assetId, currentIndex)) {
+                        case pk: String => 
+[StringEntry(keyVotingReward(i.caller, assetId, currentIndex), voteValue(inFavor, gwxAmountAtEnd))]
+                        case _: Unit => 
+                            nil
+                        case _ => 
+                            throw("Match error")
+                    }
+                    ([StringEntry(voteKey, voteValue(inFavor, gwxAmountAtEnd)), StringEntry(keyVotingInfo(assetId, currentIndex), newVotingInfoValue)] ++ votingRewardAction)
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func cancelVote (assetId) = {
+    let currentIndexKey = keyCurrentIndex(assetId)
+    let currentIndex = valueOrErrorMessage(getInteger(currentIndexKey), wrapErr("voting does not exist"))
+    let voteKey = keyVote(assetId, currentIndex, i.caller)
+    let lastVote = valueOrErrorMessage(getString(voteKey), wrapErr("you have not voted"))
+    let lastVoteParts = split(lastVote, separator)
+    let inFavor = lastVoteParts[1]
+    let gwxAmount = parseIntValue(lastVoteParts[2])
+    let votingInfo = votingExistChecks(assetId, currentIndex)
+    if ((votingInfo == votingInfo))
+        then {
+            let checks = [if (if ((inFavor == "true"))
+                then true
+                else (inFavor == "false"))
+                then true
+                else throwErr("invalid vote")]
+            if ((checks == checks))
+                then {
+                    let votingInfoStr = valueOrErrorMessage(getString(keyVotingInfo(assetId, currentIndex)), wrapErr("voting info not found"))
+                    let votingInfoParts = getVotingInfoParts(votingInfoStr)
+                    let votesFor = votingInfoParts._9
+                    let votesAgainst = votingInfoParts._10
+                    let $t01549115652 = if ((inFavor == "true"))
+                        then $Tuple2((votesFor - gwxAmount), votesAgainst)
+                        else $Tuple2(votesFor, (votesAgainst - gwxAmount))
+                    let newVotesFor = $t01549115652._1
+                    let newVotesAgainst = $t01549115652._2
+                    let newVotingInfoValue = votingInfoValue(votingInfoParts._1, votingInfoParts._2, votingInfoParts._3, votingInfoParts._4, votingInfoParts._5, votingInfoParts._6, votingInfoParts._7, votingInfoParts._8, newVotesFor, newVotesAgainst)
+[StringEntry(keyVotingInfo(assetId, currentIndex), newVotingInfoValue), DeleteEntry(voteKey), DeleteEntry(keyVotingReward(i.caller, assetId, currentIndex))]
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func finalize (assetId) = {
+    let currentIndexKey = keyCurrentIndex(assetId)
+    let currentIndex = valueOrElse(getInteger(currentIndexKey), 0)
+    let votingThresholdAdd = valueOrErrorMessage(getInteger(keyVotingThresholdAdd), wrapErr("votingThresholdAdd not set"))
+    let votingThresholdRemove = valueOrErrorMessage(getInteger(keyVotingThresholdRemove), wrapErr("votingThresholdRemove not set"))
+    let votingInfoStr = valueOrErrorMessage(getString(keyVotingInfo(assetId, currentIndex)), wrapErr("voting info not found"))
+    let votingInfoParts = getVotingInfoParts(votingInfoStr)
+    let votingType = votingInfoParts._4
+    let status = votingInfoParts._5
+    let votingEndHeight = votingInfoParts._7
+    let votingQuorum = votingInfoParts._8
+    let votesFor = votingInfoParts._9
+    let votesAgainst = votingInfoParts._10
+    let checks = [if ((status == statusInProgress))
+        then true
+        else throwErr("voting not in progress"), if ((height >= votingEndHeight))
+        then true
+        else throwErr("voting not finished"), if (isDefined(getString(keyAssetImage(assetId))))
+        then true
+        else throwErr("asset image not set")]
+    if ((checks == checks))
+        then {
+            let votingAccepted = if (if (((votesFor + votesAgainst) >= votingQuorum))
+                then (votesFor > votesAgainst)
+                else false)
+                then true
+                else false
+            let newStatus = if (votingAccepted)
+                then statusAccepted
+                else statusRejected
+            let assetImage = getStringValue(keyAssetImage(assetId))
+            let isVotingAccepted = if (votingAccepted)
+                then {
+                    let votingAcceptedInvokes = if ((votingType == "verification"))
+                        then invoke(assetsStoreContract, "createOrUpdate", [assetId, assetImage, true], nil)
+                        else [invoke(assetsStoreContract, "setVerified", [assetId, false], nil), invoke(assetsStoreContract, "onEliminate", [assetId], nil)]
+                    votingAcceptedInvokes
+                    }
+                else nil
+            if ((isVotingAccepted == isVotingAccepted))
+                then {
+                    let newVotingInfoValue = votingInfoValue(votingInfoParts._1, votingInfoParts._2, votingInfoParts._3, votingInfoParts._4, newStatus, votingInfoParts._6, votingInfoParts._7, votingInfoParts._8, votingInfoParts._9, votingInfoParts._10)
+                    let finalizeCallRewardAmount = getIntegerValue(keyFinalizeCallRewardAmount)
+                    let suggestIssuerAddress = addressFromStringValue(getStringValue(keySuggestIssuer(assetId, currentIndex)))
+                    let votingRewardAssetIdOption = getString(keyVotingRewardAssetId(assetId, currentIndex))
+                    let totalVotingRewardOption = getInteger(keyTotalVotingReward(assetId, currentIndex))
+                    let returnRewardActions = if (if (if (votingAccepted)
+                        then true
+                        else (votingRewardAssetIdOption == unit))
+                        then true
+                        else (totalVotingRewardOption == unit))
+                        then nil
+                        else [ScriptTransfer(suggestIssuerAddress, value(totalVotingRewardOption), parseAssetId(value(votingRewardAssetIdOption)))]
+                    ([StringEntry(keyVotingInfo(assetId, currentIndex), newVotingInfoValue), ScriptTransfer(i.caller, finalizeCallRewardAmount, wxAssetId)] ++ returnRewardActions)
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func claimREADONLY (assetId,index,userAddressStr) = {
+    let userAddress = valueOrErrorMessage(addressFromString(userAddressStr), wrapErr("invalid address"))
+    let votingRewardAssetIdStr = getString(keyVotingRewardAssetId(assetId, index))
+    let rewardAmount = if (isDefined(votingRewardAssetIdStr))
+        then calculateReward(userAddress, assetId, index)._1
+        else 0
+    $Tuple2(nil, rewardAmount)
+    }
+
+
+
+@Callable(i)
+func claim (assetId,index) = {
+    let callerAddress = i.caller
+    let claimHistoryKey = keyClaimHistory(callerAddress, assetId, index)
+    let claimHistory = getInteger(claimHistoryKey)
+    let checks = [if ((claimHistory == unit))
+        then true
+        else throwErr("already claimed")]
+    if ((checks == checks))
+        then {
+            let $t01974219819 = calculateReward(callerAddress, assetId, index)
+            let rewardAmount = $t01974219819._1
+            let canClaim = $t01974219819._2
+            if (!(canClaim))
+                then throwErr("nothing to claim")
+                else {
+                    let votingRewardAssetIdStr = getString(keyVotingRewardAssetId(assetId, index))
+                    let rewardAction = if (isDefined(votingRewardAssetIdStr))
+                        then {
+                            let votingRewardAssetId = parseAssetId(value(votingRewardAssetIdStr))
+[ScriptTransfer(callerAddress, rewardAmount, votingRewardAssetId), IntegerEntry(claimHistoryKey, rewardAmount), DeleteEntry(keyVotingReward(callerAddress, assetId, index))]
+                            }
+                        else throwErr("nothing to claim")
+                    rewardAction
+                    }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Verifier(tx)
+func verify () = {
+    let targetPublicKey =     match managerPublicKeyOrUnit() {
+        case pk: ByteVector => 
+            pk
+        case _: Unit => 
+            tx.senderPublicKey
+        case _ => 
+            throw("Match error")
+    }
+    sigVerify(tx.bodyBytes, tx.proofs[0], targetPublicKey)
+    }

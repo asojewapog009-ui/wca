@@ -1,0 +1,14 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+
+
+
+@Verifier(tx)
+func verify () = match tx {
+    case ss: SetScriptTransaction => 
+        let Admin = base58'BpFWP3p3JgYrrP45xfrKzeMcWMEXoinj4FVPPkUiA8D3'
+        sigVerify(tx.bodyBytes, tx.proofs[0], Admin)
+    case _ => 
+        sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)
+}

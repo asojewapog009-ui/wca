@@ -1,0 +1,876 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+func getI (key) = getInteger(this, key)
+
+
+func getS (key) = getString(this, key)
+
+
+func getSV (key) = valueOrErrorMessage(getString(this, key), ((("no string value for key " + key) + " at address ") + toString(this)))
+
+
+func throwIf (condition,error) = if (condition)
+    then throw(error)
+    else true
+
+
+func writeInt (key,value) = if ((0 > value))
+    then throw(((("writing negative value " + toString(value)) + " for key ") + key))
+    else IntegerEntry(key, value)
+
+
+func ensureGE0 (value) = if ((0 > value))
+    then throw("writing negative value")
+    else value
+
+
+func asInt (value) = match value {
+    case int: Int => 
+        int
+    case _ => 
+        throw("r:1")
+}
+
+
+func changeBy (key,value) = writeInt(key, (valueOrElse(getI(key), 0) + value))
+
+
+func writeString (key,value) = StringEntry(key, value)
+
+
+func fractionCeil (value,numerator,denominator) = {
+    let cand = fraction(value, numerator, denominator)
+    let D = 3037000499
+    let exact = ((((cand % D) * (denominator % D)) % D) == (((value % D) * (numerator % D)) % D))
+    if (exact)
+        then cand
+        else (cand + 1)
+    }
+
+
+let BlocksPerYear = 525600
+
+let RBase = 10000000000000000
+
+let factorsBase = 1000
+
+let assetIdStore = "assetId"
+
+let assetIdStr = valueOrErrorMessage(getS(assetIdStore), "no assetId")
+
+let assetId = {
+    let i = split(assetIdStr, "_")[0]
+    if ((i == "WAVES"))
+        then unit
+        else fromBase58String(i)
+    }
+
+let reserveFactorStore = (assetIdStr + "_ReserveFactor")
+
+let collateralFactorStore = (assetIdStr + "_CollateralFactor")
+
+let liquidationThresholdStore = (assetIdStr + "_LiquidationThreshold")
+
+let overlapChargeStore = "account_health_overlap"
+
+let liquidationPenaltyStore = (assetIdStr + "_LiquidationPenalty")
+
+let configAddressStore = "configAddress"
+
+let aTokenIdStore = "aTokenId"
+
+let aTokenNameStore = "aTokenName"
+
+let aTokenCirculationStore = "aTokenCirculation"
+
+let aTokenDecimalsStore = "aTokenDecimals"
+
+let reserveGlobalStore = "reserveGlobalData"
+
+let reserveGlobal = valueOrElse(getString(reserveGlobalStore), "||||")
+
+let reserveGlobalData = split(reserveGlobal, "|")
+
+let lastUpdateHeight = valueOrErrorMessage(valueOrElse(parseInt(reserveGlobalData[0]), getI("lastUpdateHeight")), "no lastUpdateHeight")
+
+let storedTotalDeposit = valueOrElse(parseInt(reserveGlobalData[1]), valueOrElse(getI("totalDeposit"), 0))
+
+let storedTotalDebt = valueOrElse(parseInt(reserveGlobalData[2]), valueOrElse(getI("totalBorrow"), 0))
+
+let storedTotalReserve = valueOrElse(parseInt(reserveGlobalData[3]), valueOrElse(getI("totalReserve"), 0))
+
+let storedIndex = valueOrElse(parseInt(reserveGlobalData[4]), valueOrElse(getI("storedIndex"), RBase))
+
+func aTokenBalanceStore (userAddress) = (userAddress + "_aTokenBalance")
+
+
+func debtStore (userAddress) = (userAddress + "_debt")
+
+
+func debtIndexStore (userAddress) = (userAddress + "_index")
+
+
+func useAsCollateralStore (userAddress) = (userAddress + "_useAsCollateral")
+
+
+let assetDecimals = valueOrErrorMessage(getI(aTokenDecimalsStore), "no assetDecimals")
+
+let configAddress = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(this, configAddressStore), "reserve: no configAddress")), "invalid config address")
+
+func opAllowed (op) = match invoke(configAddress, "opAllowed", [assetIdStr, op], nil) {
+    case b: Boolean => 
+        if (b)
+            then true
+            else throw("not allowed")
+    case _ => 
+        throw("opAllowed: unexpected result type")
+}
+
+
+let mainContract = valueOrErrorMessage(addressFromString(split(valueOrErrorMessage(getString(configAddress, "main"), "no main in config"), "|")[0]), "invalid main address")
+
+func mainOnly (i) = if (contains(getStringValue(configAddress, "main"), toString(i.caller)))
+    then true
+    else throw("only main can do")
+
+
+func divAdminOnly (i) = {
+    let divAdmins = valueOrErrorMessage(getString(configAddress, "divAdmins"), "no div admins")
+    if (!(contains(divAdmins, toString(i.caller))))
+        then throw("only div admin can do")
+        else true
+    }
+
+
+let notInitialized = throwIf(isDefined(getS(assetIdStore)), "already initialized")
+
+let maybeOracleAddress = match getString(configAddress, "oracle_address") {
+    case s: String => 
+        addressFromString(s)
+    case _ => 
+        unit
+}
+
+let oraclePrice = match invoke(valueOrErrorMessage(maybeOracleAddress, "no oracle"), "price", [assetIdStr], nil) {
+    case i: Int => 
+        i
+    case _ => 
+        throw("bad oracle data")
+}
+
+let HEIGHT = height
+
+let aTokenId = fromBase58String(valueOrErrorMessage(getS(aTokenIdStore), "no aTokenId"))
+
+let aTokenCirculation = valueOrElse(getI(aTokenCirculationStore), 0)
+
+let reserveFactor = valueOrErrorMessage(getInteger(configAddress, reserveFactorStore), "no reserveFactor")
+
+let collateralFactor = valueOrErrorMessage(getInteger(configAddress, collateralFactorStore), "no collateralFactor")
+
+let liquidationThreshold = valueOrErrorMessage(getInteger(configAddress, liquidationThresholdStore), "no liquidationThreshold")
+
+let accountHealthOverlap = valueOrErrorMessage(getInteger(configAddress, overlapChargeStore), "no overlapCharge")
+
+let liquidationPenalty = valueOrErrorMessage(getInteger(configAddress, liquidationPenaltyStore), "no liquidationPenalty")
+
+let utilization = if ((storedTotalDeposit > 0))
+    then min([factorsBase, fraction(storedTotalDebt, factorsBase, storedTotalDeposit)])
+    else 0
+
+let apr = {
+    let a = getIntegerValue(configAddress, (assetIdStr + "_APoint"))
+    let b = getIntegerValue(configAddress, (assetIdStr + "_BPoint"))
+    let c = getIntegerValue(configAddress, (assetIdStr + "_CPoint"))
+    let d = getIntegerValue(configAddress, (assetIdStr + "_DPoint"))
+    let lineAC = (fraction((a - c), utilization, -(b)) + a)
+    let lineCD = (fraction((c - d), (utilization - b), (b - factorsBase)) + c)
+    if ((utilization == 0))
+        then a
+        else if ((utilization == b))
+            then c
+            else if (if ((b > utilization))
+                then true
+                else (b == factorsBase))
+                then lineAC
+                else lineCD
+    }
+
+let apy = if ((storedTotalDeposit == 0))
+    then 0
+    else fraction(fraction(storedTotalDebt, apr, storedTotalDeposit), (factorsBase - reserveFactor), factorsBase)
+
+let currentIndex = if ((HEIGHT == lastUpdateHeight))
+    then storedIndex
+    else {
+        let bpr = fractionCeil(apr, RBase, (BlocksPerYear * factorsBase))
+        fractionCeil(storedIndex, (RBase + (bpr * (HEIGHT - lastUpdateHeight))), RBase)
+        }
+
+let stakingEnabled = valueOrElse(getBoolean(configAddress, ("staking_enabled_" + assetIdStr)), false)
+
+let actualBalance = match assetId {
+    case aid: ByteVector => 
+        assetBalance(this, aid)
+    case _ => 
+        wavesBalance(this).available
+}
+
+func liquidityCheck (amount,max,err) = if ((amount > max))
+    then throw(("not enough liquidity: " + err))
+    else true
+
+
+func storedUserDebt (userAddress) = valueOrElse(getI(debtStore(userAddress)), 0)
+
+
+func currentUserDebt (userAddress) = {
+    let v = storedUserDebt(userAddress)
+    if ((v == 0))
+        then 0
+        else {
+            let storedUserIndex = valueOrErrorMessage(getI(debtIndexStore(userAddress)), "has debt but does not have index")
+            fraction(v, currentIndex, storedUserIndex)
+            }
+    }
+
+
+let currentTotalDebt = fraction(storedTotalDebt, currentIndex, storedIndex)
+
+let addedDebt = (currentTotalDebt - storedTotalDebt)
+
+let addedDeposit = fraction(addedDebt, (factorsBase - reserveFactor), factorsBase)
+
+let currentTotalDeposit = (storedTotalDeposit + addedDeposit)
+
+let currentTotalReserve = ((storedTotalReserve + addedDebt) - addedDeposit)
+
+let stakingAddress = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, ("staking_config_" + assetIdStr)), ("no staking address for " + assetIdStr))), ("bad staking address for " + assetIdStr))
+
+let claimableDividends = min([currentTotalReserve, if (stakingEnabled)
+    then asInt(invoke(stakingAddress, "info", nil, nil))
+    else actualBalance])
+
+func paymentAmount (i,assetId) = {
+    let p = i.payments[0].amount
+    if ((0 >= p))
+        then throw(("Payment is less than min allowed amount: " + toString(p)))
+        else if ((i.payments[0].assetId != assetId))
+            then throw((" bad asset attached: required " + assetIdStr))
+            else p
+    }
+
+
+func syncTotals (additionalDeposit,additionalDebt,additionalReserve,keepAtBalance) = {
+    let stakingAction = if ((actualBalance == keepAtBalance))
+        then unit
+        else if (!(stakingEnabled))
+            then unit
+            else if ((actualBalance > keepAtBalance))
+                then invoke(stakingAddress, "put", nil, [AttachedPayment(assetId, (actualBalance - keepAtBalance))])
+                else invoke(stakingAddress, "get", [(keepAtBalance - actualBalance)], nil)
+    if ((stakingAction == stakingAction))
+        then {
+            let deposit = ensureGE0((currentTotalDeposit + additionalDeposit))
+            let debt = ensureGE0((currentTotalDebt + additionalDebt))
+            let reserve = ensureGE0((currentTotalReserve + additionalReserve))
+[writeString(reserveGlobalStore, ((((((((toString(HEIGHT) + "|") + toString(deposit)) + "|") + toString(debt)) + "|") + toString(reserve)) + "|") + toString(currentIndex)))]
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func pow10 (n) = if ((n == 6))
+    then 1000000
+    else if ((n == 8))
+        then 100000000
+        else throw(("bad decimals: " + toString(n)))
+
+
+func assetToUsd (amount) = fraction(amount, oraclePrice, pow10(assetDecimals))
+
+
+func usdToAsset (amount) = fraction(amount, pow10(assetDecimals), oraclePrice)
+
+
+func aTokenToAsset (aTokenAmount) = if ((aTokenAmount == 0))
+    then 0
+    else if ((aTokenCirculation > 0))
+        then fraction(aTokenAmount, currentTotalDeposit, aTokenCirculation)
+        else aTokenAmount
+
+
+func assetToAToken (assetAmount) = if ((assetAmount == 0))
+    then 0
+    else if ((aTokenCirculation > 0))
+        then fraction(assetAmount, aTokenCirculation, currentTotalDeposit)
+        else assetAmount
+
+
+func assetToATokenCeil (assetAmount) = if ((assetAmount == 0))
+    then 0
+    else if ((aTokenCirculation > 0))
+        then fractionCeil(assetAmount, aTokenCirculation, currentTotalDeposit)
+        else assetAmount
+
+
+func aTokenBalance (address) = valueOrElse(getI(aTokenBalanceStore(address)), 0)
+
+
+func enableCol (user) = BooleanEntry(useAsCollateralStore(user), true)
+
+
+func enableColIfNeeded (user) = if ((currentUserDebt(user) > 0))
+    then [enableCol(user)]
+    else nil
+
+
+func collapseUser (address,amount) = {
+    let debt = currentUserDebt(address)
+    let deposit = aTokenToAsset(aTokenBalance(address))
+    let maxPossible = min([debt, deposit])
+    let amt = if ((-1 > amount))
+        then throw("invalid collapse amount")
+        else if (if ((maxPossible == 0))
+            then true
+            else (amount == 0))
+            then throw("nothing to collapse")
+            else if (if ((amount == -1))
+                then true
+                else (amount > maxPossible))
+                then maxPossible
+                else amount
+    let removedAtokens = assetToATokenCeil(amt)
+    $Tuple2((syncTotals(-(amt), -(amt), 0, 0) ++ [changeBy(aTokenBalanceStore(address), -(removedAtokens)), changeBy(aTokenCirculationStore, -(removedAtokens)), writeInt(debtStore(address), (debt - amt)), writeInt(debtIndexStore(address), currentIndex)]), amt)
+    }
+
+
+func repayUser (userAddress,amount) = {
+    let checks = opAllowed("repay")
+    if ((checks == checks))
+        then {
+            let currentDebt = currentUserDebt(userAddress)
+            if ((currentDebt == currentDebt))
+                then {
+                    let $t01146411767 = if ((amount > currentDebt))
+                        then $Tuple4(0, -(currentDebt), (amount - currentDebt), [ScriptTransfer(addressFromStringValue(userAddress), (amount - currentDebt), assetId)])
+                        else $Tuple4((currentDebt - amount), -(amount), 0, nil)
+                    let newDebt = $t01146411767._1
+                    let totalDebtUpdate = $t01146411767._2
+                    let payout = $t01146411767._3
+                    let actions = $t01146411767._4
+                    let repaid = (amount - payout)
+                    $Tuple2(((syncTotals(0, totalDebtUpdate, 0, payout) ++ actions) ++ [writeInt(debtStore(userAddress), newDebt), writeInt(debtIndexStore(userAddress), currentIndex)]), repaid)
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func getConfig () = {
+    let a = getIntegerValue(configAddress, (assetIdStr + "_APoint"))
+    let b = getIntegerValue(configAddress, (assetIdStr + "_BPoint"))
+    let c = getIntegerValue(configAddress, (assetIdStr + "_CPoint"))
+    let d = getIntegerValue(configAddress, (assetIdStr + "_DPoint"))
+    ((((((((((((((("ABCD: " + toString(a)) + ";") + toString(b)) + ";") + toString(c)) + ";") + toString(d)) + ", reserveFactor: ") + toString(reserveFactor)) + ", collateralFactor: ") + toString(collateralFactor)) + ", liquidationThreshold: ") + toString(liquidationThreshold)) + ", liquidationPenalty: ") + toString(liquidationPenalty))
+    }
+
+
+func getState () = ((((((((((((((((((((((((((("currentTotalDeposit: " + toString(currentTotalDeposit)) + ", storedTotalDeposit: ") + toString(storedTotalDeposit)) + ", currentTotalDebt: ") + toString(currentTotalDebt)) + ", storedTotalDebt: ") + toString(storedTotalDebt)) + ", currentTotalReserve: ") + toString(currentTotalReserve)) + ", storedTotalReserve: ") + toString(storedTotalReserve)) + ", currentIndex:") + toString(currentIndex)) + ", storedIndex: ") + toString(storedIndex)) + ", lastUpdateHeight: ") + toString(lastUpdateHeight)) + ", utilization: ") + toString(utilization)) + ", aTokenCirculation: ") + toString(aTokenCirculation)) + ", aTokenPrice: ") + toString(aTokenToAsset(pow(10, 0, assetDecimals, 0, 0, FLOOR)))) + ", APR: ") + toString(apr)) + ", APY: ") + toString(apy))
+
+
+func getUserState (user) = {
+    func getBalance (addressOrAlias,assetId) =         match assetId {
+        case bv: ByteVector => 
+            assetBalance(addressOrAlias, bv)
+        case u: Unit => 
+            wavesBalance(addressOrAlias).available
+        case _ => 
+            throw("Match error")
+    }
+
+    let aBalance = aTokenBalance(user)
+    let aBalanceWallet = getBalance(addressFromStringValue(user), aTokenId)
+    ((((((((((((((((("currentDebt: " + toString(currentUserDebt(user))) + ", storedDebt: ") + toString(valueOrElse(getI(debtStore(user)), 0))) + ", currentDeposit: ") + toString(aTokenToAsset(aBalance))) + ", aTokenContractBalance: ") + toString(aBalance)) + ", aTokenWalletBalance: ") + toString(aBalanceWallet)) + ", walletStake: ") + toString(aTokenToAsset(aBalanceWallet))) + ", assetWalletBalance: ") + toString(getBalance(addressFromStringValue(user), assetId))) + ", useAsCollateral: ") + toString(valueOrElse(getBoolean(this, useAsCollateralStore(user)), true))) + ", storedIndex: ") + toString(valueOrElse(getI(debtIndexStore(user)), 0)))
+    }
+
+
+func debugTotals () = ((((((((((((((((((((((("storedTotalDeposit: " + toString(storedTotalDeposit)) + ", storedTotalDebt: ") + toString(storedTotalDebt)) + ", storedTotalReserve: ") + toString(storedTotalReserve)) + ", storedIndex: ") + toString(storedIndex)) + ", lastUpdateHeight: ") + toString(lastUpdateHeight)) + ", currentTotalDeposit: ") + toString(currentTotalDeposit)) + ", currentTotalDebt: ") + toString(currentTotalDebt)) + ", currentTotalReserve: ") + toString(currentTotalReserve)) + ", currentIndex: ") + toString(currentIndex)) + ", currentHeight: ") + toString(HEIGHT)) + ", aTokenCirculation: ") + toString(aTokenCirculation)) + ", aTokenPrice: ") + toString(aTokenToAsset(pow(10, 0, assetDecimals, 0, 0, FLOOR))))
+
+
+func userTotals (user) = {
+    let atokens = aTokenBalance(user)
+    let asset = aTokenToAsset(atokens)
+    let debt = currentUserDebt(user)
+    if ((HEIGHT == lastUpdateHeight))
+        then $Tuple4(storedTotalDeposit, storedTotalDebt, asset, debt)
+        else $Tuple4(currentTotalDeposit, currentTotalDebt, asset, debt)
+    }
+
+
+func withdrawInternal (i,user,amount,toMain) = {
+    let maxWithdraw = ((storedTotalDeposit + storedTotalReserve) - storedTotalDebt)
+    let checks = if (if (if (mainOnly(i))
+        then liquidityCheck(amount, maxWithdraw, ("funds in use: max=" + toString(maxWithdraw)))
+        else false)
+        then throwIf((-1 > amount), "invalid amount")
+        else false)
+        then opAllowed("withdraw")
+        else false
+    if ((checks == checks))
+        then {
+            let $t01586516056 = if ((amount == -1))
+                then {
+                    let atokens = aTokenBalance(user)
+                    $Tuple2(atokens, aTokenToAsset(atokens))
+                    }
+                else $Tuple2(assetToATokenCeil(amount), amount)
+            let removedAtokens = $t01586516056._1
+            let withdrawAmount = $t01586516056._2
+            $Tuple2((syncTotals(-(withdrawAmount), 0, 0, withdrawAmount) ++ [ScriptTransfer(if (toMain)
+                then mainContract
+                else addressFromStringValue(user), withdrawAmount, assetId), changeBy(aTokenBalanceStore(user), -(removedAtokens)), changeBy(aTokenCirculationStore, -(removedAtokens))]), withdrawAmount)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func replenishInternal (op,user,i) = {
+    let checks = if (mainOnly(i))
+        then opAllowed(op)
+        else false
+    if ((checks == checks))
+        then {
+            let aTokenAmount = paymentAmount(i, aTokenId)
+            $Tuple2(((syncTotals(0, 0, 0, 0) ++ [changeBy(aTokenBalanceStore(user), aTokenAmount), Burn(aTokenId, aTokenAmount)]) ++ enableColIfNeeded(user)), aTokenToAsset(aTokenAmount))
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func mintInternal (i,address,amountToMint,to,action) = {
+    let userATokenBalance = aTokenBalance(address)
+    let amount = if ((amountToMint == -1))
+        then userATokenBalance
+        else amountToMint
+    let checks = if (if (if (mainOnly(i))
+        then opAllowed(action)
+        else false)
+        then throwIf((-1 > amountToMint), "invalid amountToMint")
+        else false)
+        then throwIf((amount > userATokenBalance), ("Trying to mint more than available, max: " + toString(userATokenBalance)))
+        else false
+    if ((checks == checks))
+        then $Tuple2((syncTotals(0, 0, 0, 0) ++ [changeBy(aTokenBalanceStore(address), -(amount)), Reissue(aTokenId, amount, true), ScriptTransfer(addressFromStringValue(to), amount, aTokenId)]), aTokenToAsset(amount))
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func transferATokensForInternal (i,from,to,amount) = {
+    let checks = if (mainOnly(i))
+        then opAllowed("transfer_debt")
+        else false
+    if ((checks == checks))
+        then {
+            let assets = amount
+            let atokens = assetToAToken(assets)
+            let aTokensFrom = aTokenBalance(from)
+            if ((atokens > aTokensFrom))
+                then throw((((((((((("transferAtokensFor error:" + " transfer.valueUsd: ") + toString(assetToUsd(amount))) + " transfer.assets: ") + toString(assets)) + " transfer.atokens: ") + toString(atokens)) + " from.atokens: ") + toString(aTokensFrom)) + " at ") + toString(this)))
+                else $Tuple2(((syncTotals(0, 0, 0, 0) ++ [changeBy(aTokenBalanceStore(from), -(atokens)), changeBy(aTokenBalanceStore(to), atokens)]) ++ enableColIfNeeded(to)), aTokenToAsset(atokens))
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Callable(i)
+func getReserveDivsInfo () = $Tuple2(nil, $Tuple3(claimableDividends, assetIdStr, (currentTotalReserve - claimableDividends)))
+
+
+
+@Callable(i)
+func storedDepositBorrow () = $Tuple2(nil, $Tuple2(storedTotalDeposit, storedTotalDebt))
+
+
+
+@Callable(i)
+func getCurrentTotals (user) = $Tuple2(nil, userTotals(user))
+
+
+
+@Callable(i)
+func getCurrentTotals2 (user1,user2) = {
+    let $t01848718524 = userTotals(user1)
+    let d1 = $t01848718524._1
+    let d2 = $t01848718524._2
+    let d3 = $t01848718524._3
+    let d4 = $t01848718524._4
+    let $t01852918566 = userTotals(user2)
+    let e1 = $t01852918566._1
+    let e2 = $t01852918566._2
+    let e3 = $t01852918566._3
+    let e4 = $t01852918566._4
+    $Tuple2(nil, $Tuple6(d1, d2, d3, d4, e3, e4))
+    }
+
+
+
+@Callable(i)
+func advise () = $Tuple2(nil, ((((("reserveAddress: " + toString(this)) + ", ") + getConfig()) + ", ") + getState()))
+
+
+
+@Callable(i)
+func adviseUser (user) = {
+    let currentDebtUsd = assetToUsd(currentTotalDebt)
+    let currentDepositUsd = assetToUsd(currentTotalDeposit)
+    let asCollateral = valueOrElse(getBoolean(this, useAsCollateralStore(user)), true)
+    let effectiveDepositUsd = if (asCollateral)
+        then currentDepositUsd
+        else 0
+    let overlapUsd = min([currentDebtUsd, effectiveDepositUsd])
+    let overlapCharge = fractionCeil(overlapUsd, accountHealthOverlap, factorsBase)
+    let bp = if ((currentDebtUsd > effectiveDepositUsd))
+        then 0
+        else fraction((effectiveDepositUsd - currentDebtUsd), collateralFactor, factorsBase)
+    let bpu = if ((currentDebtUsd > effectiveDepositUsd))
+        then (fraction((currentDebtUsd - effectiveDepositUsd), factorsBase, liquidationThreshold) + overlapCharge)
+        else overlapCharge
+    let enriched = ((((((((("reserveAddress: " + toString(this)) + ", currentDebtUsd: ") + toString(currentDebtUsd)) + ", currentDepositUsd: ") + toString(currentDepositUsd)) + ", bp: ") + toString(bp)) + ", bpu: ") + toString(bpu))
+    $Tuple2(nil, ((enriched + ", ") + getUserState(user)))
+    }
+
+
+
+@Callable(i)
+func addInterest () = if ((i.payments[0].assetId != assetId))
+    then throw("can't add interest with unrelated token")
+    else syncTotals(i.payments[0].amount, 0, 0, 0)
+
+
+
+@Callable(i)
+func addToReserve () = if ((i.payments[0].assetId != assetId))
+    then throw("can't add interest with unrelated token")
+    else syncTotals(0, 0, i.payments[0].amount, 0)
+
+
+
+@Callable(i)
+func withdrawFromReserve (amt) = {
+    let checks = divAdminOnly(i)
+    if ((checks == checks))
+        then {
+            let diff = if ((amt == -1))
+                then claimableDividends
+                else amt
+            $Tuple2((syncTotals(0, 0, -(diff), diff) ++ [ScriptTransfer(i.caller, diff, assetId)]), diff)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func forceUpdate () = {
+    let admin = valueOrErrorMessage(getString(configAddress, "admin"), "reserve:no admin in config")
+    if ((toString(i.caller) != admin))
+        then throw("only admin can do")
+        else syncTotals(0, 0, 0, 0)
+    }
+
+
+
+@Callable(i)
+func initialize (cfgAddress,assetIdOrWaves,aTokenName,aTokenDescription,aTokenDecimals) = {
+    let checks = notInitialized
+    if ((checks == checks))
+        then {
+            let aToken = Issue(aTokenName, aTokenDescription, 0, aTokenDecimals, true)
+[aToken, writeInt(aTokenDecimalsStore, aTokenDecimals), writeString(aTokenNameStore, aTokenName), writeString(assetIdStore, assetIdOrWaves), writeString(configAddressStore, cfgAddress), writeString(aTokenIdStore, toBase58String(calculateAssetId(aToken)))]
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func initialize2 () = if ((i.caller != this))
+    then throw("only self can continue")
+    else [StringEntry(reserveGlobalStore, (toString(HEIGHT) + "||||"))]
+
+
+
+@Callable(i)
+func userDepositUSD (address) = $Tuple2(nil, assetToUsd(aTokenToAsset(aTokenBalance(address))))
+
+
+
+@Callable(i)
+func userDebtUSD (address) = $Tuple2(nil, assetToUsd(currentUserDebt(address)))
+
+
+
+@Callable(i)
+func userBalance (address) = {
+    let atokens = aTokenBalance(address)
+    let asset = aTokenToAsset(atokens)
+    let debt = currentUserDebt(address)
+    $Tuple2(nil, $Tuple6(atokens, asset, assetToUsd(asset), debt, assetToUsd(debt), valueOrElse(getBoolean(this, useAsCollateralStore(address)), true)))
+    }
+
+
+
+@Callable(i)
+func userDebt (address) = {
+    let debt = currentUserDebt(address)
+    let debtUsd = assetToUsd(debt)
+    $Tuple2(nil, $Tuple2(debt, debtUsd))
+    }
+
+
+
+@Callable(i)
+func assetUsdValue (assetAmount) = $Tuple2(nil, assetToUsd(assetAmount))
+
+
+
+@Callable(i)
+func repayFor (userAddress) = {
+    let checks = mainOnly(i)
+    if ((checks == checks))
+        then repayUser(userAddress, paymentAmount(i, assetId))
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func depositFor (depositor,useAsCollateral) = {
+    let checks = if (mainOnly(i))
+        then opAllowed("deposit")
+        else false
+    if ((checks == checks))
+        then if (if ((currentUserDebt(depositor) > 0))
+            then !(useAsCollateral)
+            else false)
+            then throw("can't disable use as collateral for asset with open debt")
+            else {
+                let amount = paymentAmount(i, assetId)
+                let aTokenAmount = assetToAToken(amount)
+                (syncTotals(amount, 0, 0, 0) ++ [changeBy(aTokenCirculationStore, aTokenAmount), changeBy(aTokenBalanceStore(depositor), aTokenAmount), BooleanEntry(useAsCollateralStore(depositor), useAsCollateral)])
+                }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func withdrawFor (address,amount) = withdrawInternal(i, address, amount, false)
+
+
+
+@Callable(i)
+func withdrawToMain (user,amount) = if ((amount != -1))
+    then throw("reserve: withdrawToMain amount -1 only")
+    else withdrawInternal(i, user, amount, true)
+
+
+
+@Callable(i)
+func replenishWithAtokenFor (user) = replenishInternal("replenish_atokens", user, i)
+
+
+
+@Callable(i)
+func replenisForUnlockWithAtokenFor (user) = replenishInternal("replenish_atokens_unlock", user, i)
+
+
+
+@Callable(i)
+func replenishForRepayWithAtokenFor (user) = replenishInternal("repay_atokens", user, i)
+
+
+
+@Callable(i)
+func borrowFor (address,amountToBorrow) = {
+    let checks = if (if (mainOnly(i))
+        then liquidityCheck(amountToBorrow, (storedTotalDeposit - storedTotalDebt), "too much borrow requested")
+        else false)
+        then opAllowed("borrow")
+        else false
+    if ((checks == checks))
+        then {
+            let currentDebt = currentUserDebt(address)
+            let newDebt = (currentDebt + amountToBorrow)
+            (syncTotals(0, amountToBorrow, 0, amountToBorrow) ++ [writeInt(debtStore(address), newDebt), enableCol(address), writeInt(debtIndexStore(address), currentIndex), ScriptTransfer(addressFromStringValue(address), amountToBorrow, assetId)])
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func mintAtokenFor (address,amountToMint) = mintInternal(i, address, amountToMint, address, "mint_atokens")
+
+
+
+@Callable(i)
+func mintAtokenForTo (from,amountToMint,to) = mintInternal(i, from, amountToMint, to, "lock_mint_atokens")
+
+
+
+@Callable(i)
+func redeemAtokensFor (user) = {
+    let checks = if (mainOnly(i))
+        then opAllowed("redeem_atokens")
+        else false
+    if ((checks == checks))
+        then {
+            let aTokenAmount = paymentAmount(i, aTokenId)
+            let outAmount = aTokenToAsset(aTokenAmount)
+            $Tuple2((syncTotals(-(outAmount), 0, 0, outAmount) ++ [ScriptTransfer(addressFromStringValue(user), outAmount, assetId), changeBy(aTokenCirculationStore, -(aTokenAmount)), Burn(aTokenId, aTokenAmount)]), outAmount)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func transferCollateralAndDebt (from,to) = {
+    let checks = if (mainOnly(i))
+        then opAllowed("assume_full")
+        else false
+    if ((checks == checks))
+        then {
+            let asCollateral = valueOrElse(getBoolean(this, useAsCollateralStore(from)), true)
+            let aTokens = if (asCollateral)
+                then aTokenBalance(from)
+                else 0
+            let currentDebt = currentUserDebt(from)
+            $Tuple2((syncTotals(0, 0, 0, 0) ++ [writeInt(aTokenBalanceStore(from), 0), changeBy(aTokenBalanceStore(to), aTokens), writeInt(debtStore(from), 0), writeInt(debtStore(to), (currentUserDebt(to) + currentDebt)), writeInt(debtIndexStore(from), currentIndex), writeInt(debtIndexStore(to), currentIndex), enableCol(to)]), $Tuple2(aTokens, currentDebt))
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func transferATokensFor (from,to,valueUsd) = transferATokensForInternal(i, from, to, usdToAsset(valueUsd))
+
+
+
+@Callable(i)
+func transferATokensAmountFor (from,to,amount) = transferATokensForInternal(i, from, to, amount)
+
+
+
+@Callable(i)
+func transferDebtFor (from,to,amount) = {
+    let checks = if (mainOnly(i))
+        then opAllowed("transfer_debt")
+        else false
+    if ((checks == checks))
+        then $Tuple2((syncTotals(0, 0, 0, 0) ++ [writeInt(debtStore(from), (currentUserDebt(from) - amount)), writeInt(debtStore(to), (currentUserDebt(to) + amount)), writeInt(debtIndexStore(from), currentIndex), writeInt(debtIndexStore(to), currentIndex), enableCol(to)]), amount)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func disableUseAsCollateralFor (address) = {
+    let checks = if (mainOnly(i))
+        then opAllowed("use_as_col")
+        else false
+    if ((checks == checks))
+        then if ((currentUserDebt(address) > 0))
+            then throw("can't disable collateral for asset with open debt")
+            else (syncTotals(0, 0, 0, 0) ++ [BooleanEntry(useAsCollateralStore(address), false)])
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func enableUseAsCollateral () = {
+    let checks = opAllowed("use_as_col")
+    if ((checks == checks))
+        then (syncTotals(0, 0, 0, 0) ++ [enableCol(toString(i.caller))])
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func collapseFor (user) = {
+    let checks = if (mainOnly(i))
+        then opAllowed("force_collapse")
+        else false
+    if ((checks == checks))
+        then collapseUser(user, -1)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func collapseForAmount (user,amount) = {
+    let checks = if (mainOnly(i))
+        then opAllowed("collapse")
+        else false
+    if ((checks == checks))
+        then collapseUser(user, amount)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func lpValue (aTokenAmount) = $Tuple2(nil, aTokenToAsset(aTokenAmount))
+
+
+
+@Callable(i)
+func toUSD (amount) = $Tuple2(nil, fraction(amount, oraclePrice, pow10(assetDecimals)))
+
+
+@Verifier(tx)
+func verify () = {
+    let BASE = 1000
+    let quorumRatio = valueOrErrorMessage(getInteger(configAddress, "proposal_quorum_ratio"), "proposalQuorumRatio is not defined")
+    let passedRatio = valueOrErrorMessage(getInteger(configAddress, "proposal_passed_ratio"), "proposalThresholdRatio is not defined")
+    let gViresContract = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "dividends_contract"), "no dividends_contract")), "invalid dividends_contract")
+    let votingContract = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "voting_contract"), "no voting_contract")), "invalid voting_contract")
+    let id = toBase58String(tx.id)
+    let votesYes = valueOrElse(getInteger(votingContract, ("proposal_yes_" + id)), 0)
+    let votesNo = valueOrElse(getInteger(votingContract, ("proposal_no_" + id)), 0)
+    let proposalHeight = valueOrErrorMessage(getInteger(votingContract, ("proposal_height_" + id)), "proposal not registered")
+    let applyStart = valueOrElse(getInteger(votingContract, ("proposal_applystart_" + id)), 0)
+    let applyEnd = valueOrElse(getInteger(votingContract, ("proposal_applyend_" + id)), 0)
+    let totalGVires = valueOrElse(getInteger(votingContract, ("proposal_gvires_" + id)), 0)
+    let enabled = valueOrElse(getBoolean(configAddress, "op_governance_apply_tx_paused"), false)
+    let voteYes = votesYes
+    let voteNo = votesNo
+    let totalVotes = (voteYes + voteNo)
+    let hasQuorum = (((totalVotes * BASE) / totalGVires) >= quorumRatio)
+    let hasPassed = (((voteYes * BASE) / totalVotes) >= passedRatio)
+    let tooEarly = (applyStart >= HEIGHT)
+    let tooLate = (HEIGHT >= applyEnd)
+    let timeDebug = ((((((("proposalHeight = " + toString(proposalHeight)) + ", applyStart = ") + toString(applyStart)) + ", applyEnd = ") + toString(applyEnd)) + ", HEIGHT = ") + toString(HEIGHT))
+    let byVoting = if (!(enabled))
+        then throw("tx application throw governance not enabled")
+        else if (tooEarly)
+            then throw(("proposal can't be executed as it's too early: " + timeDebug))
+            else if (tooLate)
+                then throw(("proposal can't be executed as it's too late:" + timeDebug))
+                else if (!(hasQuorum))
+                    then throw((((((("no quorum: " + "totalVotes: ") + toString(totalVotes)) + ", totalGVires: ") + toString(totalGVires)) + ", quorumRatio: ") + toString(quorumRatio)))
+                    else if (!(hasPassed))
+                        then throw((((((("no threshold achieved: " + "voteYes: ") + toString(voteYes)) + ", voteNo: ") + toString(voteNo)) + ", passedRatio: ") + toString(passedRatio)))
+                        else true
+    if (sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey))
+        then true
+        else byVoting
+    }

@@ -1,0 +1,621 @@
+{-# STDLIB_VERSION 7 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let SEPARATOR = "__"
+
+let KEY_MULTISIG = "MULTISIG"
+
+let KEY_STATUS = "STATUS"
+
+let KEY_INIT = "INIT"
+
+let KEY_PAUSED = "PAUSED"
+
+let KEY_PAUSER = "PAUSER"
+
+let KEY_CHAIN = "CHAIN"
+
+let KEY_GATEWAY_CONTRACT = "GATEWAY_CONTRACT"
+
+let KEY_SWAVES_CONTRACT = "SWAVES_CONTRACT"
+
+let KEY_SWAVES_ASSET = "ASSET"
+
+let KEY_RESERVES = "RESERVES"
+
+let KEY_STAKING_ASSETS = "STAKING_ASSETS"
+
+let KEY_STAKING_CONTRACT = "STAKING_CONTRACT"
+
+let FUNC_DEPOSIT = "deposit"
+
+let FUNC_REQUEST_WITHDRAWAL = "requestWithdrawal"
+
+let FUNC_EXECUTE_WITHDRAWAL = "executeWithdrawal"
+
+let FUNC_GET_RATE = "getRate"
+
+let FUNC_WITHDRAW = "withdraw"
+
+let FUNC_STAKE = "stake"
+
+let FUNC_UNSTAKE = "unstake"
+
+let FUNC_CLAIM_ALL = "claimAll"
+
+let FUNC_DEPOSIT_STAKING_REWARD = "depositStakingReward"
+
+let WAVES = "WAVES"
+
+let WAVES_DECIMALS = 8
+
+let DEX_DECIMALS = 8
+
+let MAX_INT = 9223372036854775807
+
+let ZERO_BIGINT = toBigInt(0)
+
+let ONE_BIGINT = toBigInt(1)
+
+let SWAVES_RATE_FACTOR = toBigInt(1000000000000)
+
+func _validateAddress (address_,err_) = match addressFromString(address_) {
+    case a: Address => 
+        true
+    case _ => 
+        throw(err_)
+}
+
+
+func _validateAsset (assetId_,err_) = if ((assetId_ == WAVES))
+    then true
+    else     match assetInfo(fromBase58String(assetId_)) {
+        case a: Asset => 
+            true
+        case _ => 
+            throw(err_)
+    }
+
+
+func _validateInt (val_,lowerBoundary_,upperBoundary_,err_) = if (if ((lowerBoundary_ > val_))
+    then true
+    else (val_ > upperBoundary_))
+    then throw(err_)
+    else true
+
+
+func _validateBigInt (val_,lowerBoundary_,err_) = if ((lowerBoundary_ > val_))
+    then throw(err_)
+    else true
+
+
+func _validateString (val_,err_) = if (if ((0 >= size(val_)))
+    then true
+    else contains(val_, SEPARATOR))
+    then throw(err_)
+    else true
+
+
+func _validatePaymentsSize (payments_,target_,err_) = if ((size(payments_) != target_))
+    then throw(err_)
+    else true
+
+
+func _assetToStr (asset_) = match asset_ {
+    case a: ByteVector => 
+        toBase58String(a)
+    case _ => 
+        WAVES
+}
+
+
+func _strToAsset (asset_) = if ((asset_ == WAVES))
+    then unit
+    else fromBase58String(asset_)
+
+
+func _getDecimals (assetId_) = if ((assetId_ == WAVES))
+    then WAVES_DECIMALS
+    else     match assetInfo(fromBase58String(assetId_)) {
+        case a: Asset => 
+            a.decimals
+        case _ => 
+            throw(("_getDecimals: no asset=" + assetId_))
+    }
+
+
+func _normalizeDecimals (amount_,sourceDecimals_,targetDecimals_) = if ((sourceDecimals_ >= targetDecimals_))
+    then (amount_ / pow(10, 0, (sourceDecimals_ - targetDecimals_), 0, 0, DOWN))
+    else (amount_ * pow(10, 0, (targetDecimals_ - sourceDecimals_), 0, 0, DOWN))
+
+
+func _loadInit () = match getBoolean(KEY_INIT) {
+    case a: Boolean => 
+        a
+    case _ => 
+        false
+}
+
+
+func _saveInit (isInit_) = [BooleanEntry(KEY_INIT, isInit_)]
+
+
+func _loadPause () = match getBoolean(KEY_PAUSED) {
+    case a: Boolean => 
+        a
+    case _ => 
+        false
+}
+
+
+func _savePause (isPaused_) = [BooleanEntry(KEY_PAUSED, isPaused_)]
+
+
+func _loadPauser () = match getString(KEY_PAUSER) {
+    case a: String => 
+        addressFromStringValue(a)
+    case _ => 
+        Address(base58'')
+}
+
+
+func _savePauser (pauser_) = [StringEntry(KEY_PAUSER, toString(pauser_))]
+
+
+func _loadMultisig () = match getString(KEY_MULTISIG) {
+    case a: String => 
+        addressFromStringValue(a)
+    case _ => 
+        Address(base58'')
+}
+
+
+func _saveMultisig (multisig_) = [StringEntry(KEY_MULTISIG, toString(multisig_))]
+
+
+func _loadChainId () = match getInteger(KEY_CHAIN) {
+    case a: Int => 
+        a
+    case _ => 
+        0
+}
+
+
+func _saveChainId (chainId_) = [IntegerEntry(KEY_CHAIN, chainId_)]
+
+
+func _loadGatewayContract () = match getString(KEY_GATEWAY_CONTRACT) {
+    case a: String => 
+        addressFromStringValue(a)
+    case _ => 
+        Address(base58'')
+}
+
+
+func _saveGatewayContract (gatewayContract_) = [StringEntry(KEY_GATEWAY_CONTRACT, toString(gatewayContract_))]
+
+
+func _loadSWavesContract () = match getString(KEY_SWAVES_CONTRACT) {
+    case a: String => 
+        addressFromStringValue(a)
+    case _ => 
+        Address(base58'')
+}
+
+
+func _saveSWavesContract (sWavesContract_) = [StringEntry(KEY_SWAVES_CONTRACT, toString(sWavesContract_))]
+
+
+func _loadSWavesAsset (contract_) = match getString(contract_, KEY_SWAVES_ASSET) {
+    case a: String => 
+        fromBase58String(a)
+    case _ => 
+        throw("_loadSWavesAsset: revert")
+}
+
+
+func _loadReserves (asset_) = match getInteger(makeString([KEY_RESERVES, asset_], SEPARATOR)) {
+    case a: Int => 
+        a
+    case _ => 
+        0
+}
+
+
+func _saveReserves (asset_,reserves_) = [IntegerEntry(makeString([KEY_RESERVES, asset_], SEPARATOR), reserves_)]
+
+
+func _loadStakingAssets () = match getString(KEY_STAKING_ASSETS) {
+    case a: String => 
+        if ((size(a) > 0))
+            then split_51C(a, SEPARATOR)
+            else nil
+    case _ => 
+        nil
+}
+
+
+func _saveStakingAssets (assets_) = [StringEntry(KEY_STAKING_ASSETS, makeString(assets_, SEPARATOR))]
+
+
+func _loadStakingContract (asset_) = match getString(makeString([KEY_STAKING_CONTRACT, asset_], SEPARATOR)) {
+    case a: String => 
+        addressFromStringValue(a)
+    case _ => 
+        Address(base58'')
+}
+
+
+func _saveStakingContract (asset_,contract_) = [StringEntry(makeString([KEY_STAKING_CONTRACT, asset_], SEPARATOR), toString(contract_))]
+
+
+func _onlyThisContract (caller_) = if ((caller_ != this))
+    then throw("_onlyThisContract: revert")
+    else true
+
+
+func _whenMultisigSet () = if ((_loadMultisig() == Address(base58'')))
+    then throw("_whenMultisigSet: revert")
+    else true
+
+
+func _whenNotInitialized () = if (_loadInit())
+    then throw("_whenNotInitialized: revert")
+    else true
+
+
+func _whenInitialized () = if (!(_loadInit()))
+    then throw("_whenInitialized: revert")
+    else true
+
+
+func _whenNotPaused () = if (_loadPause())
+    then throw("_whenNotPaused: revert")
+    else true
+
+
+func _whenPaused () = if (!(_loadPause()))
+    then throw("_whenPaused: revert")
+    else true
+
+
+func _onlyPauser (caller_) = if ((caller_ != _loadPauser()))
+    then throw("_onlyPauser: revert")
+    else true
+
+
+func _validateGateway (caller,err_) = if ((_loadGatewayContract() != caller))
+    then throw(err_)
+    else true
+
+
+func _deposit (from_,to_,asset_,amount_) = {
+    let assetDecimals = _getDecimals(asset_)
+    let amount = _normalizeDecimals(amount_, assetDecimals, DEX_DECIMALS)
+    let err = _validateInt(amount, 1, MAX_INT, "_deposit: invalid payment amount")
+    if ((err == err))
+        then {
+            let gatewayInvocation = invoke(_loadGatewayContract(), FUNC_DEPOSIT, [toString(this), from_, to_, toString(_loadChainId()), asset_, toString(amount)], nil)
+            if ((gatewayInvocation == gatewayInvocation))
+                then {
+                    let stakingAssets = _loadStakingAssets()
+                    let stakingInvocation = if ((asset_ == WAVES))
+                        then invoke(_loadSWavesContract(), FUNC_DEPOSIT, nil, [AttachedPayment(unit, amount_)])
+                        else if (containsElement(stakingAssets, asset_))
+                            then invoke(_loadStakingContract(asset_), FUNC_STAKE, nil, [AttachedPayment(_strToAsset(asset_), amount_)])
+                            else unit
+                    if ((stakingInvocation == stakingInvocation))
+                        then _saveReserves(asset_, (_loadReserves(asset_) + amount))
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Callable(i)
+func init (chainId_,pauser_,gatewayContract_,sWavesContract_) = {
+    let err = if (if (if (if (if (if (_onlyThisContract(i.caller))
+        then _whenNotInitialized()
+        else false)
+        then _whenMultisigSet()
+        else false)
+        then _validateInt(chainId_, 0, MAX_INT, "init: invalid chainId")
+        else false)
+        then _validateAddress(pauser_, "init: invalid pauser")
+        else false)
+        then _validateAddress(gatewayContract_, "init: invalid gatewayContract")
+        else false)
+        then _validateAddress(sWavesContract_, "init: invalid sWavesContract")
+        else false
+    if ((err == err))
+        then $Tuple2(((((_saveInit(true) ++ _saveChainId(chainId_)) ++ _savePauser(addressFromStringValue(pauser_))) ++ _saveGatewayContract(addressFromStringValue(gatewayContract_))) ++ _saveSWavesContract(addressFromStringValue(sWavesContract_))), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func deposit () = {
+    let err = if (if (if (_whenInitialized())
+        then _whenNotPaused()
+        else false)
+        then _validatePaymentsSize(i.payments, 1, "deposit: no payment")
+        else false)
+        then _validateInt(i.payments[0].amount, 0, MAX_INT, "deposit: negative payment")
+        else false
+    if ((err == err))
+        then $Tuple2(_deposit(toString(i.caller), toString(i.caller), _assetToStr(i.payments[0].assetId), i.payments[0].amount), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func depositTo (to_) = {
+    let err = if (if (if (if (_whenInitialized())
+        then _whenNotPaused()
+        else false)
+        then _validatePaymentsSize(i.payments, 1, "depositTo: no payment")
+        else false)
+        then _validateInt(i.payments[0].amount, 0, MAX_INT, "depositTo: negative payment")
+        else false)
+        then _validateString(to_, "depositTo: invalid to")
+        else false
+    if ((err == err))
+        then $Tuple2(_deposit(toString(i.caller), to_, _assetToStr(i.payments[0].assetId), i.payments[0].amount), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func requestWithdrawal (toChainId_,asset_,amount_) = {
+    let amount = valueOrErrorMessage(parseBigInt(amount_), "requestWithdrawal: amount not int")
+    let err = if (if (if (_whenInitialized())
+        then _validateInt(toChainId_, 0, MAX_INT, "requestWithdrawal: invalid toChainId")
+        else false)
+        then _validateString(asset_, "requestWithdrawal: invalid asset")
+        else false)
+        then _validateBigInt(amount, ONE_BIGINT, "requestWithdrawal: negative amount")
+        else false
+    if ((err == err))
+        then {
+            let caller = toString(i.caller)
+            let requestWithdrawalId =             match invoke(_loadGatewayContract(), FUNC_REQUEST_WITHDRAWAL, [toString(this), caller, caller, toString(_loadChainId()), toString(toChainId_), asset_, amount_], nil) {
+                case a: Int => 
+                    a
+                case _ => 
+                    throw("requestWithdrawal: call reverted from gw")
+            }
+            if ((requestWithdrawalId == requestWithdrawalId))
+                then $Tuple2(nil, requestWithdrawalId)
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func executeWithdrawal (requestWithdrawalId_) = {
+    let err = if (_whenInitialized())
+        then _validateInt(requestWithdrawalId_, 0, MAX_INT, "executeWithdrawal: invalid requestId")
+        else false
+    if ((err == err))
+        then {
+            let gatewayInvocation = reentrantInvoke(_loadGatewayContract(), FUNC_EXECUTE_WITHDRAWAL, [toString(this), toString(_loadChainId()), toString(requestWithdrawalId_)], nil)
+            if ((gatewayInvocation == gatewayInvocation))
+                then $Tuple2(nil, unit)
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func withdraw (to_,asset_,amount_) = {
+    let amount = valueOrErrorMessage(parseInt(amount_), "withdraw: amount not int")
+    let err = if (if (if (if (_whenInitialized())
+        then _validateGateway(i.caller, "withdraw: invalid gateway")
+        else false)
+        then _validateAddress(to_, "withdraw: invalid address")
+        else false)
+        then _validateAsset(asset_, "withdraw: invalid asset")
+        else false)
+        then _validateInt(amount, 0, MAX_INT, "withdraw: negative amount")
+        else false
+    if ((err == err))
+        then {
+            let assetDecimals = _getDecimals(asset_)
+            let amountNormalized = _normalizeDecimals(amount, DEX_DECIMALS, assetDecimals)
+            let newReserves = (_loadReserves(asset_) - amount)
+            let err1 = if (_validateInt(amountNormalized, 1, MAX_INT, "withdraw: invalid amount"))
+                then _validateInt(newReserves, 0, MAX_INT, "withdraw: negative newReserves")
+                else false
+            if ((err1 == err1))
+                then {
+                    let stakingAssets = _loadStakingAssets()
+                    let unstakingInvocation = if ((asset_ == WAVES))
+                        then {
+                            let sWavesContract = _loadSWavesContract()
+                            let sWavesAsset = _loadSWavesAsset(sWavesContract)
+                            let invocation = invoke(sWavesContract, FUNC_GET_RATE, nil, nil)
+                            let rate =                             match invocation {
+                                case a: String => 
+                                    parseBigIntValue(a)
+                                case _ => 
+                                    throw("withdraw: sWaves getRate() revert")
+                            }
+                            let sWavesToWithdraw = toInt(fraction(toBigInt(amountNormalized), SWAVES_RATE_FACTOR, rate, CEILING))
+                            invoke(sWavesContract, FUNC_WITHDRAW, nil, [AttachedPayment(sWavesAsset, sWavesToWithdraw)])
+                            }
+                        else if (containsElement(stakingAssets, asset_))
+                            then invoke(_loadStakingContract(asset_), FUNC_UNSTAKE, [amountNormalized], nil)
+                            else unit
+                    if ((unstakingInvocation == unstakingInvocation))
+                        then $Tuple2(([ScriptTransfer(addressFromStringValue(to_), amountNormalized, _strToAsset(asset_))] ++ _saveReserves(asset_, newReserves)), unit)
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func depositStakingReward (asset_) = {
+    let err = if (_whenInitialized())
+        then _validateAsset(asset_, "depositStakingReward: invalid asset")
+        else false
+    if ((err == err))
+        then {
+            let stakingAssets = _loadStakingAssets()
+            let updatedReserves = if ((asset_ == WAVES))
+                then {
+                    let sWavesContract = _loadSWavesContract()
+                    let sWavesAsset = _loadSWavesAsset(sWavesContract)
+                    let invocation = invoke(sWavesContract, FUNC_GET_RATE, nil, nil)
+                    let rate =                     match invocation {
+                        case a: String => 
+                            parseBigIntValue(a)
+                        case _ => 
+                            throw("depositStakingReward: sWaves getRate() revert")
+                    }
+                    let swavesAmount = assetBalance(this, sWavesAsset)
+                    toInt(fraction(toBigInt(swavesAmount), rate, SWAVES_RATE_FACTOR, DOWN))
+                    }
+                else if (containsElement(stakingAssets, asset_))
+                    then {
+                        let invocation = invoke(_loadStakingContract(asset_), FUNC_CLAIM_ALL, [toString(this)], nil)
+                        if ((invocation == invocation))
+                            then assetBalance(this, fromBase58String(asset_))
+                            else throw("Strict value is not equal to itself.")
+                        }
+                    else throw("depositStakingReward: no staking for asset")
+            let assetDecimals = _getDecimals(asset_)
+            let updatedReservesNormalized = _normalizeDecimals(updatedReserves, assetDecimals, DEX_DECIMALS)
+            let stakingProfit = (updatedReservesNormalized - _loadReserves(asset_))
+            let err1 = _validateInt(stakingProfit, 1, MAX_INT, "depositStakingReward: no reward")
+            if ((err1 == err1))
+                then {
+                    let gatewayInvocation = invoke(_loadGatewayContract(), FUNC_DEPOSIT_STAKING_REWARD, [toString(this), toString(_loadChainId()), asset_, toString(stakingProfit)], nil)
+                    if ((gatewayInvocation == gatewayInvocation))
+                        then $Tuple2(_saveReserves(asset_, updatedReservesNormalized), unit)
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func addStakingAsset (asset_,contract_) = {
+    let err = if (if (_onlyThisContract(i.caller))
+        then _validateAsset(asset_, "addStakingAsset: invalid asset")
+        else false)
+        then _validateAddress(contract_, "addStakingAsset: invalid contract")
+        else false
+    if ((err == err))
+        then {
+            let assets = _loadStakingAssets()
+            let err1 = if (containsElement(assets, asset_))
+                then throw("addStakingAsset: duplicate asset")
+                else unit
+            if ((err1 == err1))
+                then $Tuple2((_saveStakingAssets((assets :+ asset_)) ++ _saveStakingContract(asset_, addressFromStringValue(contract_))), unit)
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func rmStakingAsset (asset_) = {
+    let err = if (_onlyThisContract(i.caller))
+        then _validateAsset(asset_, "rmStakingAsset: invalid asset")
+        else false
+    if ((err == err))
+        then {
+            let assets = _loadStakingAssets()
+            let err1 = if (!(containsElement(assets, asset_)))
+                then throw("rmStakingAsset: no asset")
+                else unit
+            if ((err1 == err1))
+                then {
+                    let index = value(indexOf(assets, asset_))
+                    $Tuple2(_saveStakingAssets(removeByIndex(assets, index)), unit)
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func pause () = {
+    let err = if (if (_onlyPauser(i.caller))
+        then _whenInitialized()
+        else false)
+        then _whenNotPaused()
+        else false
+    if ((err == err))
+        then $Tuple2(_savePause(true), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func unpause () = {
+    let err = if (if (_onlyPauser(i.caller))
+        then _whenInitialized()
+        else false)
+        then _whenPaused()
+        else false
+    if ((err == err))
+        then $Tuple2(_savePause(false), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func updatePauser (pauser_) = {
+    let err = if (if (_onlyThisContract(i.caller))
+        then _whenInitialized()
+        else false)
+        then _validateAddress(pauser_, "updatePauser: invalid pauser")
+        else false
+    if ((err == err))
+        then $Tuple2(_savePauser(addressFromStringValue(pauser_)), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setMultisig (multisig_) = {
+    let err = if (_onlyThisContract(i.caller))
+        then _validateAddress(multisig_, "setMultisig: invalid multisig")
+        else false
+    if ((err == err))
+        then $Tuple2(_saveMultisig(addressFromStringValue(multisig_)), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Verifier(tx)
+func verify () = match getString(KEY_MULTISIG) {
+    case multisig: String => 
+        valueOrElse(getBoolean(addressFromStringValue(multisig), makeString([KEY_STATUS, toString(this), toBase58String(tx.id)], SEPARATOR)), false)
+    case _ => 
+        sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)
+}

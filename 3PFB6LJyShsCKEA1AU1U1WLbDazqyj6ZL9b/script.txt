@@ -1,0 +1,530 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let VERSION = "LIMITS-1.0.4 PROD"
+
+let CONTRACT_TYPE = "LIMIT_ORDERS"
+
+let configStr = valueOrElse(getString(this, "setup_configAddress"), "")
+
+let CONFIG_ADDRESS = if ((configStr == ""))
+    then this
+    else Address(fromBase58String(configStr))
+
+let shutdownWhitelist = [base58'3PBTPFGaKL7qEdj9Tz1QUqbvJUcPNu934j4', base58'3PMcMiMEs6w56NRGacksXtFG5zS7doE9fpL', base58'3PJu3pb7BST5XV7qUiHWDKmrzAkEpDSCewa', base58'3PAxdDSmN758L5SHSGRC5apEtQE2aApZotG', base58'3PJKmXoHJvVeQXjSJdhtkUcFDtdiQqMbUTD', base58'3PQdNxynJy5mche2kxMVc5shXWzK8Gstq3o', base58'3PHbdpaKzz8EiAngGHaFu2hVuNCdsC67qh3', base58'3P6Ksahs71SiKQgQ4qaZuFAVhqncdi2nvJQ']
+
+func tryGetString (key) = match getString(this, key) {
+    case b: String => 
+        b
+    case _ => 
+        ""
+}
+
+
+func tryGetInteger (key) = match getInteger(this, key) {
+    case b: Int => 
+        b
+    case _ => 
+        0
+}
+
+
+func tryGetBoolean (key,defaultValue) = match getBoolean(this, key) {
+    case b: Boolean => 
+        b
+    case _ => 
+        defaultValue
+}
+
+
+func getAssetString (assetId) = match assetId {
+    case b: ByteVector => 
+        toBase58String(b)
+    case _ => 
+        "WAVES"
+}
+
+
+func getAssetBytes (assetIdStr) = if ((assetIdStr == "WAVES"))
+    then unit
+    else fromBase58String(assetIdStr)
+
+
+func getDappBalance (assetId) = match assetId {
+    case b: ByteVector => 
+        assetBalance(this, b)
+    case _ => 
+        wavesBalance(this).available
+}
+
+
+func getNodeAddress () = {
+    let nodeAddressStr = valueOrElse(getString(this, "wavesLease_nodeAddress"), "")
+    if ((nodeAddressStr == ""))
+        then unit
+        else addressFromString(nodeAddressStr)
+    }
+
+
+let aggregator = valueOrElse(getString(CONFIG_ADDRESS, "setup_aggregatorAddress"), "3PGFHzVGT4NTigwCKP1NcwoXkodVZwvBuuU")
+
+let adminAddressStr = valueOrElse(getString(this, "setup_adminAddress"), "3PMcMiMEs6w56NRGacksXtFG5zS7doE9fpL")
+
+let WAVES_RESERVE = 50000000
+
+func isAdmin (caller) = (toBase58String(caller.bytes) == adminAddressStr)
+
+
+func isShutdown () = !(tryGetBoolean("setup_active", true))
+
+
+func rebalanceLeaseActions (wavesOut,nodeAddr) = {
+    let currentLeaseId = tryGetString("wavesLease_lastId")
+    let cancelLeaseAction = if ((currentLeaseId != ""))
+        then [LeaseCancel(fromBase58String(currentLeaseId))]
+        else nil
+    match nodeAddr {
+        case node: Address => 
+            let newLeaseAmount = ((wavesBalance(this).regular - wavesOut) - WAVES_RESERVE)
+            if ((newLeaseAmount > 0))
+                then {
+                    let leaseAction = Lease(node, newLeaseAmount)
+                    (cancelLeaseAction ++ [leaseAction, StringEntry("wavesLease_lastId", toBase58String(calculateLeaseId(leaseAction))), IntegerEntry("wavesLease_amount", newLeaseAmount)])
+                    }
+                else (cancelLeaseAction ++ (if ((currentLeaseId != ""))
+                    then [DeleteEntry("wavesLease_lastId"), DeleteEntry("wavesLease_amount")]
+                    else nil))
+        case _ => 
+            (cancelLeaseAction ++ (if ((currentLeaseId != ""))
+                then [DeleteEntry("wavesLease_lastId"), DeleteEntry("wavesLease_amount")]
+                else nil))
+    }
+    }
+
+
+@Callable(i)
+func setApproverAddress (approverAddress) = {
+    let isSelf = if ((i.caller == this))
+        then true
+        else throw("Only self invoke")
+    if ((isSelf == isSelf))
+        then {
+            let _approverAddress = addressFromString(approverAddress)
+            let approverOk =             match _approverAddress {
+                case t: Address => 
+                    true
+                case _ => 
+                    false
+            }
+            let canSetApprover = if (if (approverOk)
+                then true
+                else (approverAddress == ""))
+                then true
+                else throw("Wrong approver address")
+            if ((canSetApprover == canSetApprover))
+                then {
+                    let isInited = valueOrElse(getBoolean(value(_approverAddress), "INITED"), false)
+                    let hasAdmins = (valueOrElse(getString(value(_approverAddress), "ADMINS_PBKS"), "") != "")
+                    let isApproverContract = if (if ((approverAddress == ""))
+                        then true
+                        else if (isInited)
+                            then hasAdmins
+                            else false)
+                        then true
+                        else throw("Address is not approver contract")
+                    if ((isApproverContract == isApproverContract))
+                        then [StringEntry("APPROVER_ADDRESS", approverAddress)]
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setNodeAddress (nodeAddress) = {
+    let isSelf = if ((i.caller == this))
+        then true
+        else throw("Only self invoke")
+    if ((isSelf == isSelf))
+        then {
+            let _nodeAddress = addressFromString(nodeAddress)
+            let nodeOk =             match _nodeAddress {
+                case t: Address => 
+                    true
+                case _ => 
+                    false
+            }
+            let canSetNode = if (if (nodeOk)
+                then true
+                else (nodeAddress == ""))
+                then true
+                else throw("Wrong node address")
+            if ((canSetNode == canSetNode))
+                then {
+                    let newNodeAddr = if ((nodeAddress != ""))
+                        then addressFromStringValue(nodeAddress)
+                        else unit
+                    let leaseActions = rebalanceLeaseActions(0, newNodeAddr)
+                    ([StringEntry("wavesLease_nodeAddress", nodeAddress)] ++ leaseActions)
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setAdminAddress (adminAddress) = {
+    let isSelf = if ((i.caller == this))
+        then true
+        else throw("Only self invoke")
+    if ((isSelf == isSelf))
+        then {
+            let _adminAddress = addressFromString(adminAddress)
+            let adminOk =             match _adminAddress {
+                case t: Address => 
+                    true
+                case _ => 
+                    false
+            }
+            let canSetAdmin = if (if (adminOk)
+                then true
+                else (adminAddress == ""))
+                then true
+                else throw("Wrong admin address")
+            if ((canSetAdmin == canSetAdmin))
+                then [StringEntry("setup_adminAddress", adminAddress)]
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setConfigAddress (configAddress) = {
+    let isSelf = if ((i.caller == this))
+        then true
+        else throw("Only self invoke")
+    if ((isSelf == isSelf))
+        then {
+            let _configAddress = addressFromString(configAddress)
+            let configOk =             match _configAddress {
+                case t: Address => 
+                    true
+                case _ => 
+                    false
+            }
+            let canSetConfig = if (if (configOk)
+                then true
+                else (configAddress == ""))
+                then true
+                else throw("Wrong config address")
+            if ((canSetConfig == canSetConfig))
+                then [StringEntry("setup_configAddress", configAddress)]
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func withdrawFunds (tokenId,_amount,receiver) = {
+    let isSelf = if ((i.caller == this))
+        then true
+        else throw("Only self invoke")
+    if ((isSelf == isSelf))
+        then {
+            let receiverAddress = addressFromStringValue(receiver)
+            if ((receiverAddress == receiverAddress))
+                then {
+                    let assetBytes = getAssetBytes(tokenId)
+                    let leaseActions = if ((tokenId == "WAVES"))
+                        then {
+                            let currentLeaseId = tryGetString("wavesLease_lastId")
+                            if ((currentLeaseId != ""))
+                                then [LeaseCancel(fromBase58String(currentLeaseId)), DeleteEntry("wavesLease_lastId"), DeleteEntry("wavesLease_amount")]
+                                else nil
+                            }
+                        else nil
+                    let availableAmount = if ((tokenId == "WAVES"))
+                        then (wavesBalance(this).regular - WAVES_RESERVE)
+                        else getDappBalance(assetBytes)
+                    let amountToWithdraw = if (if ((_amount > 0))
+                        then (availableAmount > _amount)
+                        else false)
+                        then _amount
+                        else availableAmount
+                    if ((amountToWithdraw > 0))
+                        then (leaseActions ++ [ScriptTransfer(receiverAddress, amountToWithdraw, assetBytes)])
+                        else leaseActions
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func shutdown (shutdown) = if ((indexOf(shutdownWhitelist, i.caller.bytes) == unit))
+    then throw("user not in a whitelist")
+    else [BooleanEntry("setup_active", !(shutdown))]
+
+
+
+@Callable(i)
+func createOrder (asset1,amount1) = {
+    let isNotShutdown = if (!(isShutdown()))
+        then true
+        else throw("Contract is shutdown")
+    if ((isNotShutdown == isNotShutdown))
+        then {
+            let newOrdersAmount = (tryGetInteger("global_ordersAmount") + 1)
+            let orderId = toString(newOrdersAmount)
+            if ((size(i.payments) != 1))
+                then throw("You have to provide payment")
+                else if ((0 >= amount1))
+                    then throw("Amount1 cannot be less or equals 0")
+                    else {
+                        let asset0 = getAssetString(i.payments[0].assetId)
+                        let amount0 = i.payments[0].amount
+                        let _sameAssetCheck = if ((asset0 == asset1))
+                            then throw("Cannot create order with same assets")
+                            else true
+                        if ((_sameAssetCheck == _sameAssetCheck))
+                            then {
+                                let userOrders = tryGetString((("user_" + toString(i.caller)) + "_orders"))
+                                let newUserOrders =                                 match userOrders {
+                                    case _ => 
+                                        if (("" == $match0))
+                                            then orderId
+                                            else ((userOrders + ",") + orderId)
+                                }
+                                let orderActions = [IntegerEntry("global_ordersAmount", newOrdersAmount), StringEntry((("order_" + orderId) + "_token0"), asset0), IntegerEntry((("order_" + orderId) + "_amount0"), amount0), IntegerEntry((("order_" + orderId) + "_amount1"), amount1), StringEntry((("order_" + orderId) + "_token1"), asset1), IntegerEntry((("order_" + orderId) + "_fulfilled0"), 0), IntegerEntry((("order_" + orderId) + "_fulfilled1"), 0), StringEntry((("order_" + orderId) + "_owner"), toString(i.caller)), StringEntry((("order_" + orderId) + "_status"), "active"), IntegerEntry((("order_" + orderId) + "_timestamp"), lastBlock.timestamp), StringEntry((("order_" + orderId) + "_txId"), toBase58String(i.transactionId)), StringEntry((("user_" + toString(i.caller)) + "_orders"), newUserOrders)]
+                                let leaseActions = if ((asset0 == "WAVES"))
+                                    then rebalanceLeaseActions(0, getNodeAddress())
+                                    else nil
+                                (orderActions ++ leaseActions)
+                                }
+                            else throw("Strict value is not equal to itself.")
+                        }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func fulfillOrder (orderId) = {
+    let isNotShutdown = if (!(isShutdown()))
+        then true
+        else throw("Contract is shutdown")
+    if ((isNotShutdown == isNotShutdown))
+        then {
+            let orderOwner = valueOrErrorMessage(getString((("order_" + orderId) + "_owner")), "Cannot find order owner")
+            let orderStatus = getString((("order_" + orderId) + "_status"))
+            let orderAsset0 = valueOrErrorMessage(getString((("order_" + orderId) + "_token0")), "Cannot find token0")
+            let orderAmount0 = valueOrErrorMessage(getInteger((("order_" + orderId) + "_amount0")), "Cannot find amount0")
+            let orderFulfilled0 = valueOrErrorMessage(getInteger((("order_" + orderId) + "_fulfilled0")), "Cannot find fulfilled0")
+            let orderAmount0Left = (orderAmount0 - orderFulfilled0)
+            let orderAsset1 = valueOrErrorMessage(getString((("order_" + orderId) + "_token1")), "Cannot find token1")
+            let orderAmount1 = valueOrErrorMessage(getInteger((("order_" + orderId) + "_amount1")), "Cannot find amount1")
+            let orderFulfilled1 = valueOrErrorMessage(getInteger((("order_" + orderId) + "_fulfilled1")), "Cannot find fulfilled1")
+            let orderAmount1Left = (orderAmount1 - orderFulfilled1)
+            if ((orderStatus != "active"))
+                then throw("Order already closed or canceled")
+                else if ((size(i.payments) != 1))
+                    then throw("You have to provide payment")
+                    else {
+                        let callerAddress = i.caller
+                        let ownerAddress = addressFromStringValue(orderOwner)
+                        let paymentAsset1 = getAssetString(i.payments[0].assetId)
+                        let paymentAmount1 = i.payments[0].amount
+                        let wavesInvolved = (orderAsset0 == "WAVES")
+                        if ((paymentAsset1 != orderAsset1))
+                            then throw("Wrong payment asset")
+                            else if ((paymentAmount1 >= orderAmount1Left))
+                                then {
+                                    let wavesOut = ((if ((orderAsset0 == "WAVES"))
+                                        then orderAmount0Left
+                                        else 0) + (if ((orderAsset1 == "WAVES"))
+                                        then paymentAmount1
+                                        else 0))
+                                    let leaseActions = if (wavesInvolved)
+                                        then rebalanceLeaseActions(wavesOut, getNodeAddress())
+                                        else nil
+                                    let refundActions = if ((paymentAmount1 > orderAmount1Left))
+                                        then [ScriptTransfer(callerAddress, (paymentAmount1 - orderAmount1Left), getAssetBytes(orderAsset1))]
+                                        else nil
+                                    ((leaseActions ++ refundActions) ++ [ScriptTransfer(callerAddress, orderAmount0Left, getAssetBytes(orderAsset0)), ScriptTransfer(ownerAddress, orderAmount1Left, getAssetBytes(paymentAsset1)), IntegerEntry((("order_" + orderId) + "_fulfilled0"), (orderFulfilled0 + orderAmount0Left)), IntegerEntry((("order_" + orderId) + "_fulfilled1"), (orderFulfilled1 + orderAmount1Left)), StringEntry((("order_" + orderId) + "_status"), "closed")])
+                                    }
+                                else {
+                                    let amount0 = fraction(orderAmount0, paymentAmount1, orderAmount1, FLOOR)
+                                    let _nonZeroFill = if ((amount0 == 0))
+                                        then throw("Fill amount too small")
+                                        else true
+                                    if ((_nonZeroFill == _nonZeroFill))
+                                        then {
+                                            let wavesOut = ((if ((orderAsset0 == "WAVES"))
+                                                then amount0
+                                                else 0) + (if ((orderAsset1 == "WAVES"))
+                                                then paymentAmount1
+                                                else 0))
+                                            let leaseActions = if (wavesInvolved)
+                                                then rebalanceLeaseActions(wavesOut, getNodeAddress())
+                                                else nil
+                                            (leaseActions ++ [ScriptTransfer(ownerAddress, paymentAmount1, getAssetBytes(paymentAsset1)), ScriptTransfer(callerAddress, amount0, getAssetBytes(orderAsset0)), IntegerEntry((("order_" + orderId) + "_fulfilled0"), (orderFulfilled0 + amount0)), IntegerEntry((("order_" + orderId) + "_fulfilled1"), (orderFulfilled1 + paymentAmount1))])
+                                            }
+                                        else throw("Strict value is not equal to itself.")
+                                    }
+                        }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func fulfillOrderAndSwapCashback (orderId,params,minToReceive) = {
+    let isNotShutdown = if (!(isShutdown()))
+        then true
+        else throw("Contract is shutdown")
+    if ((isNotShutdown == isNotShutdown))
+        then {
+            let orderOwner = valueOrErrorMessage(getString((("order_" + orderId) + "_owner")), "Cannot find order owner")
+            let orderStatus = getString((("order_" + orderId) + "_status"))
+            let orderAsset0 = valueOrErrorMessage(getString((("order_" + orderId) + "_token0")), "Cannot find token0")
+            let orderAmount0 = valueOrErrorMessage(getInteger((("order_" + orderId) + "_amount0")), "Cannot find amount0")
+            let orderFulfilled0 = valueOrErrorMessage(getInteger((("order_" + orderId) + "_fulfilled0")), "Cannot find fulfilled0")
+            let orderAmount0Left = (orderAmount0 - orderFulfilled0)
+            let orderAsset1 = valueOrErrorMessage(getString((("order_" + orderId) + "_token1")), "Cannot find token1")
+            let orderAmount1 = valueOrErrorMessage(getInteger((("order_" + orderId) + "_amount1")), "Cannot find amount1")
+            let orderFulfilled1 = valueOrErrorMessage(getInteger((("order_" + orderId) + "_fulfilled1")), "Cannot find fulfilled1")
+            let orderAmount1Left = (orderAmount1 - orderFulfilled1)
+            if ((orderStatus != "active"))
+                then throw("Order already closed or canceled")
+                else if ((size(i.payments) != 1))
+                    then throw("You have to provide payment")
+                    else {
+                        let callerAddress = i.caller
+                        let ownerAddress = addressFromStringValue(orderOwner)
+                        let paymentAsset1 = getAssetString(i.payments[0].assetId)
+                        let paymentAmount1 = i.payments[0].amount
+                        if ((paymentAsset1 != orderAsset1))
+                            then throw("Wrong payment asset")
+                            else if ((orderAmount1Left > paymentAmount1))
+                                then throw("When you use this func partialy fullfill disabled, please use fulfillOrder")
+                                else {
+                                    let aggregatorAddress = Address(fromBase58String(aggregator))
+                                    let cashbackAmount = (paymentAmount1 - orderAmount1Left)
+                                    let balanceBefore = getDappBalance(getAssetBytes(orderAsset0))
+                                    if ((balanceBefore == balanceBefore))
+                                        then {
+                                            let swapTx = invoke(aggregatorAddress, "swap", [params, minToReceive], [AttachedPayment(getAssetBytes(orderAsset1), cashbackAmount)])
+                                            if ((swapTx == swapTx))
+                                                then {
+                                                    let balanceAfter = getDappBalance(getAssetBytes(orderAsset0))
+                                                    if ((balanceAfter == balanceAfter))
+                                                        then {
+                                                            let cashback = (balanceAfter - balanceBefore)
+                                                            if ((cashback == cashback))
+                                                                then {
+                                                                    let wavesInvolved = (orderAsset0 == "WAVES")
+                                                                    let wavesOut = ((if ((orderAsset0 == "WAVES"))
+                                                                        then (orderAmount0Left + cashback)
+                                                                        else 0) + (if ((paymentAsset1 == "WAVES"))
+                                                                        then orderAmount1Left
+                                                                        else 0))
+                                                                    let leaseActions = if (wavesInvolved)
+                                                                        then rebalanceLeaseActions(wavesOut, getNodeAddress())
+                                                                        else nil
+                                                                    (leaseActions ++ [ScriptTransfer(callerAddress, orderAmount0Left, getAssetBytes(orderAsset0)), ScriptTransfer(callerAddress, cashback, getAssetBytes(orderAsset0)), ScriptTransfer(ownerAddress, orderAmount1Left, getAssetBytes(paymentAsset1)), IntegerEntry((("order_" + orderId) + "_fulfilled0"), (orderFulfilled0 + orderAmount0Left)), IntegerEntry((("order_" + orderId) + "_fulfilled1"), (orderFulfilled1 + orderAmount1Left)), StringEntry((("order_" + orderId) + "_status"), "closed")])
+                                                                    }
+                                                                else throw("Strict value is not equal to itself.")
+                                                            }
+                                                        else throw("Strict value is not equal to itself.")
+                                                    }
+                                                else throw("Strict value is not equal to itself.")
+                                            }
+                                        else throw("Strict value is not equal to itself.")
+                                    }
+                        }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func cancelOrder (orderId,proxyCaller) = {
+    let isNotShutdown = if (!(isShutdown()))
+        then true
+        else throw("Contract is shutdown")
+    if ((isNotShutdown == isNotShutdown))
+        then {
+            let orderOwner = valueOrErrorMessage(getString((("order_" + orderId) + "_owner")), "Cannot find order owner")
+            let orderStatus = getString((("order_" + orderId) + "_status"))
+            let orderAsset0 = valueOrErrorMessage(getString((("order_" + orderId) + "_token0")), "Cannot find token0")
+            let orderAmount0 = valueOrErrorMessage(getInteger((("order_" + orderId) + "_amount0")), "Cannot find amount0")
+            let orderFulfilled0 = valueOrErrorMessage(getInteger((("order_" + orderId) + "_fulfilled0")), "Cannot find fulfilled0")
+            let orderAmount0Left = (orderAmount0 - orderFulfilled0)
+            if (if ((toBase58String(i.caller.bytes) != orderOwner))
+                then (toBase58String(i.caller.bytes) != adminAddressStr)
+                else false)
+                then throw("You cannot cancel order")
+                else if ((orderStatus != "active"))
+                    then throw("order is closed or canceled")
+                    else {
+                        let wavesOut = if ((orderAsset0 == "WAVES"))
+                            then orderAmount0Left
+                            else 0
+                        let leaseActions = if ((orderAsset0 == "WAVES"))
+                            then rebalanceLeaseActions(wavesOut, getNodeAddress())
+                            else nil
+                        (leaseActions ++ [ScriptTransfer(addressFromStringValue(orderOwner), orderAmount0Left, getAssetBytes(orderAsset0)), StringEntry((("order_" + orderId) + "_status"), "canceled")])
+                        }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Verifier(tx)
+func verify () = {
+    let multisigStr = valueOrElse(getString("APPROVER_ADDRESS"), "")
+    let multisigAddress = addressFromString(multisigStr)
+    let multisigOk =     match multisigAddress {
+        case t: Address => 
+            true
+        case _ => 
+            false
+    }
+    if (multisigOk)
+        then         match tx {
+            case ttx: SetScriptTransaction => 
+                match ttx.script {
+                    case script: ByteVector => 
+                        let scriptHasha = toBase58String(blake2b256(script))
+                        let validFrom = valueOrErrorMessage(getInteger(value(multisigAddress), (((("script%%" + CONTRACT_TYPE) + "%%") + scriptHasha) + "%%validFrom")), "validFrom not set")
+                        let validTo = valueOrErrorMessage(getInteger(value(multisigAddress), (((("script%%" + CONTRACT_TYPE) + "%%") + scriptHasha) + "%%validTo")), "validTo not set")
+                        if ((height >= validFrom))
+                            then (validTo >= height)
+                            else false
+                    case _ => 
+                        false
+                }
+            case otx => 
+                let taskId = ((("tx_" + toString(this)) + "_") + toBase58String(otx.id))
+                let isApproved = valueOrElse(getBoolean(value(multisigAddress), (((toString(this) + "_") + toBase58String(otx.id)) + "__approved")), false)
+                let approvedFrom = valueOrElse(getInteger(value(multisigAddress), (taskId + "__approvedFrom")), 0)
+                if (isApproved)
+                    then (height >= approvedFrom)
+                    else false
+        }
+        else sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)
+    }

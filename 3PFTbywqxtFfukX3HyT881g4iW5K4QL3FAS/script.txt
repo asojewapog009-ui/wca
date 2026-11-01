@@ -1,0 +1,373 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let VERSION = "PZSTAKING-1.1.7"
+
+let CONTRACT_TYPE = "PZ_STAKING"
+
+let managers = [Address(base58'3PMcMiMEs6w56NRGacksXtFG5zS7doE9fpL'), Address(base58'3PMKAL4cd77onkYuuU35115Wov1sLMEcFsv'), Address(base58'3P9xX849YJXg7C87v82cDyDy5VhKiPJpHo8'), Address(base58'3PKHFX6W4aAr1e1b8MUTz5HmdWVUcjWhgY4'), Address(base58'3PJu3pb7BST5XV7qUiHWDKmrzAkEpDSCewa')]
+
+let usdnId = base58'DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p'
+
+let usdnIdStr = "DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p"
+
+let puzzleId = base58'HEB8Qaw9xrWpWs8tHsiATYGBWDBtP2S7kcPALrMu43AS'
+
+let puzzleIdStr = "HEB8Qaw9xrWpWs8tHsiATYGBWDBtP2S7kcPALrMu43AS"
+
+let Scale = 1000000000000
+
+let Scale8 = 100000000
+
+let PERIOD_BLOCKS = 1000
+
+let DEFAULT_GLOBAL_CAP = (1000 * Scale8)
+
+let DEFAULT_ADDRESS_CAP = (700 * Scale8)
+
+let k_unstakePeriod = "setup_unstakePeriod"
+
+let k_globalUnstakeLimit = "global_unstakeLimit"
+
+let k_addressUnstakeLimit = "global_addressUnstakeLimit"
+
+let k_lastUnstakeH = "global_lastUnstakeHeight"
+
+let k_globalUnstaked = "global_unstaked"
+
+func tryGetInteger (key) = match getInteger(this, key) {
+    case b: Int => 
+        b
+    case _ => 
+        0
+}
+
+
+func tryGetString (key) = match getString(this, key) {
+    case a: String => 
+        a
+    case _ => 
+        ""
+}
+
+
+func claimAliasResult (address,assetIdStr) = {
+    let addressStr = toString(address)
+    let currentInterest = tryGetInteger((("global_lastCheck_" + assetIdStr) + "_interest"))
+    let stakedAmount = tryGetInteger((addressStr + "_staked"))
+    let lastCheckInterestInState = tryGetInteger((((addressStr + "_lastCheck_") + assetIdStr) + "_interest"))
+    let lastCheckInterest = if ((lastCheckInterestInState == 0))
+        then 0
+        else lastCheckInterestInState
+    let reward = fraction((currentInterest - lastCheckInterest), stakedAmount, Scale)
+[IntegerEntry((((addressStr + "_lastCheck_") + assetIdStr) + "_interest"), currentInterest), IntegerEntry((((addressStr + "_") + assetIdStr) + "_claimed"), (tryGetInteger((((addressStr + "_") + assetIdStr) + "_claimed")) + reward)), ScriptTransfer(address, reward, fromBase58String(assetIdStr))]
+    }
+
+
+func claimResult (address) = (claimAliasResult(address, usdnIdStr) ++ claimAliasResult(address, puzzleIdStr))
+
+
+func isShutdown () = valueOrElse(getBoolean("setup_shutdown"), false)
+
+
+func unstakeLimitOperations (address,amount) = {
+    let period = valueOrElse(getInteger(k_unstakePeriod), PERIOD_BLOCKS)
+    let globalLimit = valueOrElse(getInteger(k_globalUnstakeLimit), DEFAULT_GLOBAL_CAP)
+    let addressLimit = valueOrElse(getInteger((address + "_unstake_limit")), valueOrElse(getInteger(k_addressUnstakeLimit), DEFAULT_ADDRESS_CAP))
+    let _periodOk = if ((0 >= period))
+        then throw("wrong unstake period")
+        else true
+    if ((_periodOk == _periodOk))
+        then {
+            let _addressEnabled = if ((addressLimit == 0))
+                then throw(("unstake disabled for " + address))
+                else true
+            if ((_addressEnabled == _addressEnabled))
+                then {
+                    let globalLastH = tryGetInteger(k_lastUnstakeH)
+                    let globalExpired = if ((globalLastH == 0))
+                        then true
+                        else (height >= (globalLastH + period))
+                    let globalH = if (globalExpired)
+                        then height
+                        else globalLastH
+                    let globalPriorUsed = if (globalExpired)
+                        then 0
+                        else tryGetInteger(k_globalUnstaked)
+                    let globalUsed = (globalPriorUsed + amount)
+                    let globalAvailable = (globalLimit - globalPriorUsed)
+                    let _blocksLeft = ((globalH + period) - height)
+                    let _globalLimitOk = if (if ((globalLimit > 0))
+                        then (globalUsed > globalLimit)
+                        else false)
+                        then throw((((((((("unstake limit exceeded" + ": requested=") + toString(fraction(amount, 1, Scale8))) + ", available=") + toString(fraction(globalAvailable, 1, Scale8))) + ", periodCap=") + toString(fraction(globalLimit, 1, Scale8))) + ", resetsInBlocks=") + toString(_blocksLeft)))
+                        else true
+                    if ((_globalLimitOk == _globalLimitOk))
+                        then {
+                            let addressLastKey = (address + "_lastUnstakeHeight")
+                            let addressUsedKey = (address + "_unstaked")
+                            let addressLastH = tryGetInteger(addressLastKey)
+                            let addressExpired = if ((addressLastH == 0))
+                                then true
+                                else (height >= (addressLastH + period))
+                            let addressH = if (addressExpired)
+                                then height
+                                else addressLastH
+                            let addressPriorUsed = if (addressExpired)
+                                then 0
+                                else tryGetInteger(addressUsedKey)
+                            let addressUsed = (addressPriorUsed + amount)
+                            let addressAvailable = (addressLimit - addressPriorUsed)
+                            let _UblocksLeft = ((addressH + period) - height)
+                            let _addressLimitOk = if ((addressUsed > addressLimit))
+                                then throw(((((((((("unstake limit exceeded for " + address) + ": requested=") + toString(fraction(amount, 1, Scale8))) + ", available=") + toString(fraction(addressAvailable, 1, Scale8))) + ", periodCap=") + toString(fraction(addressLimit, 1, Scale8))) + ", resetsInBlocks=") + toString(_UblocksLeft)))
+                                else true
+                            if ((_addressLimitOk == _addressLimitOk))
+                                then [IntegerEntry(k_lastUnstakeH, globalH), IntegerEntry(k_globalUnstaked, globalUsed), IntegerEntry(addressLastKey, addressH), IntegerEntry(addressUsedKey, addressUsed)]
+                                else throw("Strict value is not equal to itself.")
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Callable(i)
+func stake () = {
+    let _isShutdown = if (isShutdown())
+        then throw((CONTRACT_TYPE + " is stopped"))
+        else false
+    if ((_isShutdown == _isShutdown))
+        then {
+            let _paymentCheck = if ((size(i.payments) != 1))
+                then throw("Only 1 payment should be attached")
+                else true
+            if ((_paymentCheck == _paymentCheck))
+                then {
+                    let amount = i.payments[0].amount
+                    let _amountOk = if ((0 >= amount))
+                        then throw("Invalid payment amount attached")
+                        else true
+                    if ((_amountOk == _amountOk))
+                        then {
+                            let addressStr = toString(i.caller)
+                            let totalStakedAmount = tryGetInteger("global_staked")
+                            if ((i.payments[0].assetId != puzzleId))
+                                then throw("wrong asset attached")
+                                else (claimResult(i.caller) ++ [IntegerEntry("global_staked", (totalStakedAmount + amount)), IntegerEntry((addressStr + "_staked"), (tryGetInteger((addressStr + "_staked")) + amount))])
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func stakeFor (addressStr) = {
+    let _isShutdown = if (isShutdown())
+        then throw((CONTRACT_TYPE + " is stopped"))
+        else false
+    if ((_isShutdown == _isShutdown))
+        then {
+            let _paymentCheck = if ((size(i.payments) != 1))
+                then throw("Only 1 payment should be attached")
+                else true
+            if ((_paymentCheck == _paymentCheck))
+                then {
+                    let amount = i.payments[0].amount
+                    let _amountOk = if ((0 >= amount))
+                        then throw("Invalid payment amount attached")
+                        else true
+                    if ((_amountOk == _amountOk))
+                        then {
+                            let totalStakedAmount = tryGetInteger("global_staked")
+                            if ((i.payments[0].assetId != puzzleId))
+                                then throw("wrong asset attached")
+                                else (claimResult(addressFromStringValue(addressStr)) ++ [IntegerEntry("global_staked", (totalStakedAmount + amount)), IntegerEntry((addressStr + "_staked"), (tryGetInteger((addressStr + "_staked")) + amount))])
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func unStake (amount) = {
+    let _isShutdown = if (isShutdown())
+        then throw((CONTRACT_TYPE + " is stopped"))
+        else false
+    if ((_isShutdown == _isShutdown))
+        then {
+            let addressStr = toString(i.caller)
+            let stakedAmount = tryGetInteger((addressStr + "_staked"))
+            if ((0 >= amount))
+                then throw("amount should be positive")
+                else if ((amount > stakedAmount))
+                    then throw("you don't have tokens available")
+                    else ((claimResult(i.caller) ++ [IntegerEntry((addressStr + "_staked"), (stakedAmount - amount)), IntegerEntry("global_staked", (tryGetInteger("global_staked") - amount)), ScriptTransfer(i.caller, amount, puzzleId)]) ++ unstakeLimitOperations(addressStr, amount))
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func claimReward () = {
+    let _isShutdown = if (isShutdown())
+        then throw((CONTRACT_TYPE + " is stopped"))
+        else false
+    if ((_isShutdown == _isShutdown))
+        then claimResult(i.caller)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func topUpReward () = {
+    let _paymentCheck = if ((size(i.payments) != 1))
+        then throw("Only 1 payment should be attached")
+        else true
+    if ((_paymentCheck == _paymentCheck))
+        then {
+            let pmtAsset = value(i.payments[0].assetId)
+            let pmtAmount = i.payments[0].amount
+            let _amountOk = if ((0 >= pmtAmount))
+                then throw("Invalid payment amount attached")
+                else true
+            if ((_amountOk == _amountOk))
+                then {
+                    let amount = if ((pmtAsset == usdnId))
+                        then 0
+                        else if ((pmtAsset == puzzleId))
+                            then pmtAmount
+                            else throw("not correct asset attached")
+                    if ((amount == amount))
+                        then {
+                            let currentInterest = tryGetInteger((("global_lastCheck_" + puzzleIdStr) + "_interest"))
+                            let totalStakedAmount = tryGetInteger("global_staked")
+                            let interestDelta = if ((totalStakedAmount > 0))
+                                then fraction(amount, Scale, totalStakedAmount)
+                                else 0
+                            if ((pmtAsset == puzzleId))
+                                then $Tuple2([IntegerEntry((("global_" + puzzleIdStr) + "_earnings"), (tryGetInteger((("global_" + puzzleIdStr) + "_earnings")) + amount)), IntegerEntry((("global_lastCheck_" + puzzleIdStr) + "_interest"), (currentInterest + interestDelta))], amount)
+                                else [ScriptTransfer(Address(base58'3PFWAVKmXjfHXyzJb12jCbhP4Uhi9t4uWiD'), pmtAmount, usdnId)]
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func shutdown (val) = if ((indexOf(managers, i.caller) == unit))
+    then throw("admin only")
+    else [BooleanEntry("setup_shutdown", val)]
+
+
+
+@Callable(i)
+func setApproverAddress (approverAddress) = {
+    let isSelf = if ((i.caller == this))
+        then true
+        else throw("Only self invoke")
+    if ((isSelf == isSelf))
+        then {
+            let _approverAddress = addressFromString(approverAddress)
+            let approverOk =             match _approverAddress {
+                case t: Address => 
+                    true
+                case _ => 
+                    false
+            }
+            let canSetApprover = if (if (approverOk)
+                then true
+                else (approverAddress == ""))
+                then true
+                else throw("Wrong approver address")
+            if ((canSetApprover == canSetApprover))
+                then {
+                    let isInited = valueOrElse(getBoolean(value(_approverAddress), "INITED"), false)
+                    let hasAdmins = (valueOrElse(getString(value(_approverAddress), "ADMINS_PBKS"), "") != "")
+                    let isApproverContract = if (if ((approverAddress == ""))
+                        then true
+                        else if (isInited)
+                            then hasAdmins
+                            else false)
+                        then true
+                        else throw("Address is not approver contract")
+                    if ((isApproverContract == isApproverContract))
+                        then [StringEntry("APPROVER_ADDRESS", approverAddress)]
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Verifier(tx)
+func verify () = {
+    let multisigStr = valueOrElse(getString("APPROVER_ADDRESS"), "")
+    let multisigAddress = addressFromString(multisigStr)
+    let multisigOk =     match multisigAddress {
+        case t: Address => 
+            true
+        case _ => 
+            false
+    }
+    let isInited = if (multisigOk)
+        then valueOrElse(getBoolean(value(multisigAddress), "INITED"), false)
+        else false
+    let hasAdmins = if (multisigOk)
+        then (valueOrElse(getString(value(multisigAddress), "ADMINS_PBKS"), "") != "")
+        else false
+    if (if (if (multisigOk)
+        then isInited
+        else false)
+        then hasAdmins
+        else false)
+        then         match tx {
+            case ttx: SetScriptTransaction => 
+                match ttx.script {
+                    case script: ByteVector => 
+                        let scriptHasha = toBase58String(blake2b256(script))
+                        let validFrom = valueOrErrorMessage(getInteger(value(multisigAddress), (((("script%%" + CONTRACT_TYPE) + "%%") + scriptHasha) + "%%validFrom")), "validFrom not set")
+                        let validTo = valueOrErrorMessage(getInteger(value(multisigAddress), (((("script%%" + CONTRACT_TYPE) + "%%") + scriptHasha) + "%%validTo")), "validTo not set")
+                        let notSameScript = if ((scriptHash(this) == blake2b256(script)))
+                            then throw("Same script, rejecting")
+                            else true
+                        let feeOk = if ((ttx.fee > 12000000))
+                            then throw("Too big fee")
+                            else true
+                        if (if (if ((height >= validFrom))
+                            then (validTo >= height)
+                            else false)
+                            then notSameScript
+                            else false)
+                            then feeOk
+                            else false
+                    case _ => 
+                        false
+                }
+            case otx => 
+                let taskId = ((("tx_" + toString(this)) + "_") + toBase58String(otx.id))
+                let isApproved = valueOrElse(getBoolean(value(multisigAddress), (((toString(this) + "_") + toBase58String(otx.id)) + "__approved")), false)
+                let approvedFrom = valueOrElse(getInteger(value(multisigAddress), (taskId + "__approvedFrom")), 0)
+                if (isApproved)
+                    then (height >= approvedFrom)
+                    else false
+        }
+        else sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)
+    }

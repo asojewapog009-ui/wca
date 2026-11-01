@@ -1,0 +1,91 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let VERSION = "UEF-1.0.0"
+
+let CONTRACT_TYPE = "UNIVERSAL-EAGLE-FEEDER"
+
+let usdnIdStr = "DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p"
+
+let usdnId = base58'DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p'
+
+let puzzleIdStr = "HEB8Qaw9xrWpWs8tHsiATYGBWDBtP2S7kcPALrMu43AS"
+
+let puzzleId = base58'HEB8Qaw9xrWpWs8tHsiATYGBWDBtP2S7kcPALrMu43AS'
+
+let aggregatorAddress = "3PGFHzVGT4NTigwCKP1NcwoXkodVZwvBuuU"
+
+let eagleAddress = "3PKUxbZaSYfsR7wu2HaAgiirHYwAMupDrYW"
+
+func tryGetString (key) = match getString(this, key) {
+    case b: String => 
+        b
+    case _ => 
+        ""
+}
+
+
+func tryGetStringOther (key,address) = match getString(address, key) {
+    case b: String => 
+        b
+    case _ => 
+        ""
+}
+
+
+func getAssetString (assetId) = match assetId {
+    case b: ByteVector => 
+        toBase58String(b)
+    case _ => 
+        "WAVES"
+}
+
+
+func getAssetBytes (assetIdStr) = if ((assetIdStr == "WAVES"))
+    then unit
+    else fromBase58String(assetIdStr)
+
+
+func getBalance (assetId) = match assetId {
+    case x: Unit => 
+        wavesBalance(this).available
+    case _ => 
+        assetBalance(this, value(assetId))
+}
+
+
+@Callable(i)
+func doJob (route,minToReceive,tokenIn,amount) = {
+    let isSelf = if ((i.caller == this))
+        then true
+        else throw("Only the contract itself can call this function")
+    if ((isSelf == isSelf))
+        then {
+            let balBefore = getBalance(puzzleId)
+            if ((balBefore == balBefore))
+                then {
+                    let inv = invoke(Address(fromBase58String(aggregatorAddress)), "swap", [route, minToReceive], [AttachedPayment(getAssetBytes(tokenIn), amount)])
+                    if ((inv == inv))
+                        then {
+                            let puzAfter = getBalance(puzzleId)
+                            if ((puzAfter == puzAfter))
+                                then {
+                                    let received = (puzAfter - balBefore)
+                                    if ((received == received))
+                                        then {
+                                            let topUp = invoke(Address(fromBase58String(eagleAddress)), "topUpReward", nil, [AttachedPayment(puzzleId, received)])
+                                            if ((topUp == topUp))
+                                                then [IntegerEntry("total_reward", (valueOrElse(getInteger(this, "total_reward"), 0) + received))]
+                                                else throw("Strict value is not equal to itself.")
+                                            }
+                                        else throw("Strict value is not equal to itself.")
+                                    }
+                                else throw("Strict value is not equal to itself.")
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+

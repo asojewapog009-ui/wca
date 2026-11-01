@@ -1,0 +1,722 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+func asInt (value) = match value {
+    case int: Int => 
+        int
+    case _ => 
+        throw("wrong type, expected: Int")
+}
+
+
+func asIntStrInt (value) = match value {
+    case intStrInt: (Int, String, Int) => 
+        intStrInt
+    case intStr: (Int, String) => 
+        $Tuple3(intStr._1, intStr._2, 0)
+    case _ => 
+        throw("wrong type, expected: (Int, String)")
+}
+
+
+func factorCheck (factor) = if (if (if ((factor != 1))
+    then (factor != 2)
+    else false)
+    then (factor != 4)
+    else false)
+    then throw("bad factor")
+    else factor
+
+
+let viresAssetIdStore = "viresAssetId"
+
+let initialHeightStore = "initialHeight"
+
+let initialHeight = getIntegerValue(this, initialHeightStore)
+
+let configStore = "config"
+
+let configAddress = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(this, configStore), "exp-dividends: no configAddress")), "invalid config address")
+
+let maybeOracleAddress = match getString(configAddress, "oracle_address") {
+    case s: String => 
+        addressFromString(s)
+    case _ => 
+        unit
+}
+
+let HEIGHT = height
+
+let viresIdStr = valueOrErrorMessage(getString(this, viresAssetIdStore), "vires assetId not found")
+
+let viresAssetId = valueOrErrorMessage(fromBase58String(viresIdStr), "invalid vires assetId")
+
+func assetId (s) = {
+    let assetIdPart = split(s, "_")[0]
+    if ((assetIdPart == "WAVES"))
+        then unit
+        else fromBase58String(assetIdPart)
+    }
+
+
+func assetIdStr (aid) = match aid {
+    case bv: ByteVector => 
+        toBase58String(bv)
+    case u: Unit => 
+        "WAVES"
+    case _ => 
+        throw("Match error")
+}
+
+
+func throwIf (condition,error) = if (condition)
+    then throw(error)
+    else true
+
+
+func writeInt (key,value) = if ((0 > value))
+    then throw(((("writing negative value " + toString(value)) + " for key ") + key))
+    else IntegerEntry(key, value)
+
+
+func writeStrInt (key,value) = if ((0 > value))
+    then throw(((("writing negative value " + toString(value)) + " for key ") + key))
+    else StringEntry(key, toString(value))
+
+
+func writeString (key,value) = StringEntry(key, value)
+
+
+func writeConstString (key,value) = if (!(isDefined(getString(this, key))))
+    then StringEntry(key, value)
+    else throw(("already initialized: " + key))
+
+
+func changeBy (key,value) = writeInt(key, (valueOrElse(getInteger(this, key), 0) + value))
+
+
+func changeByStr (key,value) = writeStrInt(key, (parseIntValue(valueOrElse(getString(this, key), "0")) + value))
+
+
+func viresPayment (i) = if ((size(i.payments) == 0))
+    then 0
+    else if ((i.payments[0].assetId != viresAssetId))
+        then throw("not vires")
+        else i.payments[0].amount
+
+
+func opAllowed (op) = match invoke(configAddress, "opAllowed", [viresIdStr, op], nil) {
+    case b: Boolean => 
+        if (b)
+            then true
+            else throw("not allowed")
+    case _ => 
+        throw("opAllowed: unexpected result type")
+}
+
+
+let viresStaker = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "vires_staker"), "no vires_staker in config")), "invalid vires_staker address")
+
+let main = valueOrErrorMessage(addressFromString(split(valueOrErrorMessage(getString(configAddress, "main"), "no main"), "|")[0]), "invalid main")
+
+func mainOnly (i) = if (contains(getStringValue(configAddress, "main"), toString(i.caller)))
+    then true
+    else throw("only main can do")
+
+
+let dividendableTokens = valueOrElse(getString(configAddress, "dividendableTokens"), "")
+
+let dividendableTokensArr = if ((dividendableTokens == ""))
+    then nil
+    else split_4C(dividendableTokens, "|")
+
+let dividendableReservesStr = valueOrElse(getString(configAddress, "dividendableReserves"), "")
+
+let dividendableReserves = match dividendableReservesStr {
+    case str: String => 
+        if ((str == ""))
+            then nil
+            else split_4C(str, "|")
+    case _ => 
+        nil
+}
+
+let halfLife = valueOrErrorMessage(getInteger(configAddress, "vires_lock_half_life"), "half life not set")
+
+let lambda = (69314718056 / halfLife)
+
+let LAMBDABASE = 8
+
+let E = 271828183
+
+let EBASE = 8
+
+func formula (x,y0) = fraction(y0, pow(E, EBASE, fraction(lambda, x, 1000), LAMBDABASE, 8, HALFUP), 100000000)
+
+
+func userDividendsAdjStore (user,aid) = (((user + "_") + aid) + "_adj")
+
+
+func userDividendsClaimedStore (user,aid) = (((user + "_") + aid) + "_claimed")
+
+
+func userVirtualTokensStore (user) = (user + "_virtual")
+
+
+func userDepositedTokensStore (user) = (user + "_vires")
+
+
+func userWithdrawnTokensStore (user) = (user + "_vires_withdrawn")
+
+
+func userEntryHeightStore (user) = (user + "_height")
+
+
+func userFactorStore (user) = (user + "_factor")
+
+
+func userDividendsAdj (user,aid) = valueOrElse(getInteger(userDividendsAdjStore(user, aid)), 0)
+
+
+func userDividendsClaimed (user,aid) = valueOrElse(getInteger(userDividendsClaimedStore(user, aid)), 0)
+
+
+func userVirtualTokens (user) = parseIntValue(valueOrElse(getString(userVirtualTokensStore(user)), "0"))
+
+
+func userDepositedTokens (user) = valueOrElse(getInteger(userDepositedTokensStore(user)), 0)
+
+
+func userWithdrawnTokens (user) = valueOrElse(getInteger(userWithdrawnTokensStore(user)), 0)
+
+
+func userEntryHeight (user) = valueOrElse(getInteger(userEntryHeightStore(user)), 0)
+
+
+func userFactor (user) = valueOrElse(getInteger(userFactorStore(user)), 1)
+
+
+func userGVires (user) = formula(-((HEIGHT - initialHeight)), userVirtualTokens(user))
+
+
+func totalVirtualDividendsStore (aid) = (aid + "_totalVirtualDividends")
+
+
+func totalRealDividendsStore (aid) = (aid + "_totalRealDividends")
+
+
+func recoveryAllocStore (aid) = (aid + "_recoveryAllocations")
+
+
+func totalRealDividendsClaimedStore (aid) = (aid + "_totalRealDividendsClaimed")
+
+
+let totalVirtualTokensStore = "totalVirtualTokens"
+
+let totalDepositedTokensStore = "totalDepositedTokens"
+
+func totalDepositedByFactorStore (factor) = ("totalDepositedTokens" + toString(factorCheck(factor)))
+
+
+func totalDepositedByFactor (factor) = valueOrElse(getInteger(totalDepositedByFactorStore(factor)), 0)
+
+
+func totalVirtualDividends (aid) = valueOrElse(getInteger(this, totalVirtualDividendsStore(aid)), 0)
+
+
+func totalRealDividends (aid) = valueOrElse(getInteger(this, totalRealDividendsStore(aid)), 0)
+
+
+let totalVirtualTokens = parseIntValue(valueOrElse(getString(this, totalVirtualTokensStore), "0"))
+
+let totalDepositedTokens = valueOrElse(getInteger(this, totalDepositedTokensStore), 0)
+
+func userOffCliff (user) = {
+    let entryHeight = userEntryHeight(user)
+    let factor = userFactor(user)
+    if ((factor == 1))
+        then (HEIGHT > (entryHeight + (4 * halfLife)))
+        else if ((factor == 2))
+            then (HEIGHT > (entryHeight + (5 * halfLife)))
+            else if ((factor == 4))
+                then (HEIGHT > (entryHeight + (6 * halfLife)))
+                else throw(("bad factor:" + toString(factor)))
+    }
+
+
+func userViresData (user) = {
+    let deposited = userDepositedTokens(user)
+    let gV = userGVires(user)
+    let supposedLocked = min([deposited, gV])
+    let locked = if (userOffCliff(user))
+        then 0
+        else supposedLocked
+    let unlocked = (deposited - locked)
+    let withdrawn = userWithdrawnTokens(user)
+    let withdrawable = (unlocked - withdrawn)
+    let inProtocol = (locked + withdrawable)
+    $Tuple6(deposited, locked, withdrawable, withdrawn, inProtocol, gV)
+    }
+
+
+func userProfitData (user) = {
+    let totalTokens = size(dividendableTokensArr)
+    let totalDividendableReserves = size(dividendableReserves)
+    if ((totalTokens != totalDividendableReserves))
+        then throw(((("inconsistent configuration: totalTokens=" + toString(totalTokens)) + ", totalDividendableReserves = ") + toString(totalDividendableReserves)))
+        else {
+            let virtualTokens = userVirtualTokens(user)
+            let tokenData = {
+                func fold (totals,index) =                 if ((index >= totalTokens))
+                    then totals
+                    else {
+                        let aid = dividendableTokensArr[index]
+                        let $t085948883 = {
+                            let r = valueOrErrorMessage(addressFromString(dividendableReserves[index]), "bad reserve in dividendableReserves")
+                            asIntStrInt(invoke(r, "getReserveDivsInfo", nil, nil))
+                            }
+                        let reserveDivs = $t085948883._1
+                        let reserveAssetId = $t085948883._2
+                        let nonClaimable = $t085948883._3
+                        if ((reserveAssetId != aid))
+                            then throw(((((((("inconsistent configuration: reserveAssetId=" + reserveAssetId) + ", aid=") + aid) + ", dividendableTokens:") + dividendableTokens) + ", dividendableReserves:") + dividendableReservesStr))
+                            else {
+                                let userVirtualDivs = if ((totalVirtualTokens == 0))
+                                    then 0
+                                    else fraction((totalVirtualDividends(aid) + reserveDivs), virtualTokens, totalVirtualTokens)
+                                let adj = userDividendsAdj(user, aid)
+                                let userDivs = (userVirtualDivs - adj)
+                                let nonClaimableUserDivs = if ((totalVirtualTokens == 0))
+                                    then 0
+                                    else fraction(nonClaimable, virtualTokens, totalVirtualTokens)
+                                let userClaimed = userDividendsClaimed(user, aid)
+                                let claimable = max([0, (userDivs - userClaimed)])
+                                if ((0 > claimable))
+                                    then throw(("claimable < 0: " + toString(claimable)))
+                                    else (totals ++ [$Tuple4(aid, userClaimed, claimable, nonClaimableUserDivs)])
+                                }
+                        }
+
+                let $l = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+                let $s = size($l)
+                let $acc0 = nil
+                func $f0_1 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else fold($a, $l[$i])
+
+                func $f0_2 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else throw("List size exceeds 20")
+
+                $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18), 19), 20)
+                }
+            $Tuple2(virtualTokens, tokenData)
+            }
+    }
+
+
+func claimFromReservesInternal () = {
+    let assetIdStore = "assetId"
+    let recoveryAddressShare = valueOrElse(getInteger(configAddress, "recovery_address_share"), 0)
+    let recoveryReservesStr = valueOrElse(getString(configAddress, "recovery_reserves"), "")
+    let recoveryAddress = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "recovery_address"), "fond address not found")), "fond address is invalid")
+    func fold (output,reserve) =     {
+        let reserveAddress = valueOrErrorMessage(addressFromString(reserve), "adder: bad reserve address")
+        let assetIdString = valueOrErrorMessage(getString(reserveAddress, assetIdStore), "no assetId in reserve")
+        let actions = if (!(contains(dividendableTokens, assetIdString)))
+            then throw("inconsistent configuration: dividendableReserve's asset id is not stored in dividendableTokens")
+            else {
+                let amount = asInt(invoke(reserveAddress, "withdrawFromReserve", [-1], nil))
+                if ((amount == amount))
+                    then if ((0 > amount))
+                        then throw("bad amount")
+                        else if ((amount == 0))
+                            then nil
+                            else if (if ((recoveryAddressShare == 0))
+                                then true
+                                else !(contains(recoveryReservesStr, reserve)))
+                                then [changeBy(totalVirtualDividendsStore(assetIdString), amount), changeBy(totalRealDividendsStore(assetIdString), amount)]
+                                else {
+                                    let recoveryAmount = fraction(amount, recoveryAddressShare, 100)
+                                    let dividentsAmount = (amount - recoveryAmount)
+[changeBy(totalVirtualDividendsStore(assetIdString), dividentsAmount), changeBy(totalRealDividendsStore(assetIdString), dividentsAmount), changeBy(recoveryAllocStore(assetIdString), recoveryAmount), ScriptTransfer(recoveryAddress, recoveryAmount, assetId(assetIdString))]
+                                    }
+                    else throw("Strict value is not equal to itself.")
+                }
+        (output ++ actions)
+        }
+
+    let $l = dividendableReserves
+    let $s = size($l)
+    let $acc0 = nil
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else fold($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 20")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18), 19), 20)
+    }
+
+
+func adviseUser (user) = {
+    let $t01218812278 = userViresData(user)
+    let deposited = $t01218812278._1
+    let locked = $t01218812278._2
+    let withdrawable = $t01218812278._3
+    let withdrawn = $t01218812278._4
+    let inProtocol = $t01218812278._5
+    let gVires = $t01218812278._6
+    let $t01228312336 = userProfitData(user)
+    let virtualTokens = $t01228312336._1
+    let tokenData = $t01228312336._2
+    let power = if ((inProtocol == 0))
+        then 0
+        else fraction(10000, gVires, inProtocol)
+    let base = ((((((((((((((((((("  deposited = " + toString(deposited)) + ", virtualTokens = ") + toString(virtualTokens)) + ", locked = ") + toString(locked)) + ", withdrawable = ") + toString(withdrawable)) + ", withdrawn = ") + toString(withdrawn)) + ", inProtocol = ") + toString(inProtocol)) + ", entryHeight = ") + toString(userEntryHeight(user))) + ", factor = ") + toString(userFactor(user))) + ", gVires = ") + toString(gVires)) + ", power = ") + toString(power))
+    let tokensData = {
+        func fld (totals,item) =         {
+            let $t01301013037 = item
+            let aid = $t01301013037._1
+            let ced = $t01301013037._2
+            let av = $t01301013037._3
+            let nc = $t01301013037._4
+            ((((((((((totals + ", [ ") + "assetId = ") + aid) + ", claimed = ") + toString(ced)) + ", claimable = ") + toString(av)) + ", nonClaimable = ") + toString(nc)) + "]")
+            }
+
+        let $l = tokenData
+        let $s = size($l)
+        let $acc0 = ""
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else fld($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 20")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18), 19), 20)
+        }
+    (base + tokensData)
+    }
+
+
+func advise () = {
+    let totalGvires = formula(-((HEIGHT - initialHeight)), totalVirtualTokens)
+    let base = ((((((((((("  totalDepositedTokens = " + toString(totalDepositedTokens)) + ", totalDepositedTokens1 = ") + toString(totalDepositedByFactor(1))) + ", totalDepositedTokens2 = ") + toString(totalDepositedByFactor(2))) + ", totalDepositedTokens4 = ") + toString(totalDepositedByFactor(4))) + ", totalVirtualTokens = ") + toString(totalVirtualTokens)) + ", totalGvires = ") + toString(totalGvires))
+    func fold (total,aid) =     ((((total + ", ") + aid) + " = ") + toString(totalRealDividends(aid)))
+
+    let $l = dividendableTokensArr
+    let $s = size($l)
+    let $acc0 = base
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else fold($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 20")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18), 19), 20)
+    }
+
+
+func updateUser (user,tokens,f) = {
+    let checks = opAllowed("lock_vires")
+    if ((checks == checks))
+        then if (if ((f != 1))
+            then valueOrElse(getBoolean(configAddress, "allow_boost"), false)
+            else false)
+            then throw("boosting not enabled")
+            else {
+                let factor = factorCheck(f)
+                if ((factor == factor))
+                    then {
+                        let currentFactor = userFactor(user)
+                        if ((currentFactor > factor))
+                            then throw("can't downgrade boosting")
+                            else {
+                                let $t01440714493 = userViresData(user)
+                                let deposited = $t01440714493._1
+                                let locked = $t01440714493._2
+                                let withdrawable = $t01440714493._3
+                                let withdrawn = $t01440714493._4
+                                let inProtocol = $t01440714493._5
+                                let gV = $t01440714493._6
+                                let oldVirtualTokens = userVirtualTokens(user)
+                                let newVirtualTokens = formula((HEIGHT - initialHeight), (factor * (tokens + inProtocol)))
+                                let diff = (newVirtualTokens - oldVirtualTokens)
+                                let base = [changeBy(totalDepositedTokensStore, tokens), changeByStr(totalVirtualTokensStore, diff), changeByStr(userVirtualTokensStore(user), diff), changeBy(userDepositedTokensStore(user), tokens), IntegerEntry(userEntryHeightStore(user), HEIGHT), IntegerEntry(userFactorStore(user), factor)]
+                                let tokenData = {
+                                    func fold (total,aid) =                                     {
+                                        let adj = if ((totalVirtualTokens == 0))
+                                            then 0
+                                            else fraction(diff, totalVirtualDividends(aid), totalVirtualTokens)
+                                        (total ++ [changeBy(totalVirtualDividendsStore(aid), adj), IntegerEntry(userDividendsAdjStore(user, aid), (userDividendsAdj(user, aid) + adj))])
+                                        }
+
+                                    let $l = dividendableTokensArr
+                                    let $s = size($l)
+                                    let $acc0 = nil
+                                    func $f0_1 ($a,$i) =                                     if (($i >= $s))
+                                        then $a
+                                        else fold($a, $l[$i])
+
+                                    func $f0_2 ($a,$i) =                                     if (($i >= $s))
+                                        then $a
+                                        else throw("List size exceeds 20")
+
+                                    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18), 19), 20)
+                                    }
+                                let monitoring = if ((factor != currentFactor))
+                                    then [changeBy(totalDepositedByFactorStore(currentFactor), -(inProtocol)), changeBy(totalDepositedByFactorStore(factor), (tokens + inProtocol))]
+                                    else [changeBy(totalDepositedByFactorStore(factor), tokens)]
+                                ((base ++ tokenData) ++ monitoring)
+                                }
+                        }
+                    else throw("Strict value is not equal to itself.")
+                }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Callable(i)
+func totalGvires () = $Tuple2(nil, formula(-((HEIGHT - initialHeight)), totalVirtualTokens))
+
+
+
+@Callable(i)
+func shareProfitManually () = {
+    let checks = opAllowed("share_dividends_manually")
+    if ((checks == checks))
+        then {
+            let paymentAssetId = assetIdStr(i.payments[0].assetId)
+            if (!(contains(dividendableTokens, paymentAssetId)))
+                then throw("bad profit token")
+                else {
+                    let amt = i.payments[0].amount
+[changeBy(totalVirtualDividendsStore(paymentAssetId), amt), changeBy(totalRealDividendsStore(paymentAssetId), amt)]
+                    }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func shareProfitFromReserves () = claimFromReservesInternal()
+
+
+
+@Callable(i)
+func init (configAddress,vires) = [writeConstString(configStore, configAddress), writeConstString(viresAssetIdStore, vires)]
+
+
+
+@Callable(i)
+func init2 () = if ((i.caller != this))
+    then throw("only self can continue")
+    else [writeInt(initialHeightStore, HEIGHT)]
+
+
+
+@Callable(i)
+func lockFor (user,factor) = {
+    let checks = throwIf(if ((toString(i.caller) != user))
+        then (i.caller != main)
+        else false, "only main and user directly can do")
+    if ((checks == checks))
+        then updateUser(user, viresPayment(i), factor)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func withdrawUnlockedFor (user) = {
+    let checks = if (throwIf(if ((toString(i.caller) != user))
+        then (i.caller != main)
+        else false, "only main and user directly can do"))
+        then opAllowed("withdraw_unlocked_vires")
+        else false
+    if ((checks == checks))
+        then {
+            let addr = addressFromStringValue(user)
+            let $t01772017798 = userViresData(user)
+            let deposited = $t01772017798._1
+            let locked = $t01772017798._2
+            let withdrawable = $t01772017798._3
+            let withdrawn = $t01772017798._4
+            let gVires = $t01772017798._5
+            if ((0 >= withdrawable))
+                then nil
+                else {
+                    let userUpdate = if (userOffCliff(user))
+                        then {
+                            let $t01790717961 = userProfitData(user)
+                            let virtualTokens = $t01790717961._1
+                            let tokensData = $t01790717961._2
+                            let base = [DeleteEntry(userFactorStore(user)), DeleteEntry(userEntryHeightStore(user)), DeleteEntry(userWithdrawnTokensStore(user)), DeleteEntry(userDepositedTokensStore(user)), DeleteEntry(userVirtualTokensStore(user)), changeByStr(totalVirtualTokensStore, -(withdrawable))]
+                            let tokenData = {
+                                func fold (total,item) =                                 {
+                                    let $t01850818537 = item
+                                    let aid = $t01850818537._1
+                                    let ced = $t01850818537._2
+                                    let av = $t01850818537._3
+                                    let nc = $t01850818537._4
+                                    (total ++ [DeleteEntry(userDividendsClaimedStore(user, aid)), IntegerEntry(userDividendsAdjStore(user, aid), -(av)), IntegerEntry(totalVirtualDividendsStore(aid), fraction(totalVirtualDividends(aid), (totalVirtualTokens - withdrawable), totalVirtualTokens))])
+                                    }
+
+                                let $l = tokensData
+                                let $s = size($l)
+                                let $acc0 = nil
+                                func $f0_1 ($a,$i) =                                 if (($i >= $s))
+                                    then $a
+                                    else fold($a, $l[$i])
+
+                                func $f0_2 ($a,$i) =                                 if (($i >= $s))
+                                    then $a
+                                    else throw("List size exceeds 20")
+
+                                $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18), 19), 20)
+                                }
+                            (base ++ tokenData)
+                            }
+                        else [changeBy(userWithdrawnTokensStore(user), withdrawable)]
+                    (userUpdate ++ [changeBy(totalDepositedByFactorStore(userFactor(user)), -(withdrawable)), changeBy(totalDepositedTokensStore, -(withdrawable)), ScriptTransfer(addr, withdrawable, viresAssetId)])
+                    }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func claimProfit (from,to,relock) = {
+    let validDelegate = if ((from == to))
+        then true
+        else         match getString(this, ("delegation_claim_" + from)) {
+            case s: String => 
+                let data = split(s, "|")
+                if ((to != data[0]))
+                    then throw(("no delegation rights for " + to))
+                    else if (if (relock)
+                        then (data[1] != "1")
+                        else false)
+                        then throw("attempting to relock while it's not allowed")
+                        else true
+            case _ => 
+                throw(("delegation not configured for " + from))
+        }
+    let checks = if (if (mainOnly(i))
+        then opAllowed("claim_dividends")
+        else false)
+        then validDelegate
+        else false
+    if ((checks == checks))
+        then {
+            let toAddr = addressFromStringValue(to)
+            let $t02007320126 = userProfitData(from)
+            let virtualTokens = $t02007320126._1
+            let tokensData = $t02007320126._2
+            let relocking = if (relock)
+                then updateUser(from, 0, userFactor(from))
+                else nil
+            let tokenData = {
+                func fold (total,item) =                 {
+                    let $t02033820367 = item
+                    let aid = $t02033820367._1
+                    let ced = $t02033820367._2
+                    let av = $t02033820367._3
+                    let nc = $t02033820367._4
+                    (total ++ [changeBy(userDividendsClaimedStore(from, aid), av), changeBy(totalRealDividendsClaimedStore(aid), av), ScriptTransfer(toAddr, av, assetId(aid))])
+                    }
+
+                let $l = tokensData
+                let $s = size($l)
+                let $acc0 = nil
+                func $f0_1 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else fold($a, $l[$i])
+
+                func $f0_2 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else throw("List size exceeds 20")
+
+                $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18), 19), 20)
+                }
+            (relocking ++ tokenData)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setClaimDelegation (address,relock) = {
+    let checks = opAllowed("set_delegation_claim")
+    if ((checks == checks))
+        then if (!(isDefined(addressFromString(address))))
+            then throw("bad address")
+            else [StringEntry(("delegation_claim_" + toString(i.caller)), ((address + "|") + (if (relock)
+                then "1"
+                else "0")))]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func removeClaimDelegation () = {
+    let checks = opAllowed("set_delegation_claim")
+    if ((checks == checks))
+        then [DeleteEntry(("delegation_claim_" + toString(i.caller)))]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func userPower (user) = $Tuple2(nil, userGVires(user))
+
+
+@Verifier(tx)
+func verify () = {
+    let BASE = 1000
+    let quorumRatio = valueOrErrorMessage(getInteger(configAddress, "proposal_quorum_ratio"), "proposalQuorumRatio is not defined")
+    let passedRatio = valueOrErrorMessage(getInteger(configAddress, "proposal_passed_ratio"), "proposalThresholdRatio is not defined")
+    let gViresContract = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "dividends_contract"), "no dividends_contract")), "invalid dividends_contract")
+    let votingContract = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "voting_contract"), "no voting_contract")), "invalid voting_contract")
+    let id = toBase58String(tx.id)
+    let votesYes = valueOrElse(getInteger(votingContract, ("proposal_yes_" + id)), 0)
+    let votesNo = valueOrElse(getInteger(votingContract, ("proposal_no_" + id)), 0)
+    let proposalHeight = valueOrErrorMessage(getInteger(votingContract, ("proposal_height_" + id)), "proposal not registered")
+    let applyStart = valueOrElse(getInteger(votingContract, ("proposal_applystart_" + id)), 0)
+    let applyEnd = valueOrElse(getInteger(votingContract, ("proposal_applyend_" + id)), 0)
+    let totalGVires = valueOrElse(getInteger(votingContract, ("proposal_gvires_" + id)), 0)
+    let enabled = valueOrElse(getBoolean(configAddress, "op_governance_apply_tx_paused"), false)
+    let voteYes = votesYes
+    let voteNo = votesNo
+    let totalVotes = (voteYes + voteNo)
+    let hasQuorum = (((totalVotes * BASE) / totalGVires) >= quorumRatio)
+    let hasPassed = (((voteYes * BASE) / totalVotes) >= passedRatio)
+    let tooEarly = (applyStart >= HEIGHT)
+    let tooLate = (HEIGHT >= applyEnd)
+    let timeDebug = ((((((("proposalHeight = " + toString(proposalHeight)) + ", applyStart = ") + toString(applyStart)) + ", applyEnd = ") + toString(applyEnd)) + ", HEIGHT = ") + toString(HEIGHT))
+    let byVoting = if (!(enabled))
+        then throw("tx application throw governance not enabled")
+        else if (tooEarly)
+            then throw(("proposal can't be executed as it's too early: " + timeDebug))
+            else if (tooLate)
+                then throw(("proposal can't be executed as it's too late:" + timeDebug))
+                else if (!(hasQuorum))
+                    then throw((((((("no quorum: " + "totalVotes: ") + toString(totalVotes)) + ", totalGVires: ") + toString(totalGVires)) + ", quorumRatio: ") + toString(quorumRatio)))
+                    else if (!(hasPassed))
+                        then throw((((((("no threshold achieved: " + "voteYes: ") + toString(voteYes)) + ", voteNo: ") + toString(voteNo)) + ", passedRatio: ") + toString(passedRatio)))
+                        else true
+    if (sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey))
+        then true
+        else byVoting
+    }

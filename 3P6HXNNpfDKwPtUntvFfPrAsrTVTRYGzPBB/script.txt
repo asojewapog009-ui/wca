@@ -1,0 +1,303 @@
+{-# STDLIB_VERSION 8 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let kActive = "active"
+
+let kActiveGlob = "active_all_contracts"
+
+let kCause = "shutdown_cause"
+
+let kLeasingPool = "leasing_address"
+
+let kLeasingAmount = "leasing_amount"
+
+let kLeasingId = "leasing_id"
+
+let kAdminPubKey1 = "admin_pub_1"
+
+let kAdminPubKey2 = "admin_pub_2"
+
+let kAdminPubKey3 = "admin_pub_3"
+
+let kAdminInvokePubKey = "admin_invoke_pub"
+
+let kCpmmContract = "cpmm_contract"
+
+let kStakingAssets = "staking_assets"
+
+let kShareAssetId = "share_asset_id"
+
+let kStakingAssetParams = "_staking_asset_params"
+
+let oracle = Address(base58'3PEbqViERCoKnmcSULh6n2aiMvUdSQdCsom')
+
+func getBase58FromOracle (key) = match getString(oracle, key) {
+    case string: String => 
+        fromBase58String(string)
+    case nothing => 
+        throw((key + "is empty"))
+}
+
+
+let adminPubKey1 = getBase58FromOracle(kAdminPubKey1)
+
+let adminPubKey2 = getBase58FromOracle(kAdminPubKey2)
+
+let adminPubKey3 = getBase58FromOracle(kAdminPubKey3)
+
+let adminPubKeyInvoke = getBase58FromOracle(kAdminInvokePubKey)
+
+let cpmmContract = Address(getBase58FromOracle(kCpmmContract))
+
+let stakingAssets = getStringValue(oracle, kStakingAssets)
+
+let activeGlob = valueOrElse(getBoolean(oracle, kActiveGlob), true)
+
+let active = valueOrElse(getBoolean(this, kActive), true)
+
+func isActive () = if (if (active)
+    then activeGlob
+    else false)
+    then unit
+    else throw("DApp is inactive at this moment")
+
+
+func isGlobalCaller (caller) = if ((caller == cpmmContract))
+    then unit
+    else throw("Only global Contract can invoke this function")
+
+
+func isAdminCall (callerPubKey) = if (containsElement([adminPubKey1, adminPubKey2, adminPubKey3], callerPubKey))
+    then unit
+    else throw("Only admin can call this function")
+
+
+func suspend (cause) = [BooleanEntry(kActive, false), StringEntry(kCause, cause)]
+
+
+func calcStakingParams (stake,amount,assetId) = {
+    let stakingParams = split(getStringValue(oracle, (toBase58String(assetId) + kStakingAssetParams)), ",")
+    let $t020922193 = $Tuple3(stakingParams[0], stakingParams[1], stakingParams[2])
+    let stakingAddress = $t020922193._1
+    let stakeFunc = $t020922193._2
+    let unstakeFunc = $t020922193._3
+    if (stake)
+        then $Tuple4(stakeFunc, addressFromStringValue(stakingAddress), nil, [AttachedPayment(assetId, amount)])
+        else $Tuple4(unstakeFunc, addressFromStringValue(stakingAddress), [amount], nil)
+    }
+
+
+func collectPayments (acc,payment) = {
+    let $t024952538 = acc
+    let paymentAmounts = $t024952538._1
+    let paymentAssetIds = $t024952538._2
+    $Tuple2((paymentAmounts :+ payment.amount), (paymentAssetIds :+ (if ((payment.assetId == unit))
+        then base58''
+        else payment.assetId)))
+    }
+
+
+func collectState (result,source) = match source {
+    case e: Issue|Burn|Reissue|ScriptTransfer|BinaryEntry|BooleanEntry|StringEntry|IntegerEntry => 
+        (result :+ e)
+    case _ => 
+        result
+}
+
+
+func collectData (result,source) = match source {
+    case v: String => 
+        (result :+ v)
+    case v: Int => 
+        (result :+ v)
+    case v: Boolean => 
+        (result :+ v)
+    case v: ByteVector => 
+        (result :+ v)
+    case v: Unit => 
+        (result :+ v)
+    case _ => 
+        throw()
+}
+
+
+func callCommon (funcName,caller,args,payments) = valueOrElse(isActive(), {
+    let $t034583542 = {
+        let $l = payments
+        let $s = size($l)
+        let $acc0 = $Tuple2(nil, nil)
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else collectPayments($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 10")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+        }
+    let paymentAmounts = $t034583542._1
+    let paymentAssetIds = $t034583542._2
+    let lockPayment = if (if ((funcName == "replenishWithTwoTokens"))
+        then (size(payments) == 3)
+        else false)
+        then [payments[2]]
+        else if (if ((funcName == "replenishWithOneToken"))
+            then (size(payments) == 2)
+            else false)
+            then [payments[1]]
+            else nil
+    let $t037713928 = {
+        let @ = reentrantInvoke(cpmmContract, funcName, [caller, args, paymentAmounts, paymentAssetIds], lockPayment)
+        if ($isInstanceOf(@, "(List[Any], List[Any])"))
+            then @
+            else throw(($getType(@) + " couldn't be cast to (List[Any], List[Any])"))
+        }
+    if (($t037713928 == $t037713928))
+        then {
+            let data = $t037713928._2
+            let actions = $t037713928._1
+            let mappedData = {
+                let $l = data
+                let $s = size($l)
+                let $acc0 = nil
+                func $f1_1 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else collectData($a, $l[$i])
+
+                func $f1_2 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else throw("List size exceeds 10")
+
+                $f1_2($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                }
+            let mappedActions = {
+                let $l = actions
+                let $s = size($l)
+                let $acc0 = nil
+                func $f2_1 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else collectState($a, $l[$i])
+
+                func $f2_2 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else throw("List size exceeds 15")
+
+                $f2_2($f2_1($f2_1($f2_1($f2_1($f2_1($f2_1($f2_1($f2_1($f2_1($f2_1($f2_1($f2_1($f2_1($f2_1($f2_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15)
+                }
+            $Tuple2(mappedActions, mappedData)
+            }
+        else throw("Strict value is not equal to itself.")
+    })
+
+
+@Callable(i)
+func callFunction (funcName,args) = callCommon(funcName, i.caller.bytes, args, i.payments)
+
+
+
+@Callable(i)
+func shutdown () = valueOrElse(isAdminCall(i.callerPublicKey), if (!(active))
+    then throw(("DApp is already suspended. Cause: " + valueOrElse(getString(this, kCause), "the cause wasn't specified")))
+    else suspend("Paused by admin"))
+
+
+
+@Callable(i)
+func activate () = valueOrElse(isAdminCall(i.callerPublicKey), if (active)
+    then throw("DApp is already active")
+    else [BooleanEntry(kActive, true), DeleteEntry(kCause)])
+
+
+
+@Callable(i)
+func stakeUnstake (stake,amount,assetIdString) = valueOrElse(isGlobalCaller(i.caller), valueOrElse(isActive(), if ((assetIdString == "WAVES"))
+    then {
+        let pool = addressFromStringValue(valueOrErrorMessage(getString(oracle, kLeasingPool), "No leasing pool in oracle"))
+        let leasingId = getBinary(this, kLeasingId)
+        let leasingAmount = valueOrElse(getInteger(this, kLeasingAmount), 0)
+        let newLeaseAmount = if (stake)
+            then (leasingAmount + amount)
+            else (leasingAmount - amount)
+        let baseEtry = if ((newLeaseAmount == 0))
+            then [DeleteEntry(kLeasingId)]
+            else {
+                let newLease = Lease(pool, newLeaseAmount)
+                let newLeaseId = calculateLeaseId(newLease)
+[newLease, BinaryEntry(kLeasingId, newLeaseId)]
+                }
+        ([IntegerEntry(kLeasingAmount, newLeaseAmount)] ++         match leasingId {
+            case lId: ByteVector => 
+                ([LeaseCancel(lId)] ++ baseEtry)
+            case _ => 
+                baseEtry
+        })
+        }
+    else {
+        let $t058855988 = calcStakingParams(stake, amount, fromBase58String(assetIdString))
+        let call = $t058855988._1
+        let addr = $t058855988._2
+        let params = $t058855988._3
+        let payments = $t058855988._4
+        let inv = invoke(addr, call, params, payments)
+        if ((inv == inv))
+            then nil
+            else throw("Strict value is not equal to itself.")
+        }))
+
+
+
+@Callable(i)
+func claimStakingReward (assetId) = valueOrElse(isGlobalCaller(i.caller), {
+    let stakingParams = split(getStringValue(oracle, (assetId + kStakingAssetParams)), ",")
+    let $t062726371 = $Tuple2(addressFromStringValue(stakingParams[0]), stakingParams[4])
+    let stakingAddress = $t062726371._1
+    let claimFunction = $t062726371._2
+    let inv = if ((claimFunction != ""))
+        then invoke(stakingAddress, claimFunction, nil, nil)
+        else 0
+    if ((inv == inv))
+        then nil
+        else throw("Strict value is not equal to itself.")
+    })
+
+
+
+@Callable(i)
+func reissueShareToken (amount) = valueOrElse(isGlobalCaller(i.caller), valueOrElse(isActive(), {
+    let shareAssetId = fromBase58String(getStringValue(this, kShareAssetId))
+[Reissue(shareAssetId, amount, true), ScriptTransfer(i.caller, amount, shareAssetId)]
+    }))
+
+
+
+@Callable(i)
+func replenishWithTwoTokens (slippageTolerance) = callCommon("replenishWithTwoTokens", i.caller.bytes, ["false", "0"], i.payments)
+
+
+
+@Callable(i)
+func withdraw () = callCommon("withdraw", i.caller.bytes, ["0"], i.payments)
+
+
+
+@Callable(i)
+func exchange (minAmountToReceive) = callCommon("exchange", i.caller.bytes, [toString(minAmountToReceive)], i.payments)
+
+
+@Verifier(tx)
+func verify () = {
+    let multiSignedByAdmins = {
+        let adminPubKey1Signed = if (sigVerify(tx.bodyBytes, tx.proofs[0], adminPubKey1))
+            then 1
+            else 0
+        let adminPubKey2Signed = if (sigVerify(tx.bodyBytes, tx.proofs[1], adminPubKey2))
+            then 1
+            else 0
+        let adminPubKey3Signed = if (sigVerify(tx.bodyBytes, tx.proofs[2], adminPubKey3))
+            then 1
+            else 0
+        (((adminPubKey1Signed + adminPubKey2Signed) + adminPubKey3Signed) >= 2)
+        }
+    multiSignedByAdmins
+    }

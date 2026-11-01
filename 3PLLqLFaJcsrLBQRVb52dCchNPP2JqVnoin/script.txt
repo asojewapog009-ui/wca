@@ -1,0 +1,41 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let a = base58'DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p'
+
+let lp = base58'FSRHtSyXRXQjzQLRtmaqFpBDDCNjY8PU8KNtwoGXVBmr'
+
+let adminAddress = Address(base58'3PLLqLFaJcsrLBQRVb52dCchNPP2JqVnoin')
+
+@Callable(i)
+func i () = if (if ((i.caller == this))
+    then true
+    else (i.caller == adminAddress))
+    then {
+        let inv = invoke(Address(base58'3PAZv9tgK1PX7dKR7b4kchq5qdpUS3G5sYT'), "replenishWithAtoken", nil, [AttachedPayment(lp, assetBalance(this, lp))])
+        if ((inv == inv))
+            then nil
+            else throw("Strict value is not equal to itself.")
+        }
+    else throw("Access Denied")
+
+
+
+@Callable(i)
+func w () = {
+    let wdr = invoke(addressFromStringValue("3PCbvPVQfSvVu88ip8Fm5YjwJhjEYk1Txhk"), "withdrawVestedAllUSDN", [false, true], nil)
+    if ((wdr == wdr))
+        then nil
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func cl () = {
+    let rwd = invoke(addressFromStringValue("3PKZk5TdPCLP2GZviipLFfK46ExTnwkRCBd"), "claimRewards", nil, nil)
+    if ((rwd == rwd))
+        then nil
+        else throw("Strict value is not equal to itself.")
+    }
+

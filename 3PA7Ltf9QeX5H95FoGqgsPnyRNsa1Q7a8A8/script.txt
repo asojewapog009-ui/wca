@@ -1,0 +1,215 @@
+{-# STDLIB_VERSION 5 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let shinywggid = base58'A2hcw6RV23Fc8Y8FNfV35Sq5QeS9Tgp6n8hbrESiRvXX'
+
+let adminAddress = addressFromStringValue("3P9otS5pPB7BCkpVGopvECdaRAWN4g8V7SB")
+
+let maxTokensperAddress = 10000000000000
+
+let minTokensReserve = 100000000
+
+let usdN = base58'DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p'
+
+let Egg = base58'C1iWsKGqLwjHUndiQ7iXpdmPum9PeCDFfyXBdJJosDRS'
+
+let assetIds = [unit, usdN, Egg]
+
+let AssetsWeights = [20, 15, 10]
+
+let Decimals = [8, 6, 8]
+
+func tryGetInteger (key) = match getInteger(this, key) {
+    case b: Int => 
+        b
+    case _ => 
+        0
+}
+
+
+func tryGetBoolean (key) = match getBoolean(this, key) {
+    case b: Boolean => 
+        b
+    case _ => 
+        false
+}
+
+
+func getAssetString (assetId) = match assetId {
+    case b: ByteVector => 
+        toBase58String(b)
+    case _ => 
+        "WAVES"
+}
+
+
+func calculateUsdnValue (assetId,amount) = {
+    let usdnWeight = AssetsWeights[value(indexOf(assetIds, usdN))]
+    let assetWeight = AssetsWeights[value(indexOf(assetIds, assetId))]
+    let puzzleaddress = Address(base58'3PDrYPF6izza2sXWffzTPF7e2Fcir2CMpki')
+    let usdnBalance = getIntegerValue(puzzleaddress, (("global_" + getAssetString(usdN)) + "_balance"))
+    let aBalance = getIntegerValue(puzzleaddress, (("global_" + getAssetString(assetId)) + "_balance"))
+    fraction(amount, (usdnBalance / usdnWeight), (aBalance / assetWeight))
+    }
+
+
+func isGameStarted () = tryGetBoolean("Game_Started")
+
+
+func isWhiteListed (addressStr) = true
+
+
+func calcTokentoRedeem (amnt,addressStr) = {
+    let startHeight = tryGetInteger("Start_Height")
+    let redeemed = tryGetInteger((addressStr + "_Redeemed"))
+    if ((startHeight == 0))
+        then throw("Redeem time not started")
+        else {
+            let blocknum = (1440 * 180)
+            if ((lastBlock.height > (startHeight + blocknum)))
+                then (amnt - redeemed)
+                else {
+                    let perblock = fraction(amnt, 1, blocknum)
+                    (((lastBlock.height - startHeight) * perblock) - redeemed)
+                    }
+            }
+    }
+
+
+func addStringEntry (accum,nextValue) = (accum :+ BooleanEntry((nextValue + "_whiteListed"), true))
+
+
+@Callable(i)
+func addToWhiteList (addressStr) = if ((i.caller != this))
+    then throw("you are not authorized to perform this operation")
+    else [BooleanEntry((addressStr + "_whiteListed"), true)]
+
+
+
+@Callable(i)
+func addToMultipleWhiteList (addresses) = if ((i.caller != this))
+    then throw("you are not authorized to perform this operation")
+    else {
+        let lsize = size(addresses)
+        if ((lsize > 10))
+            then throw("you can insert max 10 addresses per time")
+            else ({
+                let $l = addresses
+                let $s = size($l)
+                let $acc0 = nil
+                func $f0_1 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else addStringEntry($a, $l[$i])
+
+                func $f0_2 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else throw("List size exceeds 10")
+
+                $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                } :+ BooleanEntry("whitelistWritten", true))
+        }
+
+
+
+@Callable(i)
+func setStartGame (start) = if ((i.caller != this))
+    then throw("you are not authorized to perform this operation")
+    else [BooleanEntry("Game_Started", start), IntegerEntry("Start_Height", lastBlock.height)]
+
+
+
+@Callable(i)
+func reserveTokens () = if (isGameStarted())
+    then throw("The pre-sale time has finished!")
+    else {
+        let addressStr = toString(i.caller)
+        let wl = isWhiteListed(addressStr)
+        if (!(wl))
+            then throw("you are not whitelisted!")
+            else {
+                let pmt = i.payments[0]
+                if ((pmt == pmt))
+                    then {
+                        let amountIn = value(i.payments[0].amount)
+                        if ((amountIn == amountIn))
+                            then {
+                                let assetIn = pmt.assetId
+                                if ((assetIn == assetIn))
+                                    then if (!(containsElement(assetIds, assetIn)))
+                                        then throw("ONLY USDN, WAVES and EGGS ALLOWED")
+                                        else {
+                                            let index = indexOf(assetIds, assetIn)
+                                            let dec = Decimals[value(index)]
+                                            let diff = (8 - dec)
+                                            let conv = pow(10, 0, diff, 0, 0, FLOOR)
+                                            let mult = calculateUsdnValue(pmt.assetId, pow(10, 0, dec, 0, 0, FLOOR))
+                                            let reservedAmount = (amountIn * conv)
+                                            if ((reservedAmount == reservedAmount))
+                                                then {
+                                                    let convertedAmount = fraction(reservedAmount, mult, 1000000)
+                                                    if ((convertedAmount == convertedAmount))
+                                                        then {
+                                                            let alreadyReserved = tryGetInteger((addressStr + "_Reserved"))
+                                                            if ((alreadyReserved == alreadyReserved))
+                                                                then {
+                                                                    let globalreserved = tryGetInteger("global_reserved")
+                                                                    let globalRemainingTokens = (assetBalance(this, shinywggid) - globalreserved)
+                                                                    if ((minTokensReserve > convertedAmount))
+                                                                        then throw((("The minimum amount is " + toString(fraction(minTokensReserve, 1, 100000000))) + " $HEG"))
+                                                                        else if ((0 >= globalRemainingTokens))
+                                                                            then throw("Presale is out of stock!")
+                                                                            else if ((convertedAmount > globalRemainingTokens))
+                                                                                then throw((("You can reserve only" + toString(fraction(globalRemainingTokens, 1, 100000000))) + " $HEG"))
+                                                                                else {
+                                                                                    let reservable = (maxTokensperAddress - alreadyReserved)
+                                                                                    if ((convertedAmount > reservable))
+                                                                                        then throw((("You can reserve max " + toString(fraction(reservable, 1, 100000000))) + " $HEG"))
+                                                                                        else {
+                                                                                            let globalRemainingTokens2 = (globalRemainingTokens - convertedAmount)
+[IntegerEntry("global_reserved", globalRemainingTokens2), IntegerEntry((addressStr + "_Reserved"), (convertedAmount + alreadyReserved)), ScriptTransfer(adminAddress, amountIn, pmt.assetId)]
+                                                                                            }
+                                                                                    }
+                                                                    }
+                                                                else throw("Strict value is not equal to itself.")
+                                                            }
+                                                        else throw("Strict value is not equal to itself.")
+                                                    }
+                                                else throw("Strict value is not equal to itself.")
+                                            }
+                                    else throw("Strict value is not equal to itself.")
+                                }
+                            else throw("Strict value is not equal to itself.")
+                        }
+                    else throw("Strict value is not equal to itself.")
+                }
+        }
+
+
+
+@Callable(i)
+func redeem () = if (!(isGameStarted()))
+    then throw("Cannot redeem anything before the game starts!")
+    else {
+        let addressStr = toString(i.caller)
+        let reservedAmount = tryGetInteger((addressStr + "_Reserved"))
+        let redeemed = tryGetInteger((addressStr + "_Redeemed"))
+        if ((reservedAmount == 0))
+            then throw("Nothing to redeem")
+            else {
+                let toRedeem = calcTokentoRedeem(reservedAmount, addressStr)
+                let remaining = (reservedAmount - redeemed)
+                if ((toRedeem == 0))
+                    then throw("No $HEG to redeem, you may have redeemed all your SHEG or you have to wait at least another block")
+                    else if ((remaining >= toRedeem))
+                        then [IntegerEntry((addressStr + "_Redeemed"), (redeemed + toRedeem)), ScriptTransfer(i.caller, toRedeem, shinywggid)]
+                        else throw((("you can redeem max " + toString(fraction(remaining, 1, 100000000))) + " $HEG"))
+                }
+        }
+
+
+
+@Callable(i)
+func setGlobalReserved (num) = if ((i.caller != this))
+    then throw("you are not authorized to perform this operation")
+    else [IntegerEntry("global_reserved", num)]
+

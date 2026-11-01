@@ -1,0 +1,69 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let sentinels = [Address(base58'3PMcMiMEs6w56NRGacksXtFG5zS7doE9fpL'), Address(base58'3PQdNxynJy5mche2kxMVc5shXWzK8Gstq3o'), Address(base58'3P8auNWJkxxByyJtwErFXaxiXcGM45qQ1hA'), Address(base58'3P8qVX189qpoTJZQQQdKS9endHK5sxWsvrd')]
+
+@Callable(i)
+func initNewMaster (master) = {
+    let addressOK =     match addressFromString(master) {
+        case a: Address => 
+            true
+        case _ => 
+            false
+    }
+    if (!(addressOK))
+        then throw(("incorrect address " + master))
+        else if ((i.caller != this))
+            then throw("available for self call only")
+            else [StringEntry("verifier_master", master)]
+    }
+
+
+
+@Callable(i)
+func requestNewMaster (newMaster) = {
+    let addressOK =     match addressFromString(newMaster) {
+        case a: Address => 
+            true
+        case _ => 
+            false
+    }
+    if (!(addressOK))
+        then throw(("incorrect address " + newMaster))
+        else if ((indexOf(sentinels, i.caller) == unit))
+            then throw("whitelist only")
+            else [StringEntry("verifier_newMaster", newMaster), IntegerEntry("verifier_newMasterEligibleAfter", (height + 10000))]
+    }
+
+
+
+@Callable(i)
+func activateNewMaster () = {
+    let eligibleHeight = getIntegerValue(this, "verifier_newMasterEligibleAfter")
+    let newMaster = getStringValue(this, "verifier_newMaster")
+    if ((indexOf(sentinels, i.caller) == unit))
+        then throw("whitelist only")
+        else if ((eligibleHeight > height))
+            then throw("new master cannot be activated yet")
+            else [DeleteEntry("verifier_newMaster"), DeleteEntry("verifier_newMasterEligibleAfter"), StringEntry("verifier_master", newMaster)]
+    }
+
+
+@Verifier(tx)
+func verify () = {
+    let masterAddress = getString("verifier_master")
+    let approvedByMaster =     match masterAddress {
+        case x: String => 
+            match getInteger(valueOrElse(addressFromString(x), sentinels[0]), ("approvedTx_" + toBase58String(tx.id))) {
+                case y: Int => 
+                    y
+                case _ => 
+                    0
+            }
+        case _ => 
+            1
+    }
+    if (sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey))
+        then (approvedByMaster > 0)
+        else false
+    }

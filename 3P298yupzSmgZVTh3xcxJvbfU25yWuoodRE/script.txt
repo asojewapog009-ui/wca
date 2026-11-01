@@ -1,0 +1,21 @@
+{-# STDLIB_VERSION 2 #-}
+{-# CONTENT_TYPE EXPRESSION #-}
+let firstPubKey = base58'8Jr4MYQGdnJghKPS5aS9pfGaCRai8Y8mXuxELS2NQGEP'
+let secondPubKey = base58'CCuaotG1TXBhqqXf5npZu3JX6DTCNT4yiXci1hq3G3Ug'
+let thirdPubKey = base58'7vPx1sLYBMaUpbs6nKpiyBozDb1iRJHYw2grsw6srvn4'
+func isSignedByKey (pubKey) = if (if (sigVerify(tx.bodyBytes, tx.proofs[0], pubKey))
+    then true
+    else sigVerify(tx.bodyBytes, tx.proofs[1], pubKey))
+    then true
+    else sigVerify(tx.bodyBytes, tx.proofs[2], pubKey)
+
+let firstSigned = if (isSignedByKey(firstPubKey))
+    then 1
+    else 0
+let secondSigned = if (isSignedByKey(secondPubKey))
+    then 1
+    else 0
+let thirdSigned = if (isSignedByKey(thirdPubKey))
+    then 1
+    else 0
+(((firstSigned + secondSigned) + thirdSigned) >= 2)

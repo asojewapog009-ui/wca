@@ -1,0 +1,135 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+func aI (a) = match a {
+    case a: Int => 
+        a
+    case _ => 
+        throw("NO")
+}
+
+
+func aT (a) = match a {
+    case a: (Int, Int, Int, Int, Int, Boolean) => 
+        a._2
+    case _ => 
+        throw("wi5b")
+}
+
+
+func gW () = {
+    let sV = getString(addressFromStringValue("3PRBVq52csUvTx77NYwLTULrt2e9jdsHfRB"), ((toString(this) + "_used_") + "6XtHjpXbs9RRJP2Sr9GUyVqzACcby9TkThHXnjVC5CDJ"))
+    match sV {
+        case s: String => 
+            let data = split(s, "|")
+            if ((parseIntValue(data[0]) == (height - (height % 1440))))
+                then parseIntValue(data[1])
+                else 0
+        case _ => 
+            throw("gWf")
+    }
+    }
+
+
+@Callable(i)
+func claimAllRewardsAndAllEbAvailable2 (p1,p2) = if ((toString(i.caller) != "3PMrUpDUwcErsUP23h3DAbdZHex8etdgGm3"))
+    then throw("no")
+    else {
+        let ret = invoke(addressFromStringValue("3PAZv9tgK1PX7dKR7b4kchq5qdpUS3G5sYT"), "claimAllRewardsAndAllEbAvailable2", [p1, p2], nil)
+        if ((ret == ret))
+            then {
+                let amo = assetBalance(this, fromBase58String("DSbbhLsSTeDg5Lsiufk2Aneh3DjVqJuPr2M9uU1gwy5p"))
+                if ((amo == amo))
+                    then $Tuple2([ScriptTransfer(addressFromStringValue("3PEUhXY45M1Nud7PRQ6ahgfPfC2DSBX6nUC"), (amo / 25), fromBase58String("DSbbhLsSTeDg5Lsiufk2Aneh3DjVqJuPr2M9uU1gwy5p"))], amo)
+                    else throw("Strict value is not equal to itself.")
+                }
+            else throw("fn call failed")
+        }
+
+
+
+@Callable(i)
+func convertToUSDN () = if ((toString(i.caller) != "3PMrUpDUwcErsUP23h3DAbdZHex8etdgGm3"))
+    then throw("no")
+    else {
+        let ret = invoke(addressFromStringValue("3PCbvPVQfSvVu88ip8Fm5YjwJhjEYk1Txhk"), "convertToUSDN", nil, nil)
+        if ((ret == ret))
+            then nil
+            else throw("fn call failed")
+        }
+
+
+
+@Callable(i)
+func withdrawVestedAllUSDN () = if ((toString(i.caller) != "3PMrUpDUwcErsUP23h3DAbdZHex8etdgGm3"))
+    then throw("no")
+    else {
+        let ret = invoke(addressFromStringValue("3PCbvPVQfSvVu88ip8Fm5YjwJhjEYk1Txhk"), "withdrawVestedAllUSDN", [false, true], nil)
+        if ((ret == ret))
+            then {
+                let amo = assetBalance(this, fromBase58String("DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p"))
+                if ((amo == amo))
+                    then $Tuple2([ScriptTransfer(addressFromStringValue("3PEUhXY45M1Nud7PRQ6ahgfPfC2DSBX6nUC"), (amo / 25), fromBase58String("DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p"))], amo)
+                    else throw("Strict value is not equal to itself.")
+                }
+            else throw("Strict value is not equal to itself.")
+        }
+
+
+
+@Callable(i)
+func vA (amo) = if ((toString(i.caller) != "3PMrUpDUwcErsUP23h3DAbdZHex8etdgGm3"))
+    then throw("no")
+    else {
+        let av = assetBalance(addressFromStringValue("3PGCkrHBxFMi7tz1xqnxgBpeNvn5E4M4g8S"), fromBase58String("6XtHjpXbs9RRJP2Sr9GUyVqzACcby9TkThHXnjVC5CDJ"))
+        if ((100000000 > av))
+            then $Tuple2(nil, av)
+            else {
+                let am = aI(invoke(addressFromStringValue("3PAZv9tgK1PX7dKR7b4kchq5qdpUS3G5sYT"), "withdraw", ["6XtHjpXbs9RRJP2Sr9GUyVqzACcby9TkThHXnjVC5CDJ", amo], nil))
+                $Tuple2([ScriptTransfer(addressFromStringValue("3PEUhXY45M1Nud7PRQ6ahgfPfC2DSBX6nUC"), (am / 25), fromBase58String("6XtHjpXbs9RRJP2Sr9GUyVqzACcby9TkThHXnjVC5CDJ"))], am)
+                }
+        }
+
+
+
+@Callable(i)
+func zA () = if ((toString(i.caller) != "3PMrUpDUwcErsUP23h3DAbdZHex8etdgGm3"))
+    then throw("no")
+    else {
+        let rB = assetBalance(addressFromStringValue("3PGCkrHBxFMi7tz1xqnxgBpeNvn5E4M4g8S"), fromBase58String("6XtHjpXbs9RRJP2Sr9GUyVqzACcby9TkThHXnjVC5CDJ"))
+        if ((100000000 >= rB))
+            then $Tuple2(nil, rB)
+            else {
+                let dps = aT(invoke(addressFromStringValue("3PGCkrHBxFMi7tz1xqnxgBpeNvn5E4M4g8S"), "userBalance", [toString(this)], nil))
+                if ((0 >= dps))
+                    then throw("ntw")
+                    else {
+                        let fB = 1000000
+                        let ul = (fB - fraction(rB, fB, getIntegerValue(addressFromStringValue("3PGCkrHBxFMi7tz1xqnxgBpeNvn5E4M4g8S"), "totalDeposit"), DOWN))
+                        let dL = if ((ul >= 950000))
+                            then 1000000000
+                            else if ((ul >= 900000))
+                                then 10000000000
+                                else if ((ul >= 850000))
+                                    then 100000000000
+                                    else if ((ul >= 800000))
+                                        then 1000000000000
+                                        else -1
+                        if ((dL == -1))
+                            then {
+                                let am = aI(invoke(addressFromStringValue("3PAZv9tgK1PX7dKR7b4kchq5qdpUS3G5sYT"), "withdraw", ["6XtHjpXbs9RRJP2Sr9GUyVqzACcby9TkThHXnjVC5CDJ", min([rB, dps])], nil))
+                                $Tuple2([ScriptTransfer(addressFromStringValue("3PEUhXY45M1Nud7PRQ6ahgfPfC2DSBX6nUC"), (am / 25), fromBase58String("6XtHjpXbs9RRJP2Sr9GUyVqzACcby9TkThHXnjVC5CDJ"))], am)
+                                }
+                            else {
+                                let lR = (dL - gW())
+                                if ((0 >= lR))
+                                    then throw("wald")
+                                    else {
+                                        let am = aI(invoke(addressFromStringValue("3PAZv9tgK1PX7dKR7b4kchq5qdpUS3G5sYT"), "withdraw", ["6XtHjpXbs9RRJP2Sr9GUyVqzACcby9TkThHXnjVC5CDJ", min([rB, dps, lR])], nil))
+                                        $Tuple2([ScriptTransfer(addressFromStringValue("3PEUhXY45M1Nud7PRQ6ahgfPfC2DSBX6nUC"), (am / 25), fromBase58String("6XtHjpXbs9RRJP2Sr9GUyVqzACcby9TkThHXnjVC5CDJ"))], am)
+                                        }
+                                }
+                        }
+                }
+        }
+

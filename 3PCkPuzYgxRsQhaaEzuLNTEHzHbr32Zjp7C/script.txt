@@ -1,0 +1,83 @@
+{-# STDLIB_VERSION 5 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let keyActivateHeight = "activate_height"
+
+let keyFinishHeight = "finish_height"
+
+let activateHeight = getIntegerValue(this, keyActivateHeight)
+
+let finishHeight = getIntegerValue(this, keyFinishHeight)
+
+let ENNO = base58'7LMV3s1J4dKpMQZqge5sKYoFkZRLojnnU49aerqos4yg'
+
+let keyUserENNOClaimedAmount = "_ENNO_claimed_amount"
+
+let keyUserENNOLastClaimedAmount = "_ENNO_last_claimed_amount"
+
+let adminPubKey1 = base58'E3DGbEMRGmkWVZ2dwEmqKMAmbZFPy2ExzkRajDJn78pf'
+
+let adminPubKey2 = base58'Nnj1pusHPSQysh2F9xyJ25uUsZxd5v7BKbESmG3XQiV'
+
+let adminPubKey3 = base58'FDsrvY7JUrdpr5TWMCkqbnM9YnLABWJhCgpaKbqszWxq'
+
+func getCallerShare (caller) = {
+    let callerShare = getInteger(this, ("share_" + toString(caller)))
+    let callerShareAmount =     match callerShare {
+        case share: Int => 
+            share
+        case share: Unit => 
+            throw("Only team members can call this function")
+        case _ => 
+            throw("Match error")
+    }
+    callerShareAmount
+    }
+
+
+func getClaimedAmount (caller) = {
+    let callerWithdrawn = getInteger(this, (toString(caller) + keyUserENNOClaimedAmount))
+    let callerWithdrawnAmount =     match callerWithdrawn {
+        case share: Int => 
+            share
+        case share: Unit => 
+            0
+        case _ => 
+            throw("Match error")
+    }
+    callerWithdrawnAmount
+    }
+
+
+@Callable(i)
+func claimENNO () = {
+    let blockDuration = (finishHeight - activateHeight)
+    let currentDuration = if ((finishHeight > height))
+        then height
+        else finishHeight
+    if ((activateHeight > height))
+        then throw("Team period has not been started yet.")
+        else {
+            let userShare = getCallerShare(i.caller)
+            let userClaimedAmount = getClaimedAmount(i.caller)
+            let claimAmount = (fraction((currentDuration - activateHeight), userShare, blockDuration) - userClaimedAmount)
+            let userClaimedAmountNew = (userClaimedAmount + claimAmount)
+[IntegerEntry((toString(i.caller) + keyUserENNOClaimedAmount), userClaimedAmountNew), IntegerEntry((toString(i.caller) + keyUserENNOLastClaimedAmount), claimAmount), ScriptTransfer(i.caller, claimAmount, ENNO)]
+            }
+    }
+
+
+@Verifier(tx)
+func verify () = match tx {
+    case _ => 
+        let adminPubKey1Signed = if (sigVerify(tx.bodyBytes, tx.proofs[0], adminPubKey1))
+            then 1
+            else 0
+        let adminPubKey2Signed = if (sigVerify(tx.bodyBytes, tx.proofs[1], adminPubKey2))
+            then 1
+            else 0
+        let adminPubKey3Signed = if (sigVerify(tx.bodyBytes, tx.proofs[2], adminPubKey3))
+            then 1
+            else 0
+        (((adminPubKey1Signed + adminPubKey2Signed) + adminPubKey3Signed) >= 2)
+}

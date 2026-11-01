@@ -1,0 +1,100 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let peteId = base58'GAzAEjApmjMYZKPzri2g2VUXNvTiQGF7KDYZFFsP3AEq'
+
+let peteIdStr = "GAzAEjApmjMYZKPzri2g2VUXNvTiQGF7KDYZFFsP3AEq"
+
+let fomoId = base58'J4iWJS2kGmAqLC4dYFuHvmqXK1E6rBJaRTA6nd1VmFkj'
+
+let fomoStr = "J4iWJS2kGmAqLC4dYFuHvmqXK1E6rBJaRTA6nd1VmFkj"
+
+let Scale = 1000000000000
+
+func tryGetInteger (key) = match getInteger(this, key) {
+    case b: Int => 
+        b
+    case _ => 
+        0
+}
+
+
+func tryGetString (key) = match getString(this, key) {
+    case a: String => 
+        a
+    case _ => 
+        ""
+}
+
+
+func claimAliasResult (address,assetIdStr) = {
+    let addressStr = toString(address)
+    let currentInterest = tryGetInteger((("global_lastCheck_" + assetIdStr) + "_interest"))
+    let stakedAmount = tryGetInteger((addressStr + "_staked"))
+    let lastCheckInterestInState = tryGetInteger((((addressStr + "_lastCheck_") + assetIdStr) + "_interest"))
+    let lastCheckInterest = if ((lastCheckInterestInState == 0))
+        then 0
+        else lastCheckInterestInState
+    let reward = fraction((currentInterest - lastCheckInterest), stakedAmount, Scale)
+[IntegerEntry((((addressStr + "_lastCheck_") + assetIdStr) + "_interest"), currentInterest), IntegerEntry((((addressStr + "_") + assetIdStr) + "_claimed"), (tryGetInteger((((addressStr + "_") + assetIdStr) + "_claimed")) + reward)), ScriptTransfer(address, reward, fromBase58String(assetIdStr))]
+    }
+
+
+func claimResult (address) = claimAliasResult(address, peteIdStr)
+
+
+@Callable(i)
+func stake () = {
+    let amount = i.payments[0].amount
+    let addressStr = toString(i.caller)
+    let assetIdStr = toBase58String(peteId)
+    let totalStakedAmount = tryGetInteger("global_staked")
+    if ((i.payments[0].assetId != fomoId))
+        then throw("wrong asset attached")
+        else (claimResult(i.caller) ++ [IntegerEntry("global_staked", (totalStakedAmount + amount)), IntegerEntry((addressStr + "_staked"), (tryGetInteger((addressStr + "_staked")) + amount))])
+    }
+
+
+
+@Callable(i)
+func unStake (amount) = {
+    let addressStr = toString(i.caller)
+    let stakedAmount = tryGetInteger((addressStr + "_staked"))
+    if ((amount > stakedAmount))
+        then throw("you don't have tokens available")
+        else (claimResult(i.caller) ++ [IntegerEntry((addressStr + "_staked"), (stakedAmount - amount)), IntegerEntry("global_staked", (tryGetInteger("global_staked") - amount)), ScriptTransfer(i.caller, amount, fomoId)])
+    }
+
+
+
+@Callable(i)
+func claimReward () = claimResult(i.caller)
+
+
+
+@Callable(i)
+func topUpReward () = {
+    let pmtAsset = value(i.payments[0].assetId)
+    let pmtAmount = i.payments[0].amount
+    let amount = if ((pmtAsset == fomoId))
+        then 0
+        else if ((pmtAsset == peteId))
+            then pmtAmount
+            else throw("not correct asset attached")
+    if ((amount == amount))
+        then {
+            let currentInterest = tryGetInteger((("global_lastCheck_" + peteIdStr) + "_interest"))
+            let totalStakedAmount = tryGetInteger("global_staked")
+            let interestDelta = if ((totalStakedAmount > 0))
+                then fraction(amount, Scale, totalStakedAmount)
+                else 0
+            if ((pmtAsset != fomoId))
+                then $Tuple2([IntegerEntry((("global_" + peteIdStr) + "_earnings"), (tryGetInteger((("global_" + peteIdStr) + "_earnings")) + amount)), IntegerEntry((("global_lastCheck_" + peteIdStr) + "_interest"), (currentInterest + interestDelta))], amount)
+                else nil
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Verifier(tx)
+func verify () = sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)

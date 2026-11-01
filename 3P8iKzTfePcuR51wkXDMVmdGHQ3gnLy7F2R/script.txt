@@ -1,0 +1,8 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+
+
+@Callable(i)
+func pay_tax () = nil
+

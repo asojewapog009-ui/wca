@@ -1,0 +1,89 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let kAdmin1PK = "group1_admin1_pub_key"
+
+let kAdmin2PK = "group1_admin2_pub_key"
+
+let kAdmin3PK = "group1_admin3_pub_key"
+
+let kAXLYTokenId = "axlyTokenId"
+
+let kAllowedAddresses = "allowedAddresses"
+
+let kTotalClaimed = "totalClaimed"
+
+let kUserClaimed = "_userClaimed"
+
+let kProjectClaimed = "projectClaimed"
+
+let CONF = addressFromStringValue(getStringValue(this, "config"))
+
+let AXLY_TOKENOMIC = addressFromStringValue(getStringValue(CONF, "tokenomic"))
+
+let AXLY_TEAM_BOX = addressFromStringValue(getStringValue(CONF, "team_box"))
+
+let axlyId = fromBase58String(valueOrErrorMessage(getString(AXLY_TOKENOMIC, kAXLYTokenId), "Can't get axly token id"))
+
+let admin1PK = fromBase58String(valueOrErrorMessage(getString(CONF, kAdmin1PK), "Can't get admin1PK"))
+
+let admin2PK = fromBase58String(valueOrErrorMessage(getString(CONF, kAdmin2PK), "Can't get admin2PK"))
+
+let admin3PK = fromBase58String(valueOrErrorMessage(getString(CONF, kAdmin3PK), "Can't get admin3PK"))
+
+let allowedAddresses = split(getStringValue(this, kAllowedAddresses), ",")
+
+let totalClaimed = valueOrElse(getInteger(this, kTotalClaimed), 0)
+
+let teamPercent = 5
+
+let userAmount = 11
+
+@Callable(i)
+func claim () = {
+    let user = i.caller
+    let userStr = toString(user)
+    let balanceBefore = assetBalance(this, axlyId)
+    if ((balanceBefore == balanceBefore))
+        then {
+            let inv = invoke(AXLY_TOKENOMIC, "withdrawTeam", nil, nil)
+            if ((inv == inv))
+                then {
+                    let balanceAfter = assetBalance(this, axlyId)
+                    if ((balanceAfter == balanceAfter))
+                        then {
+                            let newClaimed = (balanceAfter - balanceBefore)
+                            let newTotalClaimed = (totalClaimed + newClaimed)
+                            let projectClaimed = valueOrElse(getInteger(this, kProjectClaimed), 0)
+                            let toProjectAmount = (fraction(newTotalClaimed, (100 - teamPercent), 100) - projectClaimed)
+                            let userEntries = if (!(containsElement(allowedAddresses, userStr)))
+                                then nil
+                                else {
+                                    let toUsersAmount = fraction(newTotalClaimed, teamPercent, 100)
+                                    let userClaimed = valueOrElse(getInteger(this, (userStr + kUserClaimed)), 0)
+                                    let toUserAmount = ((toUsersAmount / 11) - userClaimed)
+[IntegerEntry((userStr + kUserClaimed), (userClaimed + toUserAmount)), ScriptTransfer(user, toUserAmount, axlyId)]
+                                    }
+                            ([IntegerEntry(kTotalClaimed, newTotalClaimed), IntegerEntry(kProjectClaimed, (projectClaimed + toProjectAmount)), ScriptTransfer(AXLY_TEAM_BOX, toProjectAmount, axlyId)] ++ userEntries)
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Verifier(tx)
+func verify () = {
+    let adminPubKey1Signed = if (sigVerify(tx.bodyBytes, tx.proofs[0], admin1PK))
+        then 1
+        else 0
+    let adminPubKey2Signed = if (sigVerify(tx.bodyBytes, tx.proofs[1], admin2PK))
+        then 1
+        else 0
+    let adminPubKey3Signed = if (sigVerify(tx.bodyBytes, tx.proofs[2], admin3PK))
+        then 1
+        else 0
+    (((adminPubKey1Signed + adminPubKey2Signed) + adminPubKey3Signed) >= 2)
+    }

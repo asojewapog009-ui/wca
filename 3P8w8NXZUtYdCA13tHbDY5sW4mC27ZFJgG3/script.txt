@@ -1,0 +1,800 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let revisionNum = ""
+
+let separator = "__"
+
+let SEP = "__"
+
+let MULT6 = 1000000
+
+let MULT8 = 100000000
+
+let MULTX6 = toBigInt(MULT6)
+
+let MULTX8 = toBigInt(MULT8)
+
+let MULTX18 = toBigInt(1000000000000000000)
+
+let WAVESIDSTR = "WAVES"
+
+let WAVESID = fromBase58String(WAVESIDSTR)
+
+let DAYMILLIS = 86400000
+
+let MAXBASKET = 9
+
+let IdxControlCfgNeutrinoDapp = 1
+
+let IdxControlCfgAuctionDapp = 2
+
+let IdxControlCfgRpdDapp = 3
+
+let IdxControlCfgMathDapp = 4
+
+let IdxControlCfgLiquidationDapp = 5
+
+let IdxControlCfgRestDapp = 6
+
+let IdxControlCfgNodeRegistryDapp = 7
+
+let IdxControlCfgNsbtStakingDapp = 8
+
+let IdxControlCfgMediatorDapp = 9
+
+let IdxControlCfgGovernanceDapp = 13
+
+func getStringOrFail (address,key) = valueOrErrorMessage(getString(address, key), (((("mandatory " + toString(address)) + ".") + key) + " is not defined"))
+
+
+func keyCfgX2GnsbtOfferHeightStart () = "%s%s__config__x2GnsbtOfferHeightStart"
+
+
+func keyCfgX2GnsbtOfferHeightEnd () = "%s%s__config__x2GnsbtOfferHeightEnd"
+
+
+func keyControlAddress () = "%s%s__config__controlAddress"
+
+
+func keyControlCfg () = "%s__controlConfig"
+
+
+func readControlCfgOrFail (control) = split_4C(getStringOrFail(control, keyControlCfg()), SEP)
+
+
+func getContractAddressOrFail (controlCfg,idx) = valueOrErrorMessage(addressFromString(controlCfg[idx]), ("Control cfg doesn't contain address at index " + toString(idx)))
+
+
+let controlContract = addressFromStringValue(valueOrElse(getString(this, keyControlAddress()), "3P5Bfd58PPfNvBM2Hy8QfbcDqMeNtzg7KfP"))
+
+let controlCfg = readControlCfgOrFail(controlContract)
+
+let mathContract = getContractAddressOrFail(controlCfg, IdxControlCfgMathDapp)
+
+let neutrinoContract = getContractAddressOrFail(controlCfg, IdxControlCfgNeutrinoDapp)
+
+let auctionContract = getContractAddressOrFail(controlCfg, IdxControlCfgAuctionDapp)
+
+let govContract = getContractAddressOrFail(controlCfg, IdxControlCfgGovernanceDapp)
+
+let neutrinoDaoContract = addressFromStringValue("3PEiiJRkV66T1NW7MoY3DGgCaxoDRCez8fL")
+
+let RENEW_START_HEIGHT = valueOrElse(getInteger(this, keyCfgX2GnsbtOfferHeightStart()), 0)
+
+let RENEW_END_HEIGHT = valueOrElse(getInteger(this, keyCfgX2GnsbtOfferHeightEnd()), 0)
+
+func keyBondAsset () = "bond_asset_id"
+
+
+func keyUserGnsbtReleaseTime (userAddr) = ("%s%s_userGnsbtReleaseTime__" + userAddr)
+
+
+func keyNeutrinoContractAddress () = "%s__neutrinoContractAddress"
+
+
+func keyMathContractAddress () = "%s__mathContract"
+
+
+func keyMinLockAmount () = "%s__minLockAmount"
+
+
+func keyHalfLife () = "%s__halfLife"
+
+
+func keyLockParamUserAmount (userAddress) = makeString(["%s%s%s", "paramByUser", toString(userAddress), "amount"], separator)
+
+
+func keyLockParamStartBlock (userAddress) = makeString(["%s%s%s", "paramByUser", toString(userAddress), "start"], separator)
+
+
+func keyLockParamUserGnsbt (userAddress) = makeString(["%s%s%s", "paramByUser", toString(userAddress), "gNsbt"], separator)
+
+
+func keyUserConsentedToX2Gnsbt (userAddress) = makeString(["%s%s%s", "paramByUser", toString(userAddress), "consentedToX2Gnsbt"], separator)
+
+
+func keyHistoryRecord (type,userAddress,txId) = makeString(["%s%s%s%s", "history", type, toString(userAddress), toBase58String(txId)], separator)
+
+
+func keyLockParamTotalAmount () = makeString(["%s%s", "stats", "activeTotalLocked"], separator)
+
+
+func keyLockParamTotalGnsbt () = makeString(["%s%s", "stats", "activeTotalGnsbt"], separator)
+
+
+func keyStatsLocksCount () = makeString(["%s%s", "stats", "locksCount"], separator)
+
+
+func keyStatsUsersCount () = makeString(["%s%s", "stats", "activeUsersCount"], separator)
+
+
+func keyStatsDepositAmtByDay (timestamp) = makeString(["%s%s%d", "stats", "depositAmtByDay", toString(timestamp)], separator)
+
+
+func keyStatsDepositAmtTotals () = makeString(["%s%s%d", "stats", "depositAmtTotals"], separator)
+
+
+func keyNextPeriod () = "%s__nextPeriod"
+
+
+func keySupportedRewardAssets () = "supportedRewardAssets"
+
+
+func keyDepositNumLast () = makeString(["%s%s%s", "dep", "lastNum"], separator)
+
+
+func keyUserRewardFromDepositNum (userAddress) = makeString(["%s%s%s", "userRwdFromDepNum", userAddress], separator)
+
+
+func keyRewardPerNsbtSumAt (depositNum,tkn) = makeString(["%s%d", "rwdPerNsbtSumByDepNum", toString(depositNum), tkn], separator)
+
+
+func keyReward (userAddress,tkn) = makeString(["%s%s%s", "rwd", userAddress, tkn], separator)
+
+
+func keyClaimed (userAddress,tkn) = makeString(["%s%s%s", "clm", userAddress, tkn], separator)
+
+
+func keyNotDistributedReward (tkn) = makeString(["%s%s", "notDistributed", tkn], separator)
+
+
+func toX18 (origVal,origMult) = fraction(toBigInt(origVal), MULTX18, origMult)
+
+
+func getIntOrZero (key) = valueOrElse(getInteger(this, key), 0)
+
+
+func getIntOrElse (key,defaultVal) = valueOrElse(getInteger(this, key), defaultVal)
+
+
+func getIntOrFail (key) = valueOrErrorMessage(getInteger(this, key), (("Mandatory this." + key) + " is not defined"))
+
+
+func getStrOrElse (key,defaultVal) = valueOrElse(getString(this, key), defaultVal)
+
+
+func toAddressOrFail (addressStr) = valueOrErrorMessage(addressFromString(addressStr), ("couldn't parse passed addressStr=" + addressStr))
+
+
+func toAssetVect (assetStr) = if ((assetStr == WAVESIDSTR))
+    then unit
+    else fromBase58String(assetStr)
+
+
+func asInt (val) = match val {
+    case valInt: Int => 
+        valInt
+    case _ => 
+        throw("fail to cast into Int")
+}
+
+
+func formatHistoryRecord (oldAmount,oldStart,newAmount,newStart) = makeString(["%d%d%d%d%d%d", toString(lastBlock.height), toString(lastBlock.timestamp), toString(oldAmount), toString(oldStart), toString(newAmount), toString(newStart)], separator)
+
+
+func formatClaimHistoryRecord (user,claimedRewards) = makeString(["%s%d%d%s", user, toString(lastBlock.height), toString(lastBlock.timestamp), claimedRewards], separator)
+
+
+func HistoryRecordEntry (type,userAddress,txId,oldAmount,oldStart,newAmount,newStart) = StringEntry(keyHistoryRecord(type, userAddress, txId), formatHistoryRecord(oldAmount, oldStart, newAmount, newStart))
+
+
+func ClaimHistoryEntry (userAddress,txId,claimedRewards) = StringEntry(keyHistoryRecord("claim", userAddress, txId), formatClaimHistoryRecord(toString(userAddress), claimedRewards))
+
+
+func StatsResult (totalLockedInc,lockCountInc,usersCountInc,totalGnsbtInc) = {
+    let locksCount = getIntOrZero(keyStatsLocksCount())
+    let usersCount = getIntOrZero(keyStatsUsersCount())
+    let totalAmount = getIntOrZero(keyLockParamTotalAmount())
+    let totalAmountNew = (totalAmount + totalLockedInc)
+    let totalGnsbt = getIntOrElse(keyLockParamTotalGnsbt(), totalAmount)
+    $Tuple3([IntegerEntry(keyStatsLocksCount(), (locksCount + lockCountInc)), IntegerEntry(keyStatsUsersCount(), (usersCount + usersCountInc)), IntegerEntry(keyLockParamTotalAmount(), totalAmountNew), IntegerEntry(keyLockParamTotalGnsbt(), (totalGnsbt + totalGnsbtInc))], totalAmount, totalAmountNew)
+    }
+
+
+func LockParamsEntry (userAddress,nsbtAmount,start,gNsbtAmount) = [IntegerEntry(keyLockParamUserAmount(userAddress), nsbtAmount), IntegerEntry(keyLockParamUserGnsbt(userAddress), gNsbtAmount), IntegerEntry(keyLockParamStartBlock(userAddress), start)]
+
+
+func getParamsOrFail () = $Tuple3(fromBase58String(getStringValue(neutrinoContract, keyBondAsset())), getIntOrFail(keyMinLockAmount()), getIntOrFail(keyHalfLife()))
+
+
+func isActiveUser (userAddress) = (getIntOrElse(keyLockParamUserAmount(userAddress), 0) > 0)
+
+
+func isBonusPeriod (h) = if ((h >= RENEW_START_HEIGHT))
+    then (RENEW_END_HEIGHT >= h)
+    else false
+
+
+func getUserParamsOrUnit (userAddress) = if (isActiveUser(userAddress))
+    then {
+        let amount = getIntOrFail(keyLockParamUserAmount(userAddress))
+        $Tuple4(false, amount, getIntOrFail(keyLockParamStartBlock(userAddress)), getIntOrElse(keyLockParamUserGnsbt(userAddress), amount))
+        }
+    else unit
+
+
+func getUserParamsOrFail (userAddress) = valueOrErrorMessage(getUserParamsOrUnit(userAddress), (("User " + toString(userAddress)) + " is not defined"))
+
+
+let supportedAssetsStr = getStrOrElse(keySupportedRewardAssets(), "")
+
+let supportedAssetsList = split(supportedAssetsStr, "_")
+
+func calcReward (userAddress,assetId,stakedAmountX,depositNumUser,depositNumLast) = {
+    let rewardPerNsbtSumLastKEY = keyRewardPerNsbtSumAt(depositNumLast, assetId)
+    let sumLastX18 = parseBigIntValue(getStrOrElse(keyRewardPerNsbtSumAt(depositNumLast, assetId), "0"))
+    let sumUserX18 = parseBigIntValue(getStrOrElse(keyRewardPerNsbtSumAt(depositNumUser, assetId), "0"))
+    let rewardDynamicPart = toInt(fraction((sumLastX18 - sumUserX18), stakedAmountX, MULTX18))
+    let rewardCachedPartKEY = keyReward(userAddress, assetId)
+    let rewardCachedPart = getIntOrElse(rewardCachedPartKEY, 0)
+    $Tuple4((rewardCachedPart + rewardDynamicPart), rewardCachedPart, rewardDynamicPart, rewardCachedPartKEY)
+    }
+
+
+func toStartOfDay (timestamp) = ((timestamp / DAYMILLIS) * DAYMILLIS)
+
+
+func findElementPosition (src,element,sep) = {
+    let elementStart = valueOrErrorMessage(indexOf(src, element), ((("there is no substring " + element) + " in ") + src))
+    if ((elementStart == 0))
+        then 0
+        else {
+            let left = take(src, elementStart)
+            (size(split(left, sep)) - 1)
+            }
+    }
+
+
+let DepositTotalsPREFIX = "%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d"
+
+let defaultTotalsDATA = (DepositTotalsPREFIX + "__0__0__0__0__0__0__0__0__0__0__0__0__0__0__0__0__0__0")
+
+func padList (in) = {
+    let currSize = (size(in) - 1)
+    func listPadder (acc,idx) =     if ((currSize > idx))
+        then acc
+        else (acc :+ "0")
+
+    let $l = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
+    let $s = size($l)
+    let $acc0 = in
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else listPadder($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 18")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18)
+    }
+
+
+func padString (in) = {
+    let currSize = (size(split_4C(in, SEP)) - 1)
+    func strPadder (acc,idx) =     if ((currSize > idx))
+        then acc
+        else (acc + "__0")
+
+    let $l = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
+    let $s = size($l)
+    let $acc0 = in
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else strPadder($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 18")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18)
+    }
+
+
+func RewardEntries (isNewUser,userAddress,stakedAmount) = {
+    let stakedAmountX = toBigInt(stakedAmount)
+    let userRewardFromDepositNumKEY = keyUserRewardFromDepositNum(userAddress)
+    let depositNumUser = getIntOrElse(userRewardFromDepositNumKEY, -1)
+    let depositNumLast = getIntOrElse(keyDepositNumLast(), -1)
+    func forEachAssetCacheUserReward (accum,asset) =     {
+        let $t01148311618 = calcReward(userAddress, asset, stakedAmountX, depositNumUser, depositNumLast)
+        let rewardTotal = $t01148311618._1
+        let cached = $t01148311618._2
+        let dynamic = $t01148311618._3
+        let rewardCachedPartKEY = $t01148311618._4
+        (accum :+ IntegerEntry(rewardCachedPartKEY, rewardTotal))
+        }
+
+    if (if ((depositNumLast == -1))
+        then (depositNumUser == -1)
+        else false)
+        then nil
+        else if (if ((depositNumLast == -1))
+            then (depositNumUser > -1)
+            else false)
+            then throw("invalid depositNumLast and depositNumUser state")
+            else if (if ((depositNumLast > -1))
+                then (depositNumUser >= -1)
+                else false)
+                then if (isNewUser)
+                    then [IntegerEntry(userRewardFromDepositNumKEY, depositNumLast)]
+                    else ({
+                        let $l = supportedAssetsList
+                        let $s = size($l)
+                        let $acc0 = nil
+                        func $f0_1 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else forEachAssetCacheUserReward($a, $l[$i])
+
+                        func $f0_2 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else throw("List size exceeds 9")
+
+                        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9)
+                        } :+ IntegerEntry(userRewardFromDepositNumKEY, depositNumLast))
+                else throw(((("uncovered condition: depositNumLast=" + toString(depositNumLast)) + " depositNumUser=") + toString(depositNumUser)))
+    }
+
+
+func IncrementNotDistributedRewardEntry (tkn,amountInc) = {
+    let notDistributedRewardKEY = keyNotDistributedReward(tkn)
+    let notDistributedReward = getIntOrElse(notDistributedRewardKEY, 0)
+    IntegerEntry(notDistributedRewardKEY, (notDistributedReward + amountInc))
+    }
+
+
+func commonClaim (userAddress,i) = {
+    let userAddressStr = toString(userAddress)
+    if ((size(i.payments) > 0))
+        then throw("payments are not accepted")
+        else {
+            let $t01455914680 = valueOrElse(getUserParamsOrUnit(userAddress), $Tuple4(true, 0, 0, 0))
+            let isNewUser = $t01455914680._1
+            let stakedAmount = $t01455914680._2
+            let stakingStart = $t01455914680._3
+            let gNsbtAmount = $t01455914680._4
+            let stakedAmountX = toBigInt(gNsbtAmount)
+            let userRewardFromDepositNumKEY = keyUserRewardFromDepositNum(userAddressStr)
+            let depositNumUser = getIntOrElse(userRewardFromDepositNumKEY, -1)
+            let depositNumLast = getIntOrElse(keyDepositNumLast(), -1)
+            func forEachAssetCalcUnclaimedReward (accum,asset) =             {
+                let $t01505015188 = calcReward(userAddressStr, asset, stakedAmountX, depositNumUser, depositNumLast)
+                let rewardTotal = $t01505015188._1
+                let cached = $t01505015188._2
+                let dynamic = $t01505015188._3
+                let rewardCachedPartKEY = $t01505015188._4
+                let claimedKEY = keyClaimed(userAddressStr, asset)
+                let $t01524815285 = accum
+                let data = $t01524815285._1
+                let claimedAmtByAsset = $t01524815285._2
+                let newPart = makeString([asset, toString(rewardTotal)], ":")
+                let claimedAmtByAssetNew = makeString([claimedAmtByAsset, newPart], "_")
+                if ((0 >= rewardTotal))
+                    then $Tuple2(data, claimedAmtByAssetNew)
+                    else $Tuple2((((data :+ ScriptTransfer(userAddress, rewardTotal, toAssetVect(asset))) :+ IntegerEntry(claimedKEY, (valueOrElse(getInteger(claimedKEY), 0) + rewardTotal))) :+ IntegerEntry(rewardCachedPartKEY, 0)), claimedAmtByAssetNew)
+                }
+
+            let $t01574515858 = {
+                let $l = supportedAssetsList
+                let $s = size($l)
+                let $acc0 = $Tuple2(nil, "")
+                func $f0_1 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else forEachAssetCalcUnclaimedReward($a, $l[$i])
+
+                func $f0_2 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else throw("List size exceeds 9")
+
+                $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9)
+                }
+            let transfers = $t01574515858._1
+            let claimedAmtByAssetResult = $t01574515858._2
+            if ((0 >= size(transfers)))
+                then $Tuple2(nil, 0)
+                else $Tuple2(((transfers :+ IntegerEntry(userRewardFromDepositNumKEY, depositNumLast)) :+ ClaimHistoryEntry(userAddress, i.transactionId, drop(claimedAmtByAssetResult, 1))), size(transfers))
+            }
+    }
+
+
+func readUserConsentToX2Gnsbt (userAddress) = {
+    let key = keyUserConsentedToX2Gnsbt(userAddress)
+    let val = valueOrElse(getBoolean(this, key), false)
+    $Tuple2(key, val)
+    }
+
+
+func commonX2Gnsbt (userAddress,i) = if (!(isBonusPeriod(height)))
+    then throw("No 'Double gNSBT action' available now")
+    else {
+        let $t01642016481 = commonClaim(userAddress, i)
+        let claimActions = $t01642016481._1
+        let claimResult = $t01642016481._2
+        let $t01648416609 = valueOrElse(getUserParamsOrUnit(userAddress), $Tuple4(true, 0, -1, 0))
+        let isNewUser = $t01648416609._1
+        let lockAmount = $t01648416609._2
+        let lockStartHeight = $t01648416609._3
+        let currUserGnsbt = $t01648416609._4
+        if (isNewUser)
+            then throw("You have nothing to restake")
+            else {
+                let deltaUserGnsbt = currUserGnsbt
+                let newUserGnsbt = (currUserGnsbt + deltaUserGnsbt)
+                let userConsentTuple = readUserConsentToX2Gnsbt(userAddress)
+                let userConsentedToX2GnsbtKEY = userConsentTuple._1
+                let userConsentedToX2Gnsbt = userConsentTuple._2
+                if (userConsentedToX2Gnsbt)
+                    then throw("User has already doubled its gNSBT value")
+                    else {
+                        let $t01702617112 = StatsResult(0, 0, 0, deltaUserGnsbt)
+                        let statsEntries = $t01702617112._1
+                        let totalStaked = $t01702617112._2
+                        let totalStakedNew = $t01702617112._3
+                        $Tuple2((((claimActions ++ LockParamsEntry(userAddress, lockAmount, height, newUserGnsbt)) ++ statsEntries) :+ BooleanEntry(userConsentedToX2GnsbtKEY, true)), claimResult)
+                        }
+                }
+        }
+
+
+@Callable(i)
+func constructorV1 (neutrinoContractAddress,mathContractAddress,minLockAmount,halfLife,supportedRewardAssets) = if ((i.caller != this))
+    then throw("Permission denied")
+    else [StringEntry(keyNeutrinoContractAddress(), neutrinoContractAddress), StringEntry(keyMathContractAddress(), mathContractAddress), IntegerEntry(keyMinLockAmount(), minLockAmount), IntegerEntry(keyHalfLife(), halfLife), StringEntry(keySupportedRewardAssets(), supportedRewardAssets)]
+
+
+
+@Callable(i)
+func constructorV2 (x2GnsbtOfferHeightStart,x2GnsbtOfferHeightEnd) = if ((i.caller != this))
+    then throw("Permission denied")
+    else [IntegerEntry(keyCfgX2GnsbtOfferHeightStart(), x2GnsbtOfferHeightStart), IntegerEntry(keyCfgX2GnsbtOfferHeightEnd(), x2GnsbtOfferHeightEnd)]
+
+
+
+@Callable(i)
+func stake () = {
+    let $t01821818280 = getParamsOrFail()
+    let bondAssetId = $t01821818280._1
+    let minLockAmount = $t01821818280._2
+    let halfLife = $t01821818280._3
+    if ((size(i.payments) != 1))
+        then throw("Invalid payments size")
+        else {
+            let payment = i.payments[0]
+            let amount = payment.amount
+            let invalidAssetMessage = (("Invalid asset. " + toBase58String(bondAssetId)) + " is expected")
+            let assetId = valueOrErrorMessage(payment.assetId, invalidAssetMessage)
+            if ((assetId != bondAssetId))
+                then throw(invalidAssetMessage)
+                else {
+                    let userAddress = i.caller
+                    let userAddressStr = toString(i.caller)
+                    let $t01882218947 = valueOrElse(getUserParamsOrUnit(userAddress), $Tuple4(true, 0, -1, 0))
+                    let isNewUser = $t01882218947._1
+                    let lockAmount = $t01882218947._2
+                    let lockStartHeight = $t01882218947._3
+                    let currUserGnsbt = $t01882218947._4
+                    let mergedAmount = if (isNewUser)
+                        then amount
+                        else (amount + lockAmount)
+                    let mergedStartHeight = if (isNewUser)
+                        then height
+                        else asInt(invoke(mathContract, "mergeStakesREADONLY", [amount, height, lockAmount, lockStartHeight, halfLife], nil))
+                    if ((minLockAmount > mergedAmount))
+                        then throw(("Min lock amount is " + toString(minLockAmount)))
+                        else {
+                            let userConsentTuple = readUserConsentToX2Gnsbt(userAddress)
+                            let userConsentedToX2GnsbtKEY = userConsentTuple._1
+                            let userConsentedToX2Gnsbt = userConsentTuple._2
+                            let deltaUserGnsbt = if (if (isBonusPeriod(height))
+                                then if (isNewUser)
+                                    then true
+                                    else userConsentedToX2Gnsbt
+                                else false)
+                                then (2 * amount)
+                                else amount
+                            let x2GnsbtConsentEntry = if (isNewUser)
+                                then [BooleanEntry(userConsentedToX2GnsbtKEY, true)]
+                                else nil
+                            let $t01995120069 = StatsResult(amount, 1, if (isNewUser)
+                                then 1
+                                else 0, deltaUserGnsbt)
+                            let statsEntries = $t01995120069._1
+                            let totalStaked = $t01995120069._2
+                            let totalStakedNew = $t01995120069._3
+                            (((([HistoryRecordEntry("stake", userAddress, i.transactionId, lockAmount, lockStartHeight, mergedAmount, mergedStartHeight)] ++ RewardEntries(isNewUser, userAddressStr, currUserGnsbt)) ++ LockParamsEntry(userAddress, mergedAmount, mergedStartHeight, (currUserGnsbt + deltaUserGnsbt))) ++ statsEntries) ++ x2GnsbtConsentEntry)
+                            }
+                    }
+            }
+    }
+
+
+
+@Callable(i)
+func unstake (amount) = if ((size(i.payments) != 0))
+    then throw("unstake doesn't require any payment")
+    else {
+        let userAddress = i.caller
+        let userAddressStr = toString(userAddress)
+        let $t02061520677 = getParamsOrFail()
+        let bondAssetId = $t02061520677._1
+        let minLockAmount = $t02061520677._2
+        let halfLife = $t02061520677._3
+        let $t02068020769 = getUserParamsOrFail(userAddress)
+        let isNewUser = $t02068020769._1
+        let lockAmount = $t02068020769._2
+        let lockStart = $t02068020769._3
+        let currUserGnsbt = $t02068020769._4
+        if ((0 >= lockAmount))
+            then throw("Nothing to unstake")
+            else if ((amount > lockAmount))
+                then throw(((("Requested " + toString(amount)) + ", but staked only ") + toString(lockAmount)))
+                else {
+                    let t = value(blockInfoByHeight(height)).timestamp
+                    let releaseTime = valueOrElse(getInteger(govContract, keyUserGnsbtReleaseTime(userAddressStr)), 0)
+                    if ((releaseTime >= t))
+                        then throw(("Your gNsbt are taking part in voting, cannot unstake until " + toString(releaseTime)))
+                        else {
+                            let comissionAmount = asInt(invoke(mathContract, "getUnstakeComissionAmountREADONLY", [amount, lockStart, halfLife], nil))
+                            let bonusGnsbtPart = (currUserGnsbt - lockAmount)
+                            let bonusNsbtAmount = min([amount, bonusGnsbtPart])
+                            let deltaGnsbt = (bonusNsbtAmount + amount)
+                            let $t02160721778 = StatsResult(-(amount), if ((amount == lockAmount))
+                                then -1
+                                else 0, if ((amount == lockAmount))
+                                then -1
+                                else 0, -(deltaGnsbt))
+                            let statsEntries = $t02160721778._1
+                            let totalStaked = $t02160721778._2
+                            let totalStakedNew = $t02160721778._3
+                            ((([ScriptTransfer(userAddress, (amount - comissionAmount), bondAssetId), ScriptTransfer(neutrinoDaoContract, comissionAmount, bondAssetId), HistoryRecordEntry("unstake", userAddress, i.transactionId, lockAmount, lockStart, (lockAmount - amount), lockStart)] ++ RewardEntries(false, userAddressStr, currUserGnsbt)) ++ LockParamsEntry(userAddress, (lockAmount - amount), lockStart, (currUserGnsbt - deltaGnsbt))) ++ statsEntries)
+                            }
+                    }
+        }
+
+
+
+@Callable(i)
+func deposit () = {
+    let totalStaked = getIntOrElse(keyLockParamTotalGnsbt(), getIntOrElse(keyLockParamTotalAmount(), 0))
+    if ((0 > totalStaked))
+        then throw("TODO: case is not supported")
+        else {
+            let depositNumLastKEY = keyDepositNumLast()
+            let depositNumLast = getIntOrElse(depositNumLastKEY, -1)
+            let depositNumNew = (depositNumLast + 1)
+            let totalsKEY = keyStatsDepositAmtTotals()
+            let byDayKEY = keyStatsDepositAmtByDay(toStartOfDay(lastBlock.timestamp))
+            let currTotals = padList(split(valueOrElse(getString(totalsKEY), defaultTotalsDATA), SEP))
+            func dep (acc,pmt) =             {
+                let amount = pmt.amount
+                let pmtAssetIdStr = toBase58String(valueOrElse(pmt.assetId, WAVESID))
+                if (!(contains(supportedAssetsStr, pmtAssetIdStr)))
+                    then throw(((supportedAssetsStr + " doesn't contain ") + pmtAssetIdStr))
+                    else if ((totalStaked == 0))
+                        then $Tuple4((acc._1 :+ IncrementNotDistributedRewardEntry(pmtAssetIdStr, amount)), (acc._2 :+ pmtAssetIdStr), (acc._3 :+ toBigInt(0)), (acc._4 :+ amount))
+                        else {
+                            let rewardPerNsbtX18 = fraction(toBigInt(amount), MULTX18, toBigInt(totalStaked))
+                            $Tuple4(acc._1, (acc._2 :+ pmtAssetIdStr), (acc._3 :+ rewardPerNsbtX18), (acc._4 :+ amount))
+                            }
+                }
+
+            let pmtsResult = {
+                let $l = i.payments
+                let $s = size($l)
+                let $acc0 = $Tuple4(nil, nil, nil, nil)
+                func $f0_1 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else dep($a, $l[$i])
+
+                func $f0_2 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else throw("List size exceeds 10")
+
+                $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                }
+            func refreshRewardUpdateTotals (accum,nextAsset) =             {
+                let k = accum._3
+                let sumLastStr = getStrOrElse(keyRewardPerNsbtSumAt(depositNumLast, nextAsset), "0")
+                let idx = indexOf(pmtsResult._2, nextAsset)
+                let sum = if (isDefined(idx))
+                    then {
+                        let j = value(idx)
+                        let statsDelta = pmtsResult._4[j]
+                        $Tuple2(toString((parseBigIntValue(sumLastStr) + pmtsResult._3[j])), toString((parseIntValue(currTotals[(k + 1)]) + statsDelta)))
+                        }
+                    else $Tuple2(sumLastStr, currTotals[(k + 1)])
+                $Tuple3((accum._1 :+ StringEntry(keyRewardPerNsbtSumAt(depositNumNew, nextAsset), sum._1)), ((accum._2 + SEP) + sum._2), (k + 1))
+                }
+
+            let assetsResult = {
+                let $l = supportedAssetsList
+                let $s = size($l)
+                let $acc0 = $Tuple3(nil, DepositTotalsPREFIX, 0)
+                func $f1_1 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else refreshRewardUpdateTotals($a, $l[$i])
+
+                func $f1_2 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else throw("List size exceeds 9")
+
+                $f1_2($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9)
+                }
+            let totals = padString(assetsResult._2)
+            $Tuple2(((((pmtsResult._1 ++ assetsResult._1) :+ IntegerEntry(depositNumLastKEY, depositNumNew)) :+ StringEntry(totalsKEY, totals)) :+ StringEntry(byDayKEY, totals)), depositNumNew)
+            }
+    }
+
+
+
+@Callable(i)
+func claimRewards () = commonClaim(i.caller, i)
+
+
+
+@Callable(i)
+func claimRewardsByOriginCaller () = commonClaim(i.originCaller, i)
+
+
+
+@Callable(i)
+func x2Gnsbt () = commonX2Gnsbt(i.caller, i)
+
+
+
+@Callable(i)
+func x2GnsbtByOriginCaller () = commonX2Gnsbt(i.originCaller, i)
+
+
+
+@Callable(i)
+func unclaimedRewardsREADONLY (userAddressStr) = {
+    func forEachAssetZeroReward (accum,asset) =     ((accum + makeString([asset, "0", "0"], ":")) + "_")
+
+    let unclaimedRewardStr = if ((userAddressStr == ""))
+        then {
+            let $l = supportedAssetsList
+            let $s = size($l)
+            let $acc0 = ""
+            func $f0_1 ($a,$i) =             if (($i >= $s))
+                then $a
+                else forEachAssetZeroReward($a, $l[$i])
+
+            func $f0_2 ($a,$i) =             if (($i >= $s))
+                then $a
+                else throw("List size exceeds 9")
+
+            $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9)
+            }
+        else {
+            let userAddress = addressFromStringValue(userAddressStr)
+            let $t02584925968 = valueOrElse(getUserParamsOrUnit(userAddress), $Tuple4(true, 0, 0, 0))
+            let isNewUser = $t02584925968._1
+            let stakedAmount = $t02584925968._2
+            let stakingStart = $t02584925968._3
+            let userGnsbt = $t02584925968._4
+            let stakedAmountX = toBigInt(userGnsbt)
+            let userRewardFromDepositNumKEY = keyUserRewardFromDepositNum(userAddressStr)
+            let depositNumUser = getIntOrElse(userRewardFromDepositNumKEY, -1)
+            let depositNumLast = getIntOrElse(keyDepositNumLast(), -1)
+            func forEachAssetCalcUnclaimedReward (accum,asset) =             {
+                let $t02631126449 = calcReward(userAddressStr, asset, stakedAmountX, depositNumUser, depositNumLast)
+                let rewardTotal = $t02631126449._1
+                let cached = $t02631126449._2
+                let dynamic = $t02631126449._3
+                let rewardCachedPartKEY = $t02631126449._4
+                let claimed = valueOrElse(getInteger(keyClaimed(userAddressStr, asset)), 0)
+                ((accum + makeString([asset, toString(rewardTotal), toString(claimed)], ":")) + "_")
+                }
+
+            let $l = supportedAssetsList
+            let $s = size($l)
+            let $acc0 = ""
+            func $f0_1 ($a,$i) =             if (($i >= $s))
+                then $a
+                else forEachAssetCalcUnclaimedReward($a, $l[$i])
+
+            func $f0_2 ($a,$i) =             if (($i >= $s))
+                then $a
+                else throw("List size exceeds 9")
+
+            $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9)
+            }
+    $Tuple2(nil, dropRight(unclaimedRewardStr, 1))
+    }
+
+
+
+@Callable(i)
+func nsbtUnstakingSYSREADONLY (userAddressStrOrEmpty,unstakeAmtP) = {
+    let resultArray = if ((userAddressStrOrEmpty == ""))
+        then [0, 0, 0, 0]
+        else {
+            let userAddress = addressFromStringValue(userAddressStrOrEmpty)
+            let cfgDATA = getParamsOrFail()
+            let nsbtAssetId = cfgDATA._1
+            let minLockAmount = cfgDATA._2
+            let halfLife = cfgDATA._3
+            let userDATA = valueOrElse(getUserParamsOrUnit(userAddress), $Tuple4(true, 0, 0, 0))
+            let isNewUser = userDATA._1
+            let stakedAmount = userDATA._2
+            let lockStart = userDATA._3
+            let unstakeAmt = if ((unstakeAmtP > stakedAmount))
+                then stakedAmount
+                else unstakeAmtP
+            let stakedAmountNEW = (stakedAmount - unstakeAmt)
+            let comissionAmount = if ((unstakeAmt == 0))
+                then 0
+                else asInt(invoke(mathContract, "getUnstakeComissionAmountREADONLY", [unstakeAmt, lockStart, halfLife], nil))
+            let receiveAmount = (unstakeAmt - comissionAmount)
+[stakedAmount, stakedAmountNEW, receiveAmount, comissionAmount]
+            }
+    $Tuple2(nil, resultArray)
+    }
+
+
+
+@Callable(i)
+func nsbtStakingSYSREADONLY (userAddressStr,nsbtDiff) = {
+    let totalNsbtAmt = getIntOrElse(keyLockParamTotalAmount(), 0)
+    let totalGnsbt = getIntOrElse(keyLockParamTotalGnsbt(), totalNsbtAmt)
+    if ((userAddressStr == ""))
+        then $Tuple2(nil, [0, totalNsbtAmt, 0, 0, totalGnsbt, (nsbtDiff * 2)])
+        else {
+            let userAddress = toAddressOrFail(userAddressStr)
+            let $t02825128376 = valueOrElse(getUserParamsOrUnit(userAddress), $Tuple4(true, 0, 0, 0))
+            let isNewUser = $t02825128376._1
+            let userNsbtAmt = $t02825128376._2
+            let stakingStart = $t02825128376._3
+            let currentUserGnsbt = $t02825128376._4
+            let userConsentTuple = readUserConsentToX2Gnsbt(addressFromStringValue(userAddressStr))
+            let userConsentedToX2GnsbtKEY = userConsentTuple._1
+            let userConsentedToX2Gnsbt = userConsentTuple._2
+            let deltaUserGnsbt = if (if (isBonusPeriod(height))
+                then if (isNewUser)
+                    then true
+                    else userConsentedToX2Gnsbt
+                else false)
+                then (2 * nsbtDiff)
+                else nsbtDiff
+            $Tuple2(nil, [userNsbtAmt, totalNsbtAmt, stakingStart, currentUserGnsbt, totalGnsbt, deltaUserGnsbt])
+            }
+    }
+
+
+@Verifier(tx)
+func verify () = {
+    let pubKeyAdminsListStr = makeString(["GJdLSaLiv5K7xuejac8mcRcHoyo3dPrESrvktG3a6MAR", "EYwZmURd5KKaQRBjsVa6g8DPisFoS6SovRJtFiL5gMHU", "DtmAfuDdCrHK8spdAeAYzq6MsZegeD9gnsrpuTRkCbVA", "5WRXFSjwcTbNfKcJs8ZqXmSSWYsSVJUtMvMqZj5hH4Nc"], SEP)
+    let pubKeyAdminsList = split(valueOrElse(getString(controlContract, "%s__multisig"), pubKeyAdminsListStr), SEP)
+    let count = ((((if (sigVerify(tx.bodyBytes, tx.proofs[0], fromBase58String(pubKeyAdminsList[0])))
+        then 1
+        else 0) + (if (sigVerify(tx.bodyBytes, tx.proofs[1], fromBase58String(pubKeyAdminsList[1])))
+        then 1
+        else 0)) + (if (sigVerify(tx.bodyBytes, tx.proofs[2], fromBase58String(pubKeyAdminsList[2])))
+        then 1
+        else 0)) + (if (sigVerify(tx.bodyBytes, tx.proofs[3], fromBase58String(pubKeyAdminsList[3])))
+        then 2
+        else 0))
+    (count >= 3)
+    }

@@ -1,0 +1,1410 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let revisionNum = ""
+
+func getStringOrFail (address,key) = valueOrErrorMessage(getString(address, key), makeString(["mandatory ", toString(address), ".", key, " is not defined"], ""))
+
+
+func lcalc (l) = calculateLeaseId(l)
+
+
+func getNumberByKey (key) = valueOrElse(getInteger(this, key), 0)
+
+
+func getStringByKey (key) = valueOrElse(getString(this, key), "")
+
+
+func getBoolByKey (key) = valueOrElse(getBoolean(this, key), false)
+
+
+func getNumberByAddressAndKey (address,key) = valueOrElse(getInteger(address, key), 0)
+
+
+func getStringByAddressAndKey (address,key) = valueOrElse(getString(addressFromStringValue(address), key), "")
+
+
+func getBoolByAddressAndKey (address,key) = valueOrElse(getBoolean(address, key), false)
+
+
+func asAnyList (v) = match v {
+    case l: List[Any] => 
+        l
+    case _ => 
+        throw("fail to cast into List[Any]")
+}
+
+
+func asString (v) = match v {
+    case s: String => 
+        s
+    case _ => 
+        throw("fail to cast into String")
+}
+
+
+func asInt (v) = match v {
+    case i: Int => 
+        i
+    case _ => 
+        throw("fail to cast into Int")
+}
+
+
+func asBytes (val) = match val {
+    case valByte: ByteVector => 
+        valByte
+    case _ => 
+        throw("fail to cast into ByteVector")
+}
+
+
+func asPayment (v) = match v {
+    case p: AttachedPayment => 
+        p
+    case _ => 
+        throw("fail to cast into AttachedPayment")
+}
+
+
+func asBool (v) = match v {
+    case b: Boolean => 
+        b
+    case _ => 
+        throw("fail to cast into Boolean")
+}
+
+
+func asSwapParamsSTRUCT (v) = match v {
+    case struct: (Int, Int, Int, Int, Int, Int, Int) => 
+        struct
+    case _ => 
+        throw("fail to cast into Tuple5 ints")
+}
+
+
+func removeFromListStr (listStr,separator,strToRemove) = {
+    let arr = split(listStr, separator)
+    let idx = valueOrErrorMessage(indexOf(arr, strToRemove), ((listStr + "does not contain ") + strToRemove))
+    makeString(removeByIndex(arr, idx), separator)
+    }
+
+
+let SEP = "__"
+
+let LISTSEP = ":"
+
+let MULT8 = 100000000
+
+let MULT6 = 1000000
+
+let DEFAULTSWAPFEE = 20000
+
+let DEFAULTBURNFEE = 5000
+
+let DEFAULTMAXFEE = 150000
+
+let BRPROTECTED = 100000
+
+let WAVESID = base58'WAVES'
+
+let EIGHT_HOURS = 28800000
+
+let TEN_PERCENT_X6 = 100000
+
+let DAYMILLIS = 86400000
+
+let MAX_DAILY_WAVES = valueOrElse(getInteger(this, "%s%s__config__singleSwapDailyLimit"), 5000000000000)
+
+let MAX_TOTAL_WAVES = valueOrElse(getInteger(this, "%s%s__config__singleSwapTotalLimit"), 70000000000000)
+
+func keyWavesWithdrawnLastDay () = "%s__wavesWithdrawnToday"
+
+
+func keyWavesWithdrawnTotal () = "%s__wavesWithdrawnTotal"
+
+
+func keyLastWavesWithdrawalDay () = "%s__lastWavesWithdrawalDay"
+
+
+let nMetricIdxPrice = 0
+
+let nMetricIdxUsdnLockedBalance = 1
+
+let nMetricIdxWavesLockedBalance = 2
+
+let nMetricIdxReserve = 3
+
+let nMetricIdxReserveInUsdn = 4
+
+let nMetricIdxUsdnSupply = 5
+
+let nMetricIdxSurplus = 6
+
+let nMetricIdxSurplusPercent = 7
+
+let nMetricIdxBR = 8
+
+let nMetricIdxNsbtSupply = 9
+
+let nMetricIdxMaxNsbtSupply = 10
+
+let nMetricIdxSurfSupply = 11
+
+let nMetricUsdnUsdtPeg = 12
+
+let nMetricCurrentPriceAdj = 13
+
+let nMetricBasketInfo = 14
+
+let nMetricWeightedPrice = 15
+
+let nMetricTotalReservesUsd = 16
+
+let IdxControlCfgNeutrinoDapp = 1
+
+let IdxControlCfgAuctionDapp = 2
+
+let IdxControlCfgRpdDapp = 3
+
+let IdxControlCfgMathDapp = 4
+
+let IdxControlCfgLiquidationDapp = 5
+
+let IdxControlCfgRestDapp = 6
+
+let IdxControlCfgNodeRegistryDapp = 7
+
+let IdxControlCfgNsbtStakingDapp = 8
+
+let IdxControlCfgMediatorDapp = 9
+
+let IdxControlCfgSurfStakingDapp = 10
+
+let IdxControlCfgGnsbtControllerDapp = 11
+
+let IdxControlCfgRestV2Dapp = 12
+
+let IdxControlCfgGovernanceDapp = 13
+
+let IdxControlCfgFacadeDapp = 15
+
+let IdxControlCfgWindProxyDapp = 16
+
+func keyControlAddress () = "%s%s__config__controlAddress"
+
+
+func keyControlCfg () = "%s__controlConfig"
+
+
+func readControlCfgOrFail (control) = split_4C(getStringOrFail(control, keyControlCfg()), SEP)
+
+
+func getContractAddressOrFail (controlCfg,idx) = valueOrErrorMessage(addressFromString(controlCfg[idx]), ("Control cfg doesn't contain address at index " + toString(idx)))
+
+
+let controlContract = addressFromStringValue(valueOrElse(getString(this, keyControlAddress()), "3P5Bfd58PPfNvBM2Hy8QfbcDqMeNtzg7KfP"))
+
+let controlCfg = readControlCfgOrFail(controlContract)
+
+let mathContract = getContractAddressOrFail(controlCfg, IdxControlCfgMathDapp)
+
+let nsbtStakingContract = getContractAddressOrFail(controlCfg, IdxControlCfgNsbtStakingDapp)
+
+let surfStakingContract = getContractAddressOrFail(controlCfg, IdxControlCfgSurfStakingDapp)
+
+let gnsbtControllerContract = getContractAddressOrFail(controlCfg, IdxControlCfgGnsbtControllerDapp)
+
+let auctionContract = getContractAddressOrFail(controlCfg, IdxControlCfgAuctionDapp)
+
+let nodeRegistryContract = getContractAddressOrFail(controlCfg, IdxControlCfgNodeRegistryDapp)
+
+let govContract = getContractAddressOrFail(controlCfg, IdxControlCfgGovernanceDapp)
+
+let poolsFacadeContract = getContractAddressOrFail(controlCfg, IdxControlCfgFacadeDapp)
+
+let windProxyContract = getContractAddressOrFail(controlCfg, IdxControlCfgWindProxyDapp)
+
+let NeutrinoAssetIdKey = "neutrino_asset_id"
+
+let BondAssetIdKey = "bond_asset_id"
+
+let WindAssetIdKey = "wind_asset_id"
+
+let AuctionContractKey = "auction_contract"
+
+let NsbtStakingContractKey = "nsbtStakingContract"
+
+let LiquidationContractKey = "liquidation_contract"
+
+let RPDContractKey = "rpd_contract"
+
+let ContolContractKey = "control_contract"
+
+let MathContractKey = "math_contract"
+
+let BalanceWavesLockIntervalKey = "balance_waves_lock_interval"
+
+let BalanceNeutrinoLockIntervalKey = "balance_neutrino_lock_interval"
+
+func MinTokenSwapAmountKey (assetId) = ("min_outNeutrino_swap_amount_" + assetId)
+
+
+let MinNeutrinoSwapAmountKey = "min_outMulti_swap_amount"
+
+let LegacyMinNeutrinoSwapAmountKey = "min_neutrino_swap_amount"
+
+let NodeOracleProviderPubKeyKey = "node_oracle_provider"
+
+let NeutrinoOutFeePartKey = "neutrinoOut_swap_feePart"
+
+let WavesOutFeePartKey = "wavesOut_swap_feePart"
+
+let BasketOutFeePartKey = "multiOut_swap_feePart"
+
+func keyNodeRegistry (address) = ("%s__" + address)
+
+
+let PriceKey = "price"
+
+let PriceIndexKey = "price_index"
+
+let IsBlockedKey = "is_blocked"
+
+let IsDisabledIssueKey = "xtn_issue_disabled"
+
+func getPriceHistoryKey (block) = ((PriceKey + "_") + toString(block))
+
+
+func getHeightPriceByIndexKey (index) = ((PriceIndexKey + "_") + toString(index))
+
+
+func getStakingNodeByIndex (idx) = getStringByKey(makeString(["%s%d%s", "lease", toString(idx), "nodeAddress"], SEP))
+
+
+func getStakingNodeAddressByIndex (idx) = addressFromStringValue(getStakingNodeByIndex(idx))
+
+
+func getReservedAmountForSponsorship () = valueOrElse(getInteger(this, makeString(["%s%s", "lease", "sponsorshipWavesReserve"], SEP)), (1000 * MULT8))
+
+
+func getBalanceUnlockBlockKey (owner) = ("balance_unlock_block_" + owner)
+
+
+func getLeaseIdKey (nodeIndex) = makeString(["%s%d%s", "lease", toString(nodeIndex), "id"], SEP)
+
+
+func getLeaseIdByAddressKey (nodeAddress) = makeString(["%s%s%s", "leaseByAddress", nodeAddress, "id"], SEP)
+
+
+func getLeaseAmountKey (nodeIndex) = makeString(["%s%d%s", "lease", toString(nodeIndex), "amount"], SEP)
+
+
+func getLeaseAmountByAddressKey (nodeAddress) = makeString(["%s%s%s", "leaseByAddress", nodeAddress, "amount"], SEP)
+
+
+func getLeaseGroupNodeListKey (groupNum) = makeString(["%s%d%s", "leaseGroup", toString(groupNum), "nodeList"], SEP)
+
+
+func minSwapAmountKEY (swapType) = (("min_" + swapType) + "_swap_amount")
+
+
+func totalLockedKEY (swapType,assetId) = makeString(["%s%s%s", "balanceLock", swapType, assetId], SEP)
+
+
+func totalLockedByUserKEY (swapType,owner,assetId) = makeString(["%s%s%s%s", "balanceLock", swapType, owner, assetId], "_")
+
+
+func balanceLockIntervalKEY (swapType) = if ((swapType == "outMulti"))
+    then BalanceNeutrinoLockIntervalKey
+    else BalanceWavesLockIntervalKey
+
+
+func nodeBalanceLockIntervalKEY () = "balance_node_lock_interval"
+
+
+func swapsTimeframeKEY () = "swaps_timeframe"
+
+
+func brProtectedKEY () = "min_BR_protection_level"
+
+
+func basketAssetsKey () = "%s%s__common__basketAssets"
+
+
+func basketDKey () = "%s%s__common__basketD"
+
+
+func basketKKey () = "%s%s__common__basketK"
+
+
+func basketBKey () = "%s%s__common__basketB"
+
+
+func basketLogbDeltaKey () = "%s%s__common__basketLogbDelta"
+
+
+func basketWeightByAssetKey (assetId) = ("%s%s%s__common__weightByAsset__" + assetId)
+
+
+func keyPriceByAsset (assetId) = ("%s%s%s__common__priceByAsset__" + assetId)
+
+
+func maxFeeKey () = "%s%s__common__maxAllowedFee"
+
+
+let neutrinoAssetId = fromBase58String(getStringByKey(NeutrinoAssetIdKey))
+
+let windAssetIdStr = getStringByKey(WindAssetIdKey)
+
+let windAssetId = fromBase58String(windAssetIdStr)
+
+let priceIndex = getNumberByAddressAndKey(controlContract, PriceIndexKey)
+
+let isBlocked = getBoolByAddressAndKey(controlContract, IsBlockedKey)
+
+let isDisabledIssueXtn = getBoolByAddressAndKey(controlContract, IsDisabledIssueKey)
+
+let nodeOracleProviderPubKey = fromBase58String(getStringByKey(NodeOracleProviderPubKeyKey))
+
+let bondAssetId = fromBase58String("6nSpVyNH7yM69eg446wrQR94ipbbcmZMU1ENPwanC97g")
+
+let deprecatedBondAssetId = fromBase58String("975akZBfnMj513U7MZaHKzQrmsEx5aE3wdWKTrHBhbjF")
+
+let neutrinoContract = this
+
+func multiOutFeeREAD () = valueOrElse(getInteger(BasketOutFeePartKey), valueOrElse(getInteger(WavesOutFeePartKey), DEFAULTBURNFEE))
+
+
+func singleOutFeeREAD () = valueOrElse(getInteger(NeutrinoOutFeePartKey), DEFAULTSWAPFEE)
+
+
+func minSwapAmountREAD (swapType,assetId) = if ((swapType == "outMulti"))
+    then valueOrElse(getInteger(MinNeutrinoSwapAmountKey), getNumberByKey(LegacyMinNeutrinoSwapAmountKey))
+    else getNumberByKey(MinTokenSwapAmountKey(assetId))
+
+
+func swapsTimeframeREAD () = valueOrElse(getInteger(this, swapsTimeframeKEY()), 1440)
+
+
+func totalLockedREAD (swapType,assetId) = valueOrElse(getInteger(this, totalLockedKEY(swapType, assetId)), 0)
+
+
+func totalLockedByUserREAD (swapType,owner,assetId) = valueOrElse(getInteger(this, totalLockedByUserKEY(swapType, owner, assetId)), 0)
+
+
+func balanceLockIntervalREAD (swapType) = valueOrElse(getInteger(this, balanceLockIntervalKEY(swapType)), 1440)
+
+
+func nodeBalanceLockIntervalREAD () = valueOrElse(getInteger(this, nodeBalanceLockIntervalKEY()), 1)
+
+
+func keySwapUserSpentInPeriod (userAddress) = makeString(["%s%s", "swapUserSpentInPeriod", userAddress], SEP)
+
+
+func keyUserLastSwapHeight (userAddress) = makeString(["%s%s", "userLastSwapHeight", userAddress], SEP)
+
+
+func convertNeutrinoToWaves (amount,price) = fraction(amount, MULT8, price)
+
+
+func convertTokenToUsd (amount,price) = fraction(amount, price, MULT8)
+
+
+func convertWavesToNeutrino (amount,price) = fraction(amount, price, MULT8)
+
+
+func convertWavesToBond (amount,price) = convertTokenToUsd(amount, price)
+
+
+func convertJsonArrayToList (jsonArray) = split(jsonArray, ",")
+
+
+func convertBasketItemToNeutrino (inAmount,inAsset,basketInfoStr,neutrinoPrice) = {
+    let basketInfo = split_4C(basketInfoStr, "_")
+    func findItem (acc,item) =     {
+        let bItem = split(item, LISTSEP)
+        if ((bItem[0] == inAsset))
+            then bItem
+            else acc
+        }
+
+    let it = {
+        let $l = basketInfo
+        let $s = size($l)
+        let $acc0 = nil
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else findItem($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 10")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+        }
+    let dlog6 = value(getInteger(basketLogbDeltaKey()))
+    let d6 = value(getInteger(basketDKey()))
+    let b6 = value(getInteger(basketBKey()))
+    let w6 = value(getInteger(basketWeightByAssetKey(inAsset)))
+    let p6 = ((dlog6 - w6) + parseIntValue(it[1]))
+    let pp6 = pow(b6, 6, p6, 6, 6, HALFUP)
+    let outAmountGross = fraction(inAmount, parseIntValue(it[2]), if ((neutrinoPrice == 0))
+        then MULT8
+        else (neutrinoPrice * 100))
+    let multiplier = ((MULT6 + d6) - pp6)
+    if ((0 >= multiplier))
+        then throw(("Non-positive multiplier = " + toString(multiplier)))
+        else {
+            let discounted = fraction(outAmountGross, multiplier, MULT6)
+            let masterFee = valueOrElse(getInteger(NeutrinoOutFeePartKey), DEFAULTSWAPFEE)
+            let feeAmount = fraction(discounted, masterFee, MULT6)
+[discounted, (discounted - feeAmount), feeAmount, multiplier]
+            }
+    }
+
+
+func convertNeutrinoToBasket (amount,basketInfoStr,neutrinoSupply) = {
+    let basketInfo = split_4C(basketInfoStr, "_")
+    let k6 = value(getInteger(basketKKey()))
+    let d6 = value(getInteger(basketDKey()))
+    let outPart = (MULT6 - fraction(k6, d6, MULT6))
+    func conv (acc,item) =     {
+        let parts = split(item, LISTSEP)
+        let assetId = parts[0]
+        let share = parseIntValue(parts[1])
+        let price = parseIntValue(parts[2])
+        let reserv = parseIntValue(parts[3])
+        if ((neutrinoSupply == 0))
+            then throw("Attempt to burn neutrino at zero supply")
+            else {
+                let outAmount = fraction(fraction(amount, reserv, neutrinoSupply), outPart, MULT6)
+                let outTuple = if ((assetId == "WAVES"))
+                    then $Tuple3(outAmount, price, acc._4)
+                    else if ((assetId == windAssetIdStr))
+                        then $Tuple3(acc._2, acc._3, outAmount)
+                        else $Tuple3(acc._2, acc._3, acc._4)
+                $Tuple4((acc._1 :+ $Tuple4(assetId, outAmount, price, share)), outTuple._1, outTuple._2, outTuple._3)
+                }
+        }
+
+    let $l = basketInfo
+    let $s = size($l)
+    let $acc0 = $Tuple4(nil, 0, 0, 0)
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else conv($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 10")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+    }
+
+
+func minSwapAmountFAIL (swapType,minSwapAmount) = throw(((("The specified amount in " + swapType) + " swap is less than the required minimum of ") + toString(minSwapAmount)))
+
+
+func emergencyShutdownFAIL () = throw("contract is blocked by EMERGENCY SHUTDOWN actions untill reactivation by emergency oracles")
+
+
+func priceIndexFAIL (index,priceIndex,indexHeight,unlockHeight,prevIndexHeight) = throw(((((((((("invalid price history index: index=" + toString(index)) + " priceIndex=") + toString(priceIndex)) + " indexHeight=") + toString(indexHeight)) + " unlockHeight=") + toString(unlockHeight)) + " prevIndexHeight=") + toString(prevIndexHeight)))
+
+
+let currentPrice = getNumberByAddressAndKey(controlContract, PriceKey)
+
+func checkIsValidMinSponsoredFee (tx) = {
+    let MINTRANSFERFEE = 100000
+    let SponsoredFeeUpperBound = 1000
+    let realNeutrinoFee = convertTokenToUsd(MINTRANSFERFEE, currentPrice)
+    let minNeutrinoFee = (realNeutrinoFee * 2)
+    let maxNeutrinoFee = fraction(realNeutrinoFee, SponsoredFeeUpperBound, 100)
+    let inputFee = value(tx.minSponsoredAssetFee)
+    if (if ((inputFee >= minNeutrinoFee))
+        then (maxNeutrinoFee >= inputFee)
+        else false)
+        then (tx.assetId == neutrinoAssetId)
+        else false
+    }
+
+
+func getPriceHistory (block) = getNumberByAddressAndKey(controlContract, getPriceHistoryKey(block))
+
+
+func getHeightPriceByIndex (index) = getNumberByAddressAndKey(controlContract, getHeightPriceByIndexKey(index))
+
+
+func keyLockParamUserAmount (userAddress) = makeString(["%s%s%s", "paramByUser", userAddress, "amount"], SEP)
+
+
+let sIdxSwapType = 1
+
+let sIdxStatus = 2
+
+let sIdxInAmount = 3
+
+let sIdxStartHeight = 7
+
+let sIdxStartTimestamp = 8
+
+let sIdxSelfUnlockHeight = 11
+
+let sIdxMinRand = 15
+
+let sIdxMaxRand = 16
+
+let sIdxInAsset = 20
+
+let sIdxOutAssetOpt = 21
+
+func swapKEY (userAddress,txId) = makeString(["%s%s", userAddress, txId], SEP)
+
+
+func strSwapDATA (swapType,status,inAmount,price,outNetAmount,outFeeAmount,startHeight,startTimestamp,endHeight,endTimestamp,selfUnlockHeight,randUnlockHeight,index,withdrawTxId,randMin,randMax,outSurfAmt,br,basketData,inAsset,outAssetOpt) = makeString_2C(["%s%s%d%d%d%d%d%d%d%d%d%d%d%s%d%d%d%d%s%s%s", swapType, status, inAmount, price, outNetAmount, outFeeAmount, startHeight, startTimestamp, endHeight, endTimestamp, selfUnlockHeight, randUnlockHeight, index, withdrawTxId, randMin, randMax, outSurfAmt, br, basketData, inAsset, outAssetOpt], SEP)
+
+
+func pendingSwapDATA (swapType,inAssetAmount,selfUnlockHeight,inAsset,outAssetOpt) = strSwapDATA(swapType, "PENDING", toString(inAssetAmount), "0", "0", "0", toString(height), toString(lastBlock.timestamp), "0", "0", toString(selfUnlockHeight), "0", "0", "NULL", "0", "0", "0", "0", "", inAsset, outAssetOpt)
+
+
+func finishSwapDATA (dataArray,price,outNetAmount,outFeeAmount,randUnlockHeight,index,withdrawTxId,outSurfAmt,br,basketData,inAsset,outAssetOpt) = strSwapDATA(dataArray[sIdxSwapType], "FINISHED", dataArray[sIdxInAmount], toString(price), toString(outNetAmount), toString(outFeeAmount), dataArray[sIdxStartHeight], dataArray[sIdxStartTimestamp], toString(height), toString(lastBlock.timestamp), dataArray[sIdxSelfUnlockHeight], toString(randUnlockHeight), toString(index), withdrawTxId, dataArray[sIdxMinRand], dataArray[sIdxMaxRand], toString(outSurfAmt), toString(br), basketData, inAsset, outAssetOpt)
+
+
+func swapDataFailOrREAD (userAddress,swapTxId) = {
+    let swapKey = swapKEY(userAddress, swapTxId)
+    split_4C(valueOrErrorMessage(getString(swapKey), ("no swap data for " + swapKey)), SEP)
+    }
+
+
+func applyFees (amountOutGross,inAmtToSURF,feePart) = {
+    let feeAmount = fraction(amountOutGross, feePart, MULT6)
+[(amountOutGross - feeAmount), feeAmount]
+    }
+
+
+let bItemAsset = 0
+
+let bItemPrice = 1
+
+let bItemNet = 2
+
+let bItemFee = 3
+
+let bItemShare = 4
+
+func applyFeesBasket (basketOut,feePart) = {
+    func feeApplier (acc,item) =     {
+        let feeAmount = fraction(item._2, feePart, MULT6)
+        (acc :+ makeString([item._1, toString(item._3), toString((item._2 - feeAmount)), toString(feeAmount), toString(item._4)], LISTSEP))
+        }
+
+    let a = {
+        let $l = basketOut
+        let $s = size($l)
+        let $acc0 = nil
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else feeApplier($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 10")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+        }
+    makeString_2C(a, "_")
+    }
+
+
+func selectNode (unleaseAmount) = {
+    let amountToLease = ((wavesBalance(neutrinoContract).available - unleaseAmount) - getReservedAmountForSponsorship())
+    let oldLeased0 = getNumberByKey(getLeaseAmountKey(0))
+    let newLeased0 = (amountToLease + oldLeased0)
+    if ((newLeased0 > 0))
+        then newLeased0
+        else 0
+    }
+
+
+func thisOnly (i) = if ((i.caller != this))
+    then throw("Permission denied: this contract only allowed")
+    else true
+
+
+func prepareUnleaseAndLease (unleaseAmount) = {
+    let newLeaseAmount = selectNode(unleaseAmount)
+    let nodeIndex = 0
+    if ((newLeaseAmount > 0))
+        then {
+            let leaseIdKey1 = getLeaseIdKey(1)
+            let oldLease1 = getBinary(leaseIdKey1)
+            let unleaseOrEmpty1 = if (isDefined(oldLease1))
+                then [LeaseCancel(value(oldLease1)), DeleteEntry(leaseIdKey1), DeleteEntry(getLeaseAmountKey(1))]
+                else nil
+            let leaseIdKey = getLeaseIdKey(nodeIndex)
+            let oldLease = getBinary(this, leaseIdKey)
+            let unleaseOrEmpty = if (isDefined(oldLease))
+                then [LeaseCancel(value(oldLease))]
+                else nil
+            let leaseAmountKey = getLeaseAmountKey(nodeIndex)
+            let lease = Lease(getStakingNodeAddressByIndex(nodeIndex), newLeaseAmount)
+            ((unleaseOrEmpty1 ++ unleaseOrEmpty) ++ [lease, BinaryEntry(leaseIdKey, lcalc(lease)), IntegerEntry(leaseAmountKey, newLeaseAmount)])
+            }
+        else nil
+    }
+
+
+func readNodeInfo (nodeIdx) = {
+    let nodeAddress = getStakingNodeAddressByIndex(nodeIdx)
+    let leasedAmtKEY = getLeaseAmountKey(nodeIdx)
+    let leasedAmt = getNumberByKey(leasedAmtKEY)
+    let leaseIdKEY = getLeaseIdKey(nodeIdx)
+    let leaseId = value(getBinary(this, leaseIdKEY))
+    $Tuple5(nodeAddress, leasedAmtKEY, leasedAmt, leaseIdKEY, leaseId)
+    }
+
+
+func LeasingRelatedActions (nodeAddr,newAmount,oldId,newIdKey,newAmtKey) = {
+    let lease = Lease(nodeAddr, newAmount)
+[LeaseCancel(oldId), lease, BinaryEntry(newIdKey, calculateLeaseId(lease)), IntegerEntry(newAmtKey, newAmount)]
+    }
+
+
+func isPriceValid (outAssetOpt) = asBool(invoke(controlContract, "validatePrice", [EIGHT_HOURS, TEN_PERCENT_X6, outAssetOpt], nil))
+
+
+let bFuncIdxSurf = 0
+
+let bFuncIdxWaves = 1
+
+let bFuncIdxUsdn = 2
+
+let bFuncIdxReserveStart = 3
+
+let bFuncIdxSupplyStart = 4
+
+let bFuncIdxBRStart = 5
+
+let bFuncIdxReserveEnd = 6
+
+let bFuncIdxSupplyEnd = 7
+
+let bFuncIdxBREnd = 8
+
+let bFuncIdxRest = 9
+
+let bFuncIdxWavesPrice = 10
+
+func calcWithdrawT2U (inAmount,inAsset,basketInfo,weightedPrice) = {
+    let outAmt = convertBasketItemToNeutrino(inAmount, inAsset, basketInfo, weightedPrice)
+    $Tuple13(outAmt[0], neutrinoAssetId, 0, inAsset, 0, weightedPrice, inAmount, 0, 0, 0, nil, [outAmt[1], outAmt[2]], 0)
+    }
+
+
+func calcWithdrawU2Basket (usdnIn,basketInfo,neutrinoSupply) = {
+    let outAmtGross = convertNeutrinoToBasket(usdnIn, basketInfo, neutrinoSupply)
+    $Tuple13(outAmtGross._2, unit, 0, neutrinoAssetId, outAmtGross._2, outAmtGross._3, usdnIn, neutrinoSupply, usdnIn, 0, outAmtGross._1, nil, outAmtGross._4)
+    }
+
+
+func calcWithdrawU2T (usdnIn,basketInfo,neutrinoSupply,outAsset,isVirtual) = {
+    let outAmtGross = convertNeutrinoToBasket(usdnIn, basketInfo, neutrinoSupply)
+    func swapper (acc,item) =     {
+        let assetId = item._1
+        if ((assetId == outAsset))
+            then $Tuple4(outAsset, (acc._2 + item._2), item._3, item._4)
+            else {
+                let outAmount = asInt(invoke(poolsFacadeContract, "swapTokensViaPoolREADONLY", [assetId, item._2, outAsset], nil))
+                $Tuple4(acc._1, (acc._2 + outAmount), acc._3, acc._4)
+                }
+        }
+
+    let s = {
+        let $l = outAmtGross._1
+        let $s = size($l)
+        let $acc0 = $Tuple4("", 0, 0, 0)
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else swapper($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 10")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+        }
+    $Tuple13(outAmtGross._2, unit, 0, neutrinoAssetId, s._2, outAmtGross._3, usdnIn, neutrinoSupply, usdnIn, 0, [s], nil, outAmtGross._4)
+    }
+
+
+func calcWithdraw (swapType,inAmount,price,neutrinoMetrics,inAsset,outAssetOpt,isVirtual) = {
+    let neutrinoSupply = asInt(neutrinoMetrics[nMetricIdxUsdnSupply])
+    let basketInfo = asString(neutrinoMetrics[nMetricBasketInfo])
+    let weightedPrice = asInt(neutrinoMetrics[nMetricWeightedPrice])
+    let outDataTuple = if ((swapType == "outNeutrino"))
+        then calcWithdrawT2U(inAmount, inAsset, basketInfo, weightedPrice)
+        else if ((swapType == "outMulti"))
+            then if ((outAssetOpt != ""))
+                then calcWithdrawU2T(inAmount, basketInfo, neutrinoSupply, outAssetOpt, isVirtual)
+                else calcWithdrawU2Basket(inAmount, basketInfo, neutrinoSupply)
+            else throw(("Unsupported swap type " + swapType))
+    let outAmtGross = outDataTuple._1
+    let outAssetId = outDataTuple._2
+    let inAmtToSurfPart = outDataTuple._3
+    let inAssetId = outDataTuple._4
+    let unleaseAmt = outDataTuple._5
+    let withdrawPrice = outDataTuple._6
+    let basketData = outDataTuple._11
+    let netFeeData = outDataTuple._12
+    let windOutAmt = outDataTuple._13
+    let outNetAmt = if ((swapType == "outNeutrino"))
+        then netFeeData[0]
+        else 0
+    let outFeeAmt = if ((swapType == "outNeutrino"))
+        then netFeeData[1]
+        else 0
+    let outSurfAmt = if ((0 >= inAmtToSurfPart))
+        then 0
+        else asInt(asAnyList(invoke(mathContract, "surfFunctionREADONLY", [inAmtToSurfPart, inAssetId], nil))[bFuncIdxSurf])
+    let feePart = if (if ((swapType == "outMulti"))
+        then (outAssetOpt != "")
+        else false)
+        then singleOutFeeREAD()
+        else multiOutFeeREAD()
+    let withdrawBasket = if ((swapType == "outMulti"))
+        then applyFeesBasket(basketData, feePart)
+        else ""
+    $Tuple10(outNetAmt, outAssetId, outSurfAmt, inAmtToSurfPart, unleaseAmt, outFeeAmt, outAmtGross, withdrawPrice, withdrawBasket, windOutAmt)
+    }
+
+
+func validateAndGenerateWavesLimitActions (swapType,outAssetOpt,withdrawBasket) = if (if ((swapType == "outMulti"))
+    then (outAssetOpt != "")
+    else false)
+    then if (!(isPriceValid(outAssetOpt)))
+        then throw("Can't be processed due to market conditions")
+        else {
+            let outNetWaves = parseIntValue(split(withdrawBasket, ":")[bItemNet])
+            let lastDay = valueOrElse(getInteger(keyLastWavesWithdrawalDay()), 0)
+            let today = (lastBlock.timestamp / DAYMILLIS)
+            let curDaily = if ((today != lastDay))
+                then 0
+                else valueOrElse(getInteger(keyWavesWithdrawnLastDay()), 0)
+            let newDailyVol = (curDaily + outNetWaves)
+            if ((newDailyVol > MAX_DAILY_WAVES))
+                then throw("Daily waves limit exceeded")
+                else {
+                    let curTotal = valueOrElse(getInteger(keyWavesWithdrawnTotal()), 0)
+                    let newTotalVol = (curTotal + outNetWaves)
+                    if ((newTotalVol > MAX_TOTAL_WAVES))
+                        then throw("Global waves limit exceeded")
+                        else [IntegerEntry(keyWavesWithdrawnLastDay(), newDailyVol), IntegerEntry(keyWavesWithdrawnTotal(), newTotalVol), IntegerEntry(keyLastWavesWithdrawalDay(), today)]
+                    }
+            }
+    else nil
+
+
+func commonSwap (swapType,pmtAmount,inAsset,userAddressStr,txId58,outAssetOpt) = {
+    let swapParamsSTRUCT = asSwapParamsSTRUCT(invoke(this, "swapParamsByUserSYSREADONLY", [userAddressStr, 0], nil))
+    let tokenSwapLimitUsd = swapParamsSTRUCT._1
+    let swapLimitSpent = swapParamsSTRUCT._2
+    let blcks2LmtReset = swapParamsSTRUCT._3
+    let usdnSwapLimitMax = swapParamsSTRUCT._7
+    let minSwapAmount = minSwapAmountREAD(swapType, inAsset)
+    let totalLockedByUser = totalLockedByUserREAD(swapType, userAddressStr, inAsset)
+    let nodeAddress = getStakingNodeByIndex(0)
+    let isSwapByNode = (nodeAddress == userAddressStr)
+    let balanceLockMaxInterval = if (isSwapByNode)
+        then nodeBalanceLockIntervalREAD()
+        else balanceLockIntervalREAD(swapType)
+    let selfUnlockHeight = (height + balanceLockMaxInterval)
+    let pr = value(getInteger(controlContract, keyPriceByAsset(inAsset)))
+    let swapUsdnVolume = if ((swapType == "outNeutrino"))
+        then convertTokenToUsd(pmtAmount, pr)
+        else pmtAmount
+    let swapLimitMax = if ((swapType == "outNeutrino"))
+        then tokenSwapLimitUsd
+        else usdnSwapLimitMax
+    if ((minSwapAmount > pmtAmount))
+        then minSwapAmountFAIL(swapType, minSwapAmount)
+        else if (if (!(isSwapByNode))
+            then (swapLimitSpent > 0)
+            else false)
+            then throw(("You have exceeded swap limit! Next allowed swap height is " + toString((height + blcks2LmtReset))))
+            else if (if (!(isSwapByNode))
+                then (swapUsdnVolume > swapLimitMax)
+                else false)
+                then throw(((("You have exceeded your swap limit! Requested: " + toString(swapUsdnVolume)) + ", available: ") + toString(swapLimitMax)))
+                else if (isBlocked)
+                    then emergencyShutdownFAIL()
+                    else {
+                        let neutrinoMetrics = asAnyList(invoke(mathContract, "calcNeutinoMetricsREADONLY", nil, nil))
+                        let basketInfo = asString(neutrinoMetrics[nMetricBasketInfo])
+                        let weightedPrice = asInt(neutrinoMetrics[nMetricWeightedPrice])
+                        let out = convertBasketItemToNeutrino(pmtAmount, inAsset, basketInfo, weightedPrice)
+                        let maxFee = valueOrElse(getInteger(maxFeeKey()), DEFAULTMAXFEE)
+                        if (if ((swapType == "outNeutrino"))
+                            then ((MULT6 - maxFee) > out[3])
+                            else false)
+                            then throw(("Max allowed fee exceeded, multiplier = " + toString(out[3])))
+                            else {
+                                let withdrawBasket = calcWithdraw(swapType, pmtAmount, 0, neutrinoMetrics, inAsset, outAssetOpt, true)._9
+                                let wavesLimitActions = validateAndGenerateWavesLimitActions(swapType, outAssetOpt, withdrawBasket)
+                                if ((wavesLimitActions == wavesLimitActions))
+                                    then {
+                                        let leasePart = if (if ((swapType == "outNeutrino"))
+                                            then (inAsset == "WAVES")
+                                            else false)
+                                            then prepareUnleaseAndLease(0)
+                                            else nil
+                                        $Tuple2(([IntegerEntry(keySwapUserSpentInPeriod(userAddressStr), swapUsdnVolume), IntegerEntry(keyUserLastSwapHeight(userAddressStr), height), IntegerEntry(totalLockedByUserKEY(swapType, userAddressStr, inAsset), (totalLockedByUser + pmtAmount)), IntegerEntry(getBalanceUnlockBlockKey(userAddressStr), selfUnlockHeight), StringEntry(swapKEY(userAddressStr, txId58), pendingSwapDATA(swapType, pmtAmount, selfUnlockHeight, inAsset, outAssetOpt))] ++ leasePart), unit)
+                                        }
+                                    else throw("Strict value is not equal to itself.")
+                                }
+                        }
+    }
+
+
+func keyApplyInProgress () = "%s__applyInProgress"
+
+
+func keyProposalDataById (proposalId) = ("%s%d__proposalData__" + toString(proposalId))
+
+
+let govIdxTxIds = 9
+
+func validateUpdate (tx) = match tx {
+    case o: Order => 
+        throw("Orders aren't allowed")
+    case t: DataTransaction|SponsorFeeTransaction|SetScriptTransaction|CreateAliasTransaction|LeaseCancelTransaction|LeaseTransaction|IssueTransaction|InvokeExpressionTransaction|UpdateAssetInfoTransaction|InvokeScriptTransaction|SetAssetScriptTransaction|TransferTransaction|ExchangeTransaction|MassTransferTransaction|BurnTransaction|ReissueTransaction => 
+        let txId = toBase58String(t.id)
+        let proposalId = valueOrErrorMessage(getInteger(govContract, keyApplyInProgress()), "Apply is not happening")
+        let txList = split(split(getStringOrFail(govContract, keyProposalDataById(proposalId)), SEP)[govIdxTxIds], LISTSEP)
+        if (!(isDefined(indexOf(txList, txId))))
+            then throw(((("Unknown txId: " + txId) + " for proposalId=") + toString(proposalId)))
+            else true
+    case _ => 
+        throw("Match error")
+}
+
+
+func swapNeutrinoInternal (i,outAssetOpt) = if ((size(i.payments) != 1))
+    then throw("swapNeutrinoToBasket require only one payment")
+    else {
+        let pmt = value(i.payments[0])
+        if ((pmt.assetId != neutrinoAssetId))
+            then throw("Only appropriate Neutrino tokens are allowed for swapping.")
+            else {
+                let userAddress = toString(i.caller)
+                let txId58 = toBase58String(i.transactionId)
+                let neutrinoAssetIdStr = toBase58String(neutrinoAssetId)
+                let totalLocked = totalLockedREAD("outMulti", neutrinoAssetIdStr)
+                let pmtAmount = pmt.amount
+                let saveTotalLocked = invoke(this, "internalSaveInteger", [totalLockedKEY("outMulti", neutrinoAssetIdStr), (totalLocked + pmtAmount)], nil)
+                if ((saveTotalLocked == saveTotalLocked))
+                    then commonSwap("outMulti", pmt.amount, neutrinoAssetIdStr, userAddress, txId58, outAssetOpt)
+                    else throw("Strict value is not equal to itself.")
+                }
+        }
+
+
+@Callable(i)
+func constructorV1 (neutrinoAssetIdPrm,bondAssetIdPrm,auctionContractPrm,liquidationContractPrm,rpdContractPrm,nodeOracleProviderPubKeyPrm,balanceWavesLockIntervalPrm,balanceNeutrinoLockIntervalPrm,minWavesSwapAmountPrm,minNeutrinoSwapAmountPrm,neutrinoOutFeePartPrm,wavesOutFeePartPrm) = {
+    let checkCaller = thisOnly(i)
+    if ((checkCaller == checkCaller))
+        then if ((size(i.payments) != 0))
+            then throw("no payments allowed")
+            else [StringEntry(NeutrinoAssetIdKey, neutrinoAssetIdPrm), StringEntry(BondAssetIdKey, bondAssetIdPrm), StringEntry(AuctionContractKey, auctionContractPrm), StringEntry(LiquidationContractKey, liquidationContractPrm), StringEntry(RPDContractKey, rpdContractPrm), StringEntry(NodeOracleProviderPubKeyKey, nodeOracleProviderPubKeyPrm), IntegerEntry(BalanceWavesLockIntervalKey, balanceWavesLockIntervalPrm), IntegerEntry(BalanceNeutrinoLockIntervalKey, balanceNeutrinoLockIntervalPrm), IntegerEntry(MinTokenSwapAmountKey("WAVES"), minWavesSwapAmountPrm), IntegerEntry(MinNeutrinoSwapAmountKey, minNeutrinoSwapAmountPrm), IntegerEntry(NeutrinoOutFeePartKey, neutrinoOutFeePartPrm), IntegerEntry(WavesOutFeePartKey, wavesOutFeePartPrm)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func constructorV2 (mathContract,nsbtStakingContract,swapsTimeframeBlocks) = {
+    let checkCaller = thisOnly(i)
+    if ((checkCaller == checkCaller))
+        then if ((size(i.payments) != 0))
+            then throw("no payments allowed")
+            else [StringEntry(MathContractKey, mathContract), StringEntry(NsbtStakingContractKey, nsbtStakingContract), IntegerEntry(swapsTimeframeKEY(), swapsTimeframeBlocks)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func constructorV3 (assetsWeightsMins,dParam,kParam,bParam,deltaParam) = {
+    let checkCaller = thisOnly(i)
+    if ((checkCaller == checkCaller))
+        then if ((size(i.payments) != 0))
+            then throw("no payments allowed")
+            else {
+                func prepare (acc,item) =                 {
+                    let parts = split(item, "_")
+                    let assetId = parts[0]
+                    let weight = parseIntValue(parts[1])
+                    let minVal = parseIntValue(parts[2])
+                    $Tuple2((acc._1 :+ assetId), ((acc._2 :+ IntegerEntry(basketWeightByAssetKey(assetId), weight)) :+ IntegerEntry(MinTokenSwapAmountKey(assetId), minVal)))
+                    }
+
+                let r = {
+                    let $l = assetsWeightsMins
+                    let $s = size($l)
+                    let $acc0 = $Tuple2(nil, nil)
+                    func $f0_1 ($a,$i) =                     if (($i >= $s))
+                        then $a
+                        else prepare($a, $l[$i])
+
+                    func $f0_2 ($a,$i) =                     if (($i >= $s))
+                        then $a
+                        else throw("List size exceeds 10")
+
+                    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                    }
+                (((((r._2 :+ IntegerEntry(basketDKey(), dParam)) :+ IntegerEntry(basketKKey(), kParam)) :+ IntegerEntry(basketBKey(), bParam)) :+ IntegerEntry(basketLogbDeltaKey(), log(deltaParam, 6, bParam, 6, 6, HALFUP))) :+ StringEntry(basketAssetsKey(), makeString(r._1, SEP)))
+                }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func swapTokenToNeutrino () = if (isDisabledIssueXtn)
+    then throw("XTN issue is disabled")
+    else if ((size(i.payments) != 1))
+        then throw("swapTokenToNeutrino require only one payment")
+        else {
+            let pmt = value(i.payments[0])
+            let basketAssets = value(getString(basketAssetsKey()))
+            let pmtAssetIdStr = toBase58String(valueOrElse(pmt.assetId, WAVESID))
+            if (!(contains(basketAssets, pmtAssetIdStr)))
+                then throw(((pmtAssetIdStr + " is not one of basket tokens:") + basketAssets))
+                else {
+                    let userAddress = toString(i.caller)
+                    let txId58 = toBase58String(i.transactionId)
+                    let totalLocked = totalLockedREAD("outNeutrino", pmtAssetIdStr)
+                    let pmtAmount = pmt.amount
+                    let saveTotalLocked = invoke(this, "internalSaveInteger", [totalLockedKEY("outNeutrino", pmtAssetIdStr), (totalLocked + pmtAmount)], nil)
+                    if ((saveTotalLocked == saveTotalLocked))
+                        then commonSwap("outNeutrino", pmtAmount, pmtAssetIdStr, userAddress, txId58, "")
+                        else throw("Strict value is not equal to itself.")
+                    }
+            }
+
+
+
+@Callable(i)
+func swapNeutrinoToBasket () = swapNeutrinoInternal(i, "")
+
+
+
+@Callable(i)
+func internalSaveInteger (key,amount) = if ((i.caller != this))
+    then throw("internalSaveInteger is not public method")
+    else [IntegerEntry(key, amount)]
+
+
+
+@Callable(i)
+func withdraw (account,index,swapTxId) = {
+    let txId = toBase58String(i.transactionId)
+    if ((size(i.payments) != 0))
+        then throw("no payments allowed")
+        else {
+            let neutrinoMetrics = asAnyList(invoke(mathContract, "calcNeutinoMetricsREADONLY", nil, nil))
+            let BR = asInt(neutrinoMetrics[nMetricIdxBR])
+            let userAddress = addressFromStringValue(account)
+            let dataArray = swapDataFailOrREAD(account, swapTxId)
+            let selfUnlockHeight = parseIntValue(dataArray[sIdxSelfUnlockHeight])
+            let swapType = dataArray[sIdxSwapType]
+            let inAmount = parseIntValue(dataArray[sIdxInAmount])
+            let swapStatus = dataArray[sIdxStatus]
+            let startHeight = parseIntValue(dataArray[sIdxStartHeight])
+            let inAsset = dataArray[sIdxInAsset]
+            let outAssetOpt = dataArray[sIdxOutAssetOpt]
+            let totalLocked = totalLockedREAD(swapType, inAsset)
+            let totalLockedByUser = totalLockedByUserREAD(swapType, account, inAsset)
+            let unlockHeight = selfUnlockHeight
+            let indexHeight = getHeightPriceByIndex(index)
+            let prevIndexHeight = getHeightPriceByIndex((index - 1))
+            let priceByIndex = getPriceHistory(indexHeight)
+            if (isBlocked)
+                then emergencyShutdownFAIL()
+                else if ((swapStatus != "PENDING"))
+                    then throw("swap has been already processed")
+                    else if ((unlockHeight > height))
+                        then throw((("please wait for: " + toString(unlockHeight)) + " block height to withdraw funds"))
+                        else if (if (if ((index > priceIndex))
+                            then true
+                            else (unlockHeight > indexHeight))
+                            then true
+                            else if ((prevIndexHeight != 0))
+                                then (prevIndexHeight >= unlockHeight)
+                                else false)
+                            then priceIndexFAIL(index, priceIndex, indexHeight, unlockHeight, prevIndexHeight)
+                            else {
+                                let withdrawTuple = calcWithdraw(swapType, inAmount, priceByIndex, neutrinoMetrics, inAsset, outAssetOpt, false)
+                                let outNetAmount = withdrawTuple._1
+                                let outAssetId = withdrawTuple._2
+                                let outSurfAmt = withdrawTuple._3
+                                let unleaseAmt = withdrawTuple._5
+                                let outFeeAmount = withdrawTuple._6
+                                let outAmtGross = withdrawTuple._7
+                                let withdrawPrice = withdrawTuple._8
+                                let withdrawBasket = withdrawTuple._9
+                                let windOutAmount = withdrawTuple._10
+                                if (if ((swapType == "outNeutrino"))
+                                    then (0 >= outAmtGross)
+                                    else false)
+                                    then throw("balance equals zero")
+                                    else {
+                                        let wavesLimitActions = validateAndGenerateWavesLimitActions(swapType, outAssetOpt, withdrawBasket)
+                                        let surfCondition = if ((outSurfAmt > 0))
+                                            then {
+                                                let issueResult = invoke(auctionContract, "issueSurf", [outSurfAmt, account], nil)
+                                                if ((issueResult == issueResult))
+                                                    then 0
+                                                    else throw("Strict value is not equal to itself.")
+                                                }
+                                            else 0
+                                        if ((surfCondition == surfCondition))
+                                            then {
+                                                let windUnstakeOpt = if (if ((swapType == "outMulti"))
+                                                    then (windOutAmount > 0)
+                                                    else false)
+                                                    then {
+                                                        let unstakeWind = invoke(windProxyContract, "unstakeIndex", [windOutAmount], nil)
+                                                        if ((unstakeWind == unstakeWind))
+                                                            then 0
+                                                            else throw("Strict value is not equal to itself.")
+                                                        }
+                                                    else 0
+                                                if ((windUnstakeOpt == windUnstakeOpt))
+                                                    then {
+                                                        let unleaseInvOrEmpty = invoke(this, "internalUnleaseAndLease", [unleaseAmt], nil)
+                                                        if ((unleaseInvOrEmpty == unleaseInvOrEmpty))
+                                                            then {
+                                                                let gnsbtData = asAnyList(invoke(gnsbtControllerContract, "gnsbtInfoSYSREADONLY", ["", 0, 0], nil))
+                                                                let gnsbtAmtTotal = asInt(gnsbtData[1])
+                                                                let gnsbtAmtFromSurfTotal = asInt(asAnyList(gnsbtData[3])[3])
+                                                                let commonActions = [IntegerEntry(totalLockedByUserKEY(swapType, account, inAsset), (totalLockedByUser - inAmount)), IntegerEntry(totalLockedKEY(swapType, inAsset), (totalLocked - inAmount)), StringEntry(swapKEY(account, swapTxId), finishSwapDATA(dataArray, withdrawPrice, outNetAmount, outFeeAmount, unlockHeight, index, txId, outSurfAmt, BR, withdrawBasket, inAsset, outAssetOpt))]
+                                                                func deposits (surfFees,nsbtFees,surfPayments,nsbtPayments) =                                                                 {
+                                                                    let surfDeposit = if ((surfFees > 0))
+                                                                        then asInt(invoke(surfStakingContract, "deposit", nil, surfPayments))
+                                                                        else 0
+                                                                    let nsbtDeposit = if ((nsbtFees > 0))
+                                                                        then asInt(invoke(nsbtStakingContract, "deposit", nil, nsbtPayments))
+                                                                        else 0
+                                                                    (surfDeposit + nsbtDeposit)
+                                                                    }
+
+                                                                func divideFees (feeAmount) =                                                                 {
+                                                                    let surfAmt = if ((gnsbtAmtTotal != 0))
+                                                                        then fraction(feeAmount, gnsbtAmtFromSurfTotal, gnsbtAmtTotal)
+                                                                        else 0
+                                                                    let nsbtAmt = (feeAmount - surfAmt)
+[surfAmt, nsbtAmt]
+                                                                    }
+
+                                                                let transfers = if ((swapType == "outMulti"))
+                                                                    then {
+                                                                        let basket = split_4C(withdrawBasket, "_")
+                                                                        func looper (acc,item) =                                                                         {
+                                                                            let it = split(item, LISTSEP)
+                                                                            let tempAssetId = fromBase58String(it[bItemAsset])
+                                                                            let assetId = if ((tempAssetId == WAVESID))
+                                                                                then unit
+                                                                                else tempAssetId
+                                                                            let netAmount = parseIntValue(it[bItemNet])
+                                                                            let feeAmount = parseIntValue(it[bItemFee])
+                                                                            let fees = divideFees(feeAmount)
+                                                                            $Tuple5((acc._1 :+ ScriptTransfer(userAddress, netAmount, assetId)), (acc._2 :+ AttachedPayment(assetId, fees[0])), (acc._3 :+ AttachedPayment(assetId, fees[1])), (acc._4 + fees[0]), (acc._5 + fees[1]))
+                                                                            }
+
+                                                                        let r = {
+                                                                            let $l = basket
+                                                                            let $s = size($l)
+                                                                            let $acc0 = $Tuple5(nil, nil, nil, 0, 0)
+                                                                            func $f0_1 ($a,$i) =                                                                             if (($i >= $s))
+                                                                                then $a
+                                                                                else looper($a, $l[$i])
+
+                                                                            func $f0_2 ($a,$i) =                                                                             if (($i >= $s))
+                                                                                then $a
+                                                                                else throw("List size exceeds 10")
+
+                                                                            $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                                                                            }
+                                                                        let depoResult = deposits(r._4, r._5, r._2, r._3)
+                                                                        $Tuple2(r._1, depoResult)
+                                                                        }
+                                                                    else {
+                                                                        let fees = divideFees(outFeeAmount)
+                                                                        let depoResult = deposits(fees[0], fees[1], [AttachedPayment(outAssetId, fees[0])], [AttachedPayment(outAssetId, fees[1])])
+                                                                        $Tuple2([ScriptTransfer(userAddress, outNetAmount, outAssetId)], depoResult)
+                                                                        }
+                                                                $Tuple2(((commonActions ++ wavesLimitActions) ++ transfers._1), transfers._2)
+                                                                }
+                                                            else throw("Strict value is not equal to itself.")
+                                                        }
+                                                    else throw("Strict value is not equal to itself.")
+                                                }
+                                            else throw("Strict value is not equal to itself.")
+                                        }
+                                }
+            }
+    }
+
+
+
+@Callable(i)
+func internalUnleaseAndLease (unleaseAmount) = if ((i.caller != this))
+    then throw("internalUnleaseAndLease is not public method")
+    else prepareUnleaseAndLease(unleaseAmount)
+
+
+
+@Callable(i)
+func acceptWaves () = if (if ((i.caller != auctionContract))
+    then (i.caller != govContract)
+    else false)
+    then throw("Currently only auction and governance contracts are allowed to call")
+    else $Tuple2(prepareUnleaseAndLease(0), "success")
+
+
+
+@Callable(i)
+func takeWaves (amount,beneficiary) = if ((i.caller != this))
+    then throw("Permission denied")
+    else {
+        let unleaseInvOrEmpty = invoke(this, "internalUnleaseAndLease", [amount], nil)
+        if ((unleaseInvOrEmpty == unleaseInvOrEmpty))
+            then $Tuple2([ScriptTransfer(addressFromStringValue(beneficiary), amount, unit)], amount)
+            else throw("Strict value is not equal to itself.")
+        }
+
+
+
+@Callable(i)
+func approveLeasings (nListS,groupNum,lAmt) = {
+    let nIdxs = [0, 1, 2, 3, 4, 5, 6, 7]
+    let mngPubS = valueOrElse(getString("%s%s__cfg__leasingManagerPub"), "7AUMX54ukYMYvPmma7yoFf5NjZhs4Bu5nz3Ez9EV8sur")
+    let mngPub = fromBase58String(mngPubS)
+    let nodeRegAddrStr = valueOrElse(getString("%s%s__cfg__nodesRegistryAddress"), "3P9vKqQKjUdmpXAfiWau8krREYAY1Xr69pE")
+    let nodeRegAddr = addressFromStringValue(nodeRegAddrStr)
+    let lGroupNodeListKEY = getLeaseGroupNodeListKey(groupNum)
+    let lGrNodeOpt = getString(this, lGroupNodeListKEY)
+    if (isDefined(lGrNodeOpt))
+        then throw((("group " + toString(groupNum)) + " already initialized"))
+        else {
+            let nList = split(nListS, SEP)
+            let expCount = size(nIdxs)
+            if ((i.callerPublicKey != mngPub))
+                then throw("approveLeasings not authorized")
+                else {
+                    let $t05174851810 = readNodeInfo(0)
+                    let nAddr0 = $t05174851810._1
+                    let lAmtKEY0 = $t05174851810._2
+                    let lAmt0 = $t05174851810._3
+                    let lIdKEY0 = $t05174851810._4
+                    let lId0 = $t05174851810._5
+                    let newL0 = Lease(nAddr0, (lAmt0 - (lAmt * expCount)))
+                    let validation = invoke(nodeRegAddr, "validateAndApproveLeasings", [nListS], nil)
+                    if ((validation == validation))
+                        then {
+                            func forEachNodeValidateAndGenerateLease (a,i) =                             {
+                                let node = nList[i]
+                                let la = Lease(addressFromStringValue(node), lAmt)
+                                (a ++ [la, BinaryEntry(getLeaseIdByAddressKey(node), lcalc(la)), IntegerEntry(getLeaseAmountByAddressKey(node), lAmt)])
+                                }
+
+                            ([StringEntry(lGroupNodeListKEY, nListS), BinaryEntry(lIdKEY0, lcalc(newL0)), IntegerEntry(lAmtKEY0, newL0.amount), LeaseCancel(lId0), newL0] ++ {
+                                let $l = nIdxs
+                                let $s = size($l)
+                                let $acc0 = nil
+                                func $f0_1 ($a,$i) =                                 if (($i >= $s))
+                                    then $a
+                                    else forEachNodeValidateAndGenerateLease($a, $l[$i])
+
+                                func $f0_2 ($a,$i) =                                 if (($i >= $s))
+                                    then $a
+                                    else throw("List size exceeds 8")
+
+                                $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8)
+                                })
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+            }
+    }
+
+
+
+@Callable(i)
+func rebalanceLeasings (amount,groupNum) = {
+    let mngPubS = valueOrElse(getString("%s%s__cfg__leasingManagerPub"), "7AUMX54ukYMYvPmma7yoFf5NjZhs4Bu5nz3Ez9EV8sur")
+    let mngPub = fromBase58String(mngPubS)
+    if ((i.callerPublicKey != mngPub))
+        then throw("rebalanceLeasings not authorized")
+        else {
+            let lGroupNodeListKEY = getLeaseGroupNodeListKey(groupNum)
+            let nList = split(getStringOrFail(this, lGroupNodeListKEY), SEP)
+            if ((1 > size(nList)))
+                then throw(("Empty group " + toString(groupNum)))
+                else {
+                    let unleaseAmt = ((amount / size(nList)) + 1)
+                    let $t05317153233 = readNodeInfo(0)
+                    let nAddr0 = $t05317153233._1
+                    let lAmtKEY0 = $t05317153233._2
+                    let lAmt0 = $t05317153233._3
+                    let lIdKEY0 = $t05317153233._4
+                    let lId0 = $t05317153233._5
+                    func forEachNodeDoUnlease (a,node) =                     {
+                        let lIdKEY = getLeaseIdByAddressKey(node)
+                        let lId = getBinaryValue(this, lIdKEY)
+                        let lAmtKEY = getLeaseAmountByAddressKey(node)
+                        let lAmt = getIntegerValue(this, lAmtKEY)
+                        (a ++ LeasingRelatedActions(addressFromStringValue(node), (lAmt - unleaseAmt), lId, lIdKEY, lAmtKEY))
+                        }
+
+                    ({
+                        let $l = nList
+                        let $s = size($l)
+                        let $acc0 = nil
+                        func $f0_1 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else forEachNodeDoUnlease($a, $l[$i])
+
+                        func $f0_2 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else throw("List size exceeds 8")
+
+                        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8)
+                        } ++ LeasingRelatedActions(nAddr0, (lAmt0 + (unleaseAmt * size(nList))), lId0, lIdKEY0, lAmtKEY0))
+                    }
+            }
+    }
+
+
+
+@Callable(i)
+func swapParamsByUserSYSREADONLY (userAddressStr,gnsbtDiff) = {
+    let gnsbtData = asAnyList(invoke(gnsbtControllerContract, "gnsbtInfoSYSREADONLY", [userAddressStr, 0, 0], nil))
+    let gnsbtAmt = (asInt(gnsbtData[0]) + gnsbtDiff)
+    let gnsbtAmtTotal = (asInt(gnsbtData[1]) + gnsbtDiff)
+    let swapLimitData = asAnyList(invoke(mathContract, "calcSwapLimitREADONLY", [gnsbtAmt], nil))
+    let tokenSwapLimitInUsdMax = asInt(swapLimitData[0])
+    let usdnSwapLimitMax = asInt(swapLimitData[2])
+    let lastSwapHeight = valueOrElse(getInteger(this, keyUserLastSwapHeight(userAddressStr)), 0)
+    let swapLimitTimelifeBlocks = swapsTimeframeREAD()
+    let passedBlocksAfterLastSwap = (height - lastSwapHeight)
+    let isSwapTimelifeNew = (passedBlocksAfterLastSwap >= swapLimitTimelifeBlocks)
+    let swapLimitSpentInUsdn = if (isSwapTimelifeNew)
+        then 0
+        else valueOrElse(getInteger(this, keySwapUserSpentInPeriod(userAddressStr)), 0)
+    let blcks2LmtReset = if (isSwapTimelifeNew)
+        then 0
+        else (swapLimitTimelifeBlocks - passedBlocksAfterLastSwap)
+    $Tuple2(nil, $Tuple7(tokenSwapLimitInUsdMax, swapLimitSpentInUsdn, blcks2LmtReset, gnsbtAmt, gnsbtAmtTotal, 0, usdnSwapLimitMax))
+    }
+
+
+
+@Callable(i)
+func calcWithdrawResultSYSREADONLY (swapType,inAmount,price,inAsset,outAssetOpt) = {
+    let neutrinoMetrics = asAnyList(invoke(mathContract, "calcNeutinoMetricsREADONLY", nil, nil))
+    let t = calcWithdraw(swapType, inAmount, price, neutrinoMetrics, inAsset, outAssetOpt, true)
+    $Tuple2(nil, $Tuple9(t._1, t._2, t._3, t._4, t._5, t._6, t._7, t._8, t._9))
+    }
+
+
+
+@Callable(i)
+func replaceCommunityNode (oldAddrStr,newAddrStr,groupNum,penaltyAmount) = {
+    let mngPubS = valueOrElse(getString("%s%s__cfg__leasingManagerPub"), "7AUMX54ukYMYvPmma7yoFf5NjZhs4Bu5nz3Ez9EV8sur")
+    let mngPub = fromBase58String(mngPubS)
+    if ((i.callerPublicKey != mngPub))
+        then throw("replaceCommunityNode not authorized")
+        else {
+            let groupKey = getLeaseGroupNodeListKey(groupNum)
+            let groupNodeListS = getStringOrFail(this, groupKey)
+            if (!(contains(groupNodeListS, oldAddrStr)))
+                then throw(((("Group " + toString(groupNum)) + " does not contain address ") + oldAddrStr))
+                else {
+                    let doReplace = invoke(nodeRegistryContract, "replaceApprovedNode", [oldAddrStr, newAddrStr, groupNum, penaltyAmount], nil)
+                    if ((doReplace == doReplace))
+                        then {
+                            let oldLeaseIdKey = getLeaseIdByAddressKey(oldAddrStr)
+                            let oldLeaseAmtKey = getLeaseAmountByAddressKey(oldAddrStr)
+                            let leaseAmt = getIntegerValue(oldLeaseAmtKey)
+                            let newLeaseIdKey = getLeaseIdByAddressKey(newAddrStr)
+                            let newLeaseAmtKey = getLeaseAmountByAddressKey(newAddrStr)
+                            let updatedGroupNodeListS = makeString(split(groupNodeListS, oldAddrStr), newAddrStr)
+                            $Tuple2(([DeleteEntry(oldLeaseIdKey), DeleteEntry(oldLeaseAmtKey), StringEntry(groupKey, updatedGroupNodeListS)] ++ LeasingRelatedActions(addressFromStringValue(newAddrStr), leaseAmt, getBinaryValue(oldLeaseIdKey), newLeaseIdKey, newLeaseAmtKey)), unit)
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+            }
+    }
+
+
+
+@Callable(i)
+func removeCommunityNode (oldAddrStr,groupNum,penaltyAmount) = {
+    let mngPubS = valueOrElse(getString("%s%s__cfg__leasingManagerPub"), "7AUMX54ukYMYvPmma7yoFf5NjZhs4Bu5nz3Ez9EV8sur")
+    let mngPub = fromBase58String(mngPubS)
+    if ((i.callerPublicKey != mngPub))
+        then throw("removeCommunityNode not authorized")
+        else {
+            let groupKey = getLeaseGroupNodeListKey(groupNum)
+            let groupNodeListS = getStringOrFail(this, groupKey)
+            if (!(contains(groupNodeListS, oldAddrStr)))
+                then throw(((("Group " + toString(groupNum)) + " does not contain address ") + oldAddrStr))
+                else {
+                    let doRemove = invoke(nodeRegistryContract, "removeApprovedNode", [oldAddrStr, penaltyAmount], nil)
+                    if ((doRemove == doRemove))
+                        then {
+                            let oldLeaseIdKey = getLeaseIdByAddressKey(oldAddrStr)
+                            let oldLeaseAmtKey = getLeaseAmountByAddressKey(oldAddrStr)
+                            let leaseAmt = getIntegerValue(oldLeaseAmtKey)
+                            let $t05784657970 = readNodeInfo(0)
+                            let nAddr0 = $t05784657970._1
+                            let lAmtKEY0 = $t05784657970._2
+                            let lAmt0 = $t05784657970._3
+                            let lIdKEY0 = $t05784657970._4
+                            let lId0 = $t05784657970._5
+                            let updatedGroupNodeListS = removeFromListStr(groupNodeListS, SEP, oldAddrStr)
+                            $Tuple2(([DeleteEntry(oldLeaseIdKey), DeleteEntry(oldLeaseAmtKey), StringEntry(groupKey, updatedGroupNodeListS), LeaseCancel(lId0)] ++ LeasingRelatedActions(nAddr0, (lAmt0 + leaseAmt), getBinaryValue(oldLeaseIdKey), lIdKEY0, lAmtKEY0)), unit)
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+            }
+    }
+
+
+@Verifier(tx)
+func verify () = {
+    let pubKeyAdminsListStr = makeString(["GJdLSaLiv5K7xuejac8mcRcHoyo3dPrESrvktG3a6MAR", "EYwZmURd5KKaQRBjsVa6g8DPisFoS6SovRJtFiL5gMHU", "DtmAfuDdCrHK8spdAeAYzq6MsZegeD9gnsrpuTRkCbVA", "5WRXFSjwcTbNfKcJs8ZqXmSSWYsSVJUtMvMqZj5hH4Nc"], SEP)
+    let pubKeyAdminsList = split(valueOrElse(getString(controlContract, "%s__multisig"), pubKeyAdminsListStr), SEP)
+    let count = ((((if (sigVerify(tx.bodyBytes, tx.proofs[0], fromBase58String(pubKeyAdminsList[0])))
+        then 1
+        else 0) + (if (sigVerify(tx.bodyBytes, tx.proofs[1], fromBase58String(pubKeyAdminsList[1])))
+        then 1
+        else 0)) + (if (sigVerify(tx.bodyBytes, tx.proofs[2], fromBase58String(pubKeyAdminsList[2])))
+        then 1
+        else 0)) + (if (sigVerify(tx.bodyBytes, tx.proofs[3], fromBase58String(pubKeyAdminsList[3])))
+        then 2
+        else 0))
+    if (if (isBlocked)
+        then (getStringValue(controlContract, "is_blocked_caller") == toString(govContract))
+        else false)
+        then validateUpdate(tx)
+        else         match tx {
+            case sponsorTx: SponsorFeeTransaction => 
+                if (checkIsValidMinSponsoredFee(sponsorTx))
+                    then (count >= 3)
+                    else false
+            case _ => 
+                (count >= 3)
+        }
+    }

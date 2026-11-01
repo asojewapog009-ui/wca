@@ -1,0 +1,613 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let kActive = "active"
+
+let kActiveGlob = "active_all_contracts"
+
+let kCause = "shutdown_cause"
+
+let kLastInterest = "last_interest"
+
+let kUserLastInterest = "_last_interest"
+
+let kUserSWOPLocked = "_SWOP_amount"
+
+let kTotalSWOPLocked = "total_SWOP_amount"
+
+let kUserSwopUnlockHeight = "_SWOP_unlock_height"
+
+let kUserGSwopLocked = "_GSwop_amount"
+
+let kTotalGSwopLocked = "total_GSwop_amount"
+
+let kUserTotalVoteSWOP = "_user_total_vote_gSWOP"
+
+let kUserAvailableForClaim = "_user_available_for_claim"
+
+let kRewardPoolFractionCurrent = "_current_pool_fraction_reward"
+
+let kRewardPoolFractionPrevious = "_previous_pool_fraction_reward"
+
+let kHeightPoolFraction = "_pool_reward_update_height"
+
+let kRewardUpdateHeight = "reward_update_height"
+
+let kRewardUpdateFirstPaginationHeight = "reward_update_height_first_pagination"
+
+let kNoVotingForNewPool = "_vote_no"
+
+let kYesVotingForNewPool = "_vote_yes"
+
+let kStatusOfVotingForNewPool = "_status"
+
+let kHeightOfPoolVotingForNewPool = "_finish_height"
+
+let activeVoteFirst = "voting_active_cell_1"
+
+let activeVoteSecond = "voting_active_cell_2"
+
+let activeVoteThird = "voting_active_cell_3"
+
+let kTempCurSum = "sum_reward_current"
+
+let kLaunchpadBoughtTickets = "_bought_tickets"
+
+let kLaunchpadSwopPerTickets = "_swop_per_ticket"
+
+let kLaunchpadActiveId = "launchpad_active_id"
+
+let kLaunchpadDuration = "_duration"
+
+let kLaunchpadStartHeight = "_start_height"
+
+let kStartHeight = "start_height"
+
+let kBasePeriod = "base_period"
+
+let kPeriodLength = "period_length"
+
+let kUserTotalStruc = "_user_total_struc"
+
+let kLauchpadFreezSwopDuration = "_freeze_swop_duration"
+
+let kSWOPid = "SWOP_id"
+
+let kAirdropFee = "airdrop_fee"
+
+let kAdminPubKey1 = "admin_pub_1"
+
+let kAdminPubKey2 = "admin_pub_2"
+
+let kAdminPubKey3 = "admin_pub_3"
+
+let kMoneyBoxPubKey = "money_box_pub_key"
+
+let kFarmingAddr = "farming_address"
+
+let kVotingAddr = "voting_address"
+
+let kVotingNewPoolAddr = "voting_new_pool_address"
+
+let kLaunchpadAddr = "launchpad_address"
+
+let kOraclePool = "pool_"
+
+let oracle = Address(base58'3PEbqViERCoKnmcSULh6n2aiMvUdSQdCsom')
+
+func getBase58FromOracle (key) = match getString(oracle, key) {
+    case string: String => 
+        fromBase58String(string)
+    case nothing => 
+        throw((key + "is empty"))
+}
+
+
+let adminPubKey1 = getBase58FromOracle(kAdminPubKey1)
+
+let adminPubKey2 = getBase58FromOracle(kAdminPubKey2)
+
+let adminPubKey3 = getBase58FromOracle(kAdminPubKey3)
+
+let moneyBoxPubKey = getBase58FromOracle(kMoneyBoxPubKey)
+
+let farmingAddr = Address(getBase58FromOracle(kFarmingAddr))
+
+let votingAddr = Address(getBase58FromOracle(kVotingAddr))
+
+let votingNewPoolAddr = Address(getBase58FromOracle(kVotingNewPoolAddr))
+
+let launchpadAddr = Address(getBase58FromOracle(kLaunchpadAddr))
+
+let lockSwopBlocksAmount = (10102 * 4)
+
+let SWOP = fromBase58String(getStringValue(farmingAddr, kSWOPid))
+
+let scaleValue = 100000000
+
+let totalVoteShare = 10000000000
+
+let feeSacle6 = 1000000
+
+let basePeriod = valueOrErrorMessage(getInteger(votingAddr, kBasePeriod), "Empty kBasePeriod at voting contract")
+
+let startHeight = valueOrErrorMessage(getInteger(votingAddr, kStartHeight), "Empty kStartHeight at voting contract")
+
+let periodLength = valueOrErrorMessage(getInteger(votingAddr, kPeriodLength), "Empty kPeriodLength at voting contract")
+
+let firstActiveVote = valueOrElse(getString(votingNewPoolAddr, activeVoteFirst), "")
+
+let secondActiveVote = valueOrElse(getString(votingNewPoolAddr, activeVoteSecond), "")
+
+let thirdActiveVote = valueOrElse(getString(votingNewPoolAddr, activeVoteThird), "")
+
+let active = valueOrElse(getBoolean(this, kActive), true)
+
+let activeGlob = valueOrElse(getBoolean(oracle, kActiveGlob), true)
+
+let currVotingPeriod = (basePeriod + ((height - startHeight) / periodLength))
+
+func suspend (cause) = [BooleanEntry(kActive, false), StringEntry(kCause, cause)]
+
+
+func isActive () = if (if (active)
+    then activeGlob
+    else false)
+    then unit
+    else throw("DApp is inactive at this moment")
+
+
+func isAdminCall (i) = if (containsElement([adminPubKey1, adminPubKey2, adminPubKey3], i.callerPublicKey))
+    then unit
+    else throw("Only admin can call this function")
+
+
+func getLastInterestInfo () = valueOrElse(getInteger(this, kLastInterest), 0)
+
+
+func getTotalLockedInfo () = {
+    let totalSwopLocked = valueOrElse(getInteger(this, kTotalSWOPLocked), 0)
+    let totalGSwopLocked = valueOrElse(getInteger(this, kTotalGSwopLocked), totalSwopLocked)
+    $Tuple2(totalSwopLocked, totalGSwopLocked)
+    }
+
+
+func getUserLockedInfo (user) = {
+    let userSwopLocked = valueOrElse(getInteger(this, (user + kUserSWOPLocked)), 0)
+    let userGSwopLocked = valueOrElse(getInteger(this, (user + kUserGSwopLocked)), userSwopLocked)
+    $Tuple2(userSwopLocked, userGSwopLocked)
+    }
+
+
+func getUserInterestInfo (user,lastInterest) = {
+    let $t048554918 = getUserLockedInfo(user)
+    let userSWOPAmount = $t048554918._1
+    let userGSwopAmount = $t048554918._2
+    let userLastInterest = valueOrElse(getInteger(this, (user + kUserLastInterest)), lastInterest)
+    $Tuple3(userLastInterest, userSWOPAmount, userGSwopAmount)
+    }
+
+
+func getUserAvailableForClaim (user) = valueOrElse(getInteger(this, (user + kUserAvailableForClaim)), 0)
+
+
+func getUserTotalVoteAmountForOnePool (pool,user) = {
+    let voting = valueOrElse(getInteger(votingNewPoolAddr, pool), -1)
+    let heightOfVoting = valueOrElse(getInteger(votingNewPoolAddr, (toString(voting) + kHeightOfPoolVotingForNewPool)), 0)
+    let statusOfVoting = valueOrElse(getBoolean(votingNewPoolAddr, (toString(voting) + kStatusOfVotingForNewPool)), true)
+    let currentHeight = height
+    if ((0 > voting))
+        then 0
+        else if (!(statusOfVoting))
+            then 0
+            else if ((heightOfVoting > currentHeight))
+                then (valueOrElse(getInteger(votingNewPoolAddr, (((toString(user) + "_") + toString(voting)) + kYesVotingForNewPool)), 0) + valueOrElse(getInteger(votingNewPoolAddr, (((toString(user) + "_") + toString(voting)) + kNoVotingForNewPool)), 0))
+                else 0
+    }
+
+
+func getUserTotalVoteForNewPoolAmount (user) = {
+    let listOfVoting = [getUserTotalVoteAmountForOnePool(firstActiveVote, user), getUserTotalVoteAmountForOnePool(secondActiveVote, user), getUserTotalVoteAmountForOnePool(thirdActiveVote, user)]
+    max(listOfVoting)
+    }
+
+
+func getUserBlockedInLauchpad (user) = {
+    let lauchpadId = toString(valueOrElse(getInteger(launchpadAddr, kLaunchpadActiveId), 0))
+    if ((lauchpadId == "0"))
+        then 0
+        else {
+            let lStartHeight = valueOrElse(getInteger(launchpadAddr, (lauchpadId + kLaunchpadStartHeight)), 0)
+            let lDuration = valueOrElse(getInteger(launchpadAddr, (lauchpadId + kLaunchpadDuration)), 0)
+            let lFreezeSwopDuration = valueOrElse(getInteger(launchpadAddr, (lauchpadId + kLauchpadFreezSwopDuration)), 0)
+            let blockEndHeight = ((lStartHeight + lDuration) + lFreezeSwopDuration)
+            if ((height > blockEndHeight))
+                then 0
+                else {
+                    let boughtTickets = valueOrElse(getInteger(launchpadAddr, (((toString(user) + "_") + lauchpadId) + kLaunchpadBoughtTickets)), 0)
+                    let swopPerTicket = valueOrElse(getInteger(launchpadAddr, (lauchpadId + kLaunchpadSwopPerTickets)), 0)
+                    (boughtTickets * swopPerTicket)
+                    }
+            }
+    }
+
+
+func getUserTotalVote (user) = if (isDefined(getString(votingAddr, (toString(user) + kUserTotalStruc))))
+    then parseIntValue(split(valueOrErrorMessage(getString(votingAddr, (toString(user) + kUserTotalStruc)), "Empty kUserTotalStruc"), "_")[0])
+    else valueOrElse(getInteger(votingAddr, (toString(user) + kUserTotalVoteSWOP)), 0)
+
+
+func getPoolUpdateHeight (pool) = valueOrElse(getInteger(this, (pool + kHeightPoolFraction)), 0)
+
+
+func isDefinePoolUpdateHeight (pool) = isDefined(getInteger(this, (pool + kHeightPoolFraction)))
+
+
+func getCurPoolWeight (pool) = valueOrElse(getInteger(this, (pool + kRewardPoolFractionCurrent)), 0)
+
+
+func getPrevPoolWeight (pool) = valueOrElse(getInteger(this, (pool + kRewardPoolFractionPrevious)), 0)
+
+
+func claimCalc (user) = {
+    let lastInterest = getLastInterestInfo()
+    let $t083438440 = getUserInterestInfo(user, lastInterest)
+    let userLastInterest = $t083438440._1
+    let userSWOPLocked = $t083438440._2
+    let userGSwopAmount = $t083438440._3
+    let claimAmount = fraction(userGSwopAmount, (lastInterest - userLastInterest), scaleValue)
+    let userNewInterest = lastInterest
+    $Tuple2(userNewInterest, claimAmount)
+    }
+
+
+func isOraclePool (poolAddress) = if (isDefined(getString(oracle, (kOraclePool + poolAddress))))
+    then unit
+    else throw("DApp is not registered pool")
+
+
+@Callable(i)
+func addPool (poolAddress) = valueOrElse(isAdminCall(i), valueOrElse(isActive(), valueOrElse(isOraclePool(poolAddress), if (isDefined(getInteger(this, (poolAddress + kRewardPoolFractionCurrent))))
+    then throw("Pool already in governance")
+    else [IntegerEntry((poolAddress + kRewardPoolFractionCurrent), 0), IntegerEntry((poolAddress + kRewardPoolFractionPrevious), 0), IntegerEntry((poolAddress + kHeightPoolFraction), getIntegerValue(this, kRewardUpdateHeight))])))
+
+
+
+@Callable(i)
+func airDrop () = valueOrElse(isActive(), {
+    let $t093399414 = $Tuple2(i.payments[0].amount, i.payments[0].assetId)
+    let pmtAmount = $t093399414._1
+    let pmtAssetId = $t093399414._2
+    if ((pmtAssetId != SWOP))
+        then throw("Incorrect pmtAssetId")
+        else {
+            let $t095059567 = getTotalLockedInfo()
+            let totalSWOPLocked = $t095059567._1
+            let totalGSwopLocked = $t095059567._2
+            let lastInterest = getLastInterestInfo()
+            let interestNew = (lastInterest + fraction(pmtAmount, scaleValue, totalGSwopLocked))
+[IntegerEntry(kLastInterest, interestNew)]
+            }
+    })
+
+
+
+@Callable(i)
+func lockSWOP () = valueOrElse(isActive(), {
+    let $t098539928 = $Tuple2(i.payments[0].amount, i.payments[0].assetId)
+    let pmtAmount = $t098539928._1
+    let pmtAssetId = $t098539928._2
+    if ((pmtAssetId != SWOP))
+        then throw("Incorrect pmtAssetId")
+        else {
+            let user = toString(i.caller)
+            let lastInterest = getLastInterestInfo()
+            let $t01007910142 = getUserLockedInfo(user)
+            let userSWOPLocked = $t01007910142._1
+            let userGSwopLocked = $t01007910142._2
+            let $t01014710208 = claimCalc(user)
+            let userNewInterest = $t01014710208._1
+            let claimAmountAvailable = $t01014710208._2
+            let availableForClaim = getUserAvailableForClaim(user)
+            let availableForClaimNew = (availableForClaim + claimAmountAvailable)
+            let userSWOPLockedNew = (userSWOPLocked + pmtAmount)
+            let userGSwopLockedNew = (userGSwopLocked + pmtAmount)
+            let $t01045610518 = getTotalLockedInfo()
+            let totalSWOPLocked = $t01045610518._1
+            let totalGSwopLocked = $t01045610518._2
+            let totalSWOPLockedNew = (totalSWOPLocked + pmtAmount)
+            let totalGSwopLockedNew = (totalGSwopLocked + pmtAmount)
+[IntegerEntry((user + kUserSwopUnlockHeight), (height + lockSwopBlocksAmount)), IntegerEntry((user + kUserLastInterest), userNewInterest), IntegerEntry((user + kUserSWOPLocked), userSWOPLockedNew), IntegerEntry((user + kUserGSwopLocked), userGSwopLockedNew), IntegerEntry((user + kUserAvailableForClaim), availableForClaimNew), IntegerEntry(kTotalSWOPLocked, totalSWOPLockedNew), IntegerEntry(kTotalGSwopLocked, totalGSwopLockedNew)]
+            }
+    })
+
+
+
+@Callable(i)
+func withdrawSWOP (withdrawAmount) = valueOrElse(isActive(), {
+    let user = toString(i.caller)
+    let unlockHeight = valueOrElse(getInteger(this, (user + kUserSwopUnlockHeight)), 0)
+    if ((0 >= withdrawAmount))
+        then throw("withdrawAmount <= 0")
+        else if ((unlockHeight > height))
+            then throw(("You can't withdraw till " + toString(unlockHeight)))
+            else {
+                let $t01149611558 = getTotalLockedInfo()
+                let totalSWOPLocked = $t01149611558._1
+                let totalGSwopLocked = $t01149611558._2
+                let $t01156311626 = getUserLockedInfo(user)
+                let userSWOPLocked = $t01156311626._1
+                let userGSwopLocked = $t01156311626._2
+                let $t01163111692 = claimCalc(user)
+                let userNewInterest = $t01163111692._1
+                let claimAmountAvailable = $t01163111692._2
+                let userTotalVoteAmount = getUserTotalVote(i.caller)
+                let userVoteAmountForNewPool = getUserTotalVoteForNewPoolAmount(i.caller)
+                let blockedInLaunchpad = getUserBlockedInLauchpad(i.caller)
+                if (if ((0 > userTotalVoteAmount))
+                    then true
+                    else (0 > userVoteAmountForNewPool))
+                    then throw("userVoteAmount < 0 || userVoteAmountForNewPool < 0")
+                    else {
+                        let availableToUnstake = (userSWOPLocked - max([userVoteAmountForNewPool, userTotalVoteAmount, blockedInLaunchpad]))
+                        if ((withdrawAmount > availableToUnstake))
+                            then throw("withdrawAmount > availableToUnstake")
+                            else {
+                                let availableForClaim = getUserAvailableForClaim(user)
+                                let availableForClaimNew = (availableForClaim + claimAmountAvailable)
+                                let totalSWOPLockedNew = (totalSWOPLocked - withdrawAmount)
+                                let userSWOPAmountNew = (userSWOPLocked - withdrawAmount)
+                                let totalGSwopLockedNew = ((totalGSwopLocked - userGSwopLocked) + userSWOPAmountNew)
+[IntegerEntry((user + kUserLastInterest), userNewInterest), IntegerEntry((user + kUserSWOPLocked), userSWOPAmountNew), IntegerEntry((user + kUserGSwopLocked), userSWOPAmountNew), IntegerEntry((user + kUserAvailableForClaim), availableForClaimNew), IntegerEntry(kTotalSWOPLocked, totalSWOPLockedNew), IntegerEntry(kTotalGSwopLocked, totalGSwopLockedNew), ScriptTransfer(i.caller, withdrawAmount, SWOP)]
+                                }
+                        }
+                }
+    })
+
+
+
+@Callable(i)
+func claimAndWithdrawSWOP () = valueOrElse(isActive(), {
+    let user = toString(i.caller)
+    let availableForClaim = getUserAvailableForClaim(user)
+    let $t01321113263 = claimCalc(user)
+    let userNewInterest = $t01321113263._1
+    let claimAmount = $t01321113263._2
+    let userClaimAmount = (availableForClaim + claimAmount)
+    if ((userClaimAmount == 0))
+        then throw("You have 0 available SWOP")
+        else [IntegerEntry((user + kUserLastInterest), userNewInterest), IntegerEntry((user + kUserAvailableForClaim), 0), ScriptTransfer(i.caller, userClaimAmount, SWOP)]
+    })
+
+
+
+@Callable(i)
+func claimAndStakeSWOP () = valueOrElse(isActive(), {
+    let user = toString(i.caller)
+    let $t01369313755 = getTotalLockedInfo()
+    let totalSWOPLocked = $t01369313755._1
+    let totalGSwopLocked = $t01369313755._2
+    let $t01376013823 = getUserLockedInfo(user)
+    let userSWOPLocked = $t01376013823._1
+    let userGSwopLocked = $t01376013823._2
+    let availableForClaim = getUserAvailableForClaim(user)
+    let $t01388713938 = claimCalc(user)
+    let userNewInterest = $t01388713938._1
+    let claimAmount = $t01388713938._2
+    let userClaimAmount = (availableForClaim + claimAmount)
+    let userSWOPLockedNew = (userSWOPLocked + userClaimAmount)
+    let userGSwopLockedNew = (userGSwopLocked + (userClaimAmount * 2))
+    let totalSWOPLockedNew = (totalSWOPLocked + userClaimAmount)
+    let totalGSwopLockedNew = (totalGSwopLocked + (userClaimAmount * 2))
+    if ((userClaimAmount == 0))
+        then throw("You have 0 available SWOP")
+        else [IntegerEntry((user + kUserSwopUnlockHeight), (height + lockSwopBlocksAmount)), IntegerEntry((user + kUserLastInterest), userNewInterest), IntegerEntry(kTotalSWOPLocked, totalSWOPLockedNew), IntegerEntry(kTotalGSwopLocked, totalGSwopLockedNew), IntegerEntry((user + kUserSWOPLocked), userSWOPLockedNew), IntegerEntry((user + kUserGSwopLocked), userGSwopLockedNew), IntegerEntry((user + kUserAvailableForClaim), 0)]
+    })
+
+
+
+@Callable(i)
+func lockSWOPFromFarming () = valueOrElse(isActive(), {
+    let $t01487414949 = $Tuple2(i.payments[0].amount, i.payments[0].assetId)
+    let pmtAmount = $t01487414949._1
+    let pmtAssetId = $t01487414949._2
+    if ((i.caller != farmingAddr))
+        then throw("Only farming can call this function")
+        else if ((pmtAssetId != SWOP))
+            then throw("Incorrect pmtAssetId")
+            else {
+                let user = toString(i.originCaller)
+                let lastInterest = getLastInterestInfo()
+                let $t01519215255 = getUserLockedInfo(user)
+                let userSWOPLocked = $t01519215255._1
+                let userGSwopLocked = $t01519215255._2
+                let $t01526015321 = claimCalc(user)
+                let userNewInterest = $t01526015321._1
+                let claimAmountAvailable = $t01526015321._2
+                let availableForClaim = getUserAvailableForClaim(user)
+                let availableForClaimNew = (availableForClaim + claimAmountAvailable)
+                let userSWOPLockedNew = (userSWOPLocked + pmtAmount)
+                let userGSwopLockedNew = (userGSwopLocked + (pmtAmount * 2))
+                let $t01557315635 = getTotalLockedInfo()
+                let totalSWOPLocked = $t01557315635._1
+                let totalGSwopLocked = $t01557315635._2
+                let totalSWOPLockedNew = (totalSWOPLocked + pmtAmount)
+                let totalGSwopLockedNew = (totalGSwopLocked + (pmtAmount * 2))
+[IntegerEntry((user + kUserSwopUnlockHeight), (height + lockSwopBlocksAmount)), IntegerEntry((user + kUserLastInterest), userNewInterest), IntegerEntry((user + kUserSWOPLocked), userSWOPLockedNew), IntegerEntry((user + kUserGSwopLocked), userGSwopLockedNew), IntegerEntry((user + kUserAvailableForClaim), availableForClaimNew), IntegerEntry(kTotalSWOPLocked, totalSWOPLockedNew), IntegerEntry(kTotalGSwopLocked, totalGSwopLockedNew)]
+                }
+    })
+
+
+
+@Callable(i)
+func updateWeights (currentPools,currentRewards,rewardUpdateHeight,pagination) = valueOrElse(isActive(), {
+    let amountPools = 10
+    let totalRewardUpdateHeight = valueOrElse(getInteger(this, kRewardUpdateHeight), 0)
+    if (!(containsElement([adminPubKey1, adminPubKey2, adminPubKey3, moneyBoxPubKey], i.callerPublicKey)))
+        then throw("Only admin can call this function")
+        else if ((size(currentPools) > amountPools))
+            then throw(("Max amount of pool is " + toString(amountPools)))
+            else if ((totalRewardUpdateHeight >= rewardUpdateHeight))
+                then throw("rewardUpdateHeight <= totalRewardUpdateHeight")
+                else if ((height >= rewardUpdateHeight))
+                    then throw("height >= rewardUpdateHeight")
+                    else if ((0 >= rewardUpdateHeight))
+                        then throw("0 >= rewardUpdateHeight ")
+                        else {
+                            func sum (a,b) =                             (a + b)
+
+                            func changePreviousRewardEntry (accumulated,pool) =                             {
+                                let poolRewardUpdateHeight = getPoolUpdateHeight(pool)
+                                if (if (!(isDefinePoolUpdateHeight(pool)))
+                                    then true
+                                    else if ((rewardUpdateHeight != poolRewardUpdateHeight))
+                                        then (poolRewardUpdateHeight == totalRewardUpdateHeight)
+                                        else false)
+                                    then {
+                                        let poolReward = getCurPoolWeight(pool)
+IntegerEntry((pool + kRewardPoolFractionPrevious), poolReward) :: accumulated
+                                        }
+                                    else {
+                                        let poolReward = getPrevPoolWeight(pool)
+IntegerEntry((pool + kRewardPoolFractionPrevious), poolReward) :: accumulated
+                                        }
+                                }
+
+                            func changeCurrentRewardEntry (accumulated,pool) =                             {
+                                let poolIndex = value(indexOf(currentPools, pool))
+                                let poolReward = currentRewards[poolIndex]
+                                if ((0 > poolReward))
+                                    then throw("PoolReward < 0")
+                                    else IntegerEntry((pool + kRewardPoolFractionCurrent), poolReward) :: accumulated
+                                }
+
+                            func changeHeightEntry (accumulated,pool) =                             {
+                                let poolHeight = rewardUpdateHeight
+                                let upUIntr = invoke(farmingAddr, "updatePoolInterest", [pool], nil)
+                                if ((upUIntr == upUIntr))
+                                    then IntegerEntry((pool + kHeightPoolFraction), poolHeight) :: accumulated
+                                    else throw("Strict value is not equal to itself.")
+                                }
+
+                            func getSumReward (curTempSum,pagination) =                             if ((pagination == 0))
+                                then if ((curTempSum > totalVoteShare))
+                                    then throw(((("sumRewardPrevious > totalVoteShare or sumRewardCurrent > totalVoteShare - " + toString(pagination)) + " ") + toString(curTempSum)))
+                                    else $Tuple2([IntegerEntry(kTempCurSum, curTempSum)], [IntegerEntry(kRewardUpdateFirstPaginationHeight, rewardUpdateHeight)])
+                                else if ((pagination == 1))
+                                    then {
+                                        let curTempSumFromKey = valueOrElse(getInteger(this, kTempCurSum), 0)
+                                        let rewardUpdateHeightFirstPaginationEntry = valueOrElse(getInteger(this, kRewardUpdateFirstPaginationHeight), 0)
+                                        if (((curTempSum + curTempSumFromKey) > totalVoteShare))
+                                            then throw(((("sumRewardPrevious > totalVoteShare or sumRewardCurrent > totalVoteShare - " + toString(pagination)) + " ") + toString((curTempSum + curTempSumFromKey))))
+                                            else if ((rewardUpdateHeightFirstPaginationEntry != rewardUpdateHeight))
+                                                then throw("current rewardUpdateHeight != rewardUpdateHeightFirstPaginationEntry")
+                                                else $Tuple2([IntegerEntry(kTempCurSum, (curTempSum + curTempSumFromKey))], nil)
+                                        }
+                                    else if ((pagination == 2))
+                                        then {
+                                            let curSum = (valueOrElse(getInteger(this, kTempCurSum), 0) + curTempSum)
+                                            let rewardUpdateHeightFirstPaginationEntry = valueOrElse(getInteger(this, kRewardUpdateFirstPaginationHeight), 0)
+                                            if ((curSum != totalVoteShare))
+                                                then throw("sumRewardPrevious != totalVoteShare or sumRewardCurrent != totalVoteShare")
+                                                else if ((rewardUpdateHeightFirstPaginationEntry != rewardUpdateHeight))
+                                                    then throw("current rewardUpdateHeight != rewardUpdateHeightFirstPaginationEntry")
+                                                    else $Tuple2([IntegerEntry(kTempCurSum, curSum)], nil)
+                                            }
+                                        else throw("Incorrect pagination")
+
+                            let previousRewardEntryNew = {
+                                let $l = currentPools
+                                let $s = size($l)
+                                let $acc0 = nil
+                                func $f0_1 ($a,$i) =                                 if (($i >= $s))
+                                    then $a
+                                    else changePreviousRewardEntry($a, $l[$i])
+
+                                func $f0_2 ($a,$i) =                                 if (($i >= $s))
+                                    then $a
+                                    else throw("List size exceeds 10")
+
+                                $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                                }
+                            let currentRewardEntryNew = {
+                                let $l = currentPools
+                                let $s = size($l)
+                                let $acc0 = nil
+                                func $f1_1 ($a,$i) =                                 if (($i >= $s))
+                                    then $a
+                                    else changeCurrentRewardEntry($a, $l[$i])
+
+                                func $f1_2 ($a,$i) =                                 if (($i >= $s))
+                                    then $a
+                                    else throw("List size exceeds 10")
+
+                                $f1_2($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                                }
+                            let heightEntryNewCur = {
+                                let $l = currentPools
+                                let $s = size($l)
+                                let $acc0 = nil
+                                func $f2_1 ($a,$i) =                                 if (($i >= $s))
+                                    then $a
+                                    else changeHeightEntry($a, $l[$i])
+
+                                func $f2_2 ($a,$i) =                                 if (($i >= $s))
+                                    then $a
+                                    else throw("List size exceeds 10")
+
+                                $f2_2($f2_1($f2_1($f2_1($f2_1($f2_1($f2_1($f2_1($f2_1($f2_1($f2_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                                }
+                            let sumRewardCurrentTemp = {
+                                let $l = currentRewards
+                                let $s = size($l)
+                                let $acc0 = 0
+                                func $f3_1 ($a,$i) =                                 if (($i >= $s))
+                                    then $a
+                                    else sum($a, $l[$i])
+
+                                func $f3_2 ($a,$i) =                                 if (($i >= $s))
+                                    then $a
+                                    else throw("List size exceeds 10")
+
+                                $f3_2($f3_1($f3_1($f3_1($f3_1($f3_1($f3_1($f3_1($f3_1($f3_1($f3_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                                }
+                            let $t02066020771 = getSumReward(sumRewardCurrentTemp, pagination)
+                            let sumRewardCurrent = $t02066020771._1
+                            let rewardUpdateHeightFirstPaginationEntry = $t02066020771._2
+                            let rewardUpdateHeightEntry = if ((pagination == 2))
+                                then [IntegerEntry(kRewardUpdateHeight, rewardUpdateHeight)]
+                                else nil
+                            if ((height > rewardUpdateHeight))
+                                then throw("rewardUpdateHeight < height")
+                                else (((((previousRewardEntryNew ++ currentRewardEntryNew) ++ heightEntryNewCur) ++ sumRewardCurrent) ++ rewardUpdateHeightEntry) ++ rewardUpdateHeightFirstPaginationEntry)
+                            }
+    })
+
+
+
+@Callable(i)
+func shutdown () = valueOrElse(isAdminCall(i), if (!(active))
+    then throw(("DApp is already suspended. Cause: " + valueOrElse(getString(this, kCause), "the cause wasn't specified")))
+    else suspend("Paused by admin"))
+
+
+
+@Callable(i)
+func activate () = valueOrElse(isAdminCall(i), if (active)
+    then throw("DApp is already active")
+    else [BooleanEntry(kActive, true), DeleteEntry(kCause)])
+
+
+@Verifier(tx)
+func verify () = {
+    let adminPubKey1Signed = if (sigVerify(tx.bodyBytes, tx.proofs[0], adminPubKey1))
+        then 1
+        else 0
+    let adminPubKey2Signed = if (sigVerify(tx.bodyBytes, tx.proofs[1], adminPubKey2))
+        then 1
+        else 0
+    let adminPubKey3Signed = if (sigVerify(tx.bodyBytes, tx.proofs[2], adminPubKey3))
+        then 1
+        else 0
+    (((adminPubKey1Signed + adminPubKey2Signed) + adminPubKey3Signed) >= 2)
+    }

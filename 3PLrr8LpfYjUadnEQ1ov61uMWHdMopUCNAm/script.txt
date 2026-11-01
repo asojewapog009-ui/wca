@@ -1,0 +1,2133 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let SEP = "__"
+
+let WAVES = "waves"
+
+let MAX_INT = 9223372036854775807
+
+let MAX_FEE = 1000000
+
+let MAX_AMPLIFIER = 1000000
+
+let MAX_WEIGHT_AMPLIFIER = 1000000
+
+let MAX_WEIGHT = 1000000
+
+let FEE_RATE_FACTOR = 1000000
+
+let RATE_FACTOR = 1000000
+
+let PERCENT_FACTOR = toBigInt(1000000000000000000)
+
+let DISBAlANCE_COEFF_FACTOR = toBigInt(1000000000000)
+
+let ZERO_INT_LIST_10 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+let ZERO_INT_LIST_11 = (ZERO_INT_LIST_10 :+ 0)
+
+let INDEX_LIST = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+let ZERO_BIGINT = toBigInt(0)
+
+let ZERO_BIGINT_LIST_11 = [ZERO_BIGINT, ZERO_BIGINT, ZERO_BIGINT, ZERO_BIGINT, ZERO_BIGINT, ZERO_BIGINT, ZERO_BIGINT, ZERO_BIGINT, ZERO_BIGINT, ZERO_BIGINT, ZERO_BIGINT]
+
+let INT_DECIMALS = 8
+
+let BIGINT_DECIMALS = 18
+
+let LIST_64 = split_51C("0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0", "_")
+
+let KEY_MULTISIG = "MULTISIG"
+
+let KEY_STATUS = "STATUS"
+
+let KEY_PAUSED = "PAUSED"
+
+let KEY_PAUSER = "PAUSER"
+
+let KEY_STORAGE = "STORAGE"
+
+let KEY_ASSETS = "ASSETS"
+
+let KEY_ASSET_BALANCES = "ASSET_BALANCES"
+
+let KEY_REWARD_BALANCES = "REWARD_BALANCES"
+
+let KEY_ASSET_WEIGHTS = "ASSET_WEIGHTS"
+
+let KEY_LP_FEE = "LP_FEE"
+
+let KEY_PROTOCOL_FEE = "PROTOCOL_FEE"
+
+let KEY_PRECISION = "PRECISION"
+
+let KEY_SIGMA_FEE_PER_LP = "SIGMA_FEE_PER_LP"
+
+let KEY_USER_SIGMA_FEE_PER_LP = "USER_SIGMA_FEE_PER_LP"
+
+let KEY_USER_LP = "USER_LP"
+
+let KEY_TOTAL_LP = "TOTAL_LP"
+
+let KEY_USER_PROFITS = "USER_PROFITS"
+
+let KEY_WATCHDOG = "WATCHDOG"
+
+let KEY_WATCHDOG_OFFSET = "WATCHDOG_OFFSET"
+
+let KEY_WATCHDOG_HEIGHT = "WATCHDOG_HEIGHT"
+
+func _validateAddress (address_,err_) = match addressFromString(address_) {
+    case a: Address => 
+        true
+    case _ => 
+        throw(err_)
+}
+
+
+func _validateAsset (assetId_,err_) = if ((assetId_ == WAVES))
+    then true
+    else     match assetInfo(fromBase58String(assetId_)) {
+        case a: Asset => 
+            true
+        case _ => 
+            throw(err_)
+    }
+
+
+func _validateInt (val_,lowerBoundary_,upperBoundary_,err_) = if (if ((lowerBoundary_ > val_))
+    then true
+    else (val_ > upperBoundary_))
+    then throw(err_)
+    else true
+
+
+func _validateBool (val_,target_,err_) = if ((val_ != target_))
+    then throw(err_)
+    else true
+
+
+func _validateStringEqual (val1_,val2_,err_) = if ((val1_ != val2_))
+    then throw(err_)
+    else true
+
+
+func _validateStringNotEq (val1_,val2_,err_) = if ((val1_ == val2_))
+    then throw(err_)
+    else true
+
+
+func _validateIntList (val_,lowerBoundary_,upperBoundary_,err_) = {
+    func foldFunc (acc,elem) =         match parseInt(elem) {
+        case a: Int => 
+            if (acc)
+                then _validateInt(a, lowerBoundary_, upperBoundary_, err_)
+                else false
+        case _ => 
+            throw(err_)
+    }
+
+    let $l = val_
+    let $s = size($l)
+    let $acc0 = true
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else foldFunc($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 10")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+    }
+
+
+func _validateAssets (assets_,err_) = {
+    func foldFunc (acc,elem) =     if (acc)
+        then _validateAsset(elem, err_)
+        else false
+
+    let $l = assets_
+    let $s = size($l)
+    let $acc0 = true
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else foldFunc($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 10")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+    }
+
+
+func _validateIntEquals (val1_,val2_,err_) = if ((val1_ != val2_))
+    then throw(err_)
+    else true
+
+
+func _validateTokenName (val_,err_) = if (if ((4 > size(val_)))
+    then true
+    else (size(val_) > 16))
+    then throw(err_)
+    else true
+
+
+func _validateTokenDescr (val_,err_) = if ((size(val_) > 1000))
+    then throw(err_)
+    else true
+
+
+func _validateDecimals (val_,err_) = if (if ((0 > val_))
+    then true
+    else (val_ > 8))
+    then throw(err_)
+    else true
+
+
+func _validatePayment (payment_,assetId_,requiredAmount_,err_) = match payment_.assetId {
+    case a: ByteVector => 
+        if ((assetId_ != toBase58String(a)))
+            then throw((err_ + ": asset"))
+            else if ((requiredAmount_ > payment_.amount))
+                then throw((err_ + ": amount"))
+                else true
+    case _ => 
+        throw((err_ + ": asset"))
+}
+
+
+func _validateListContains (list_,val_,err_) = if (!(containsElement(list_, val_)))
+    then throw(err_)
+    else true
+
+
+func _assetToStr (asset_) = match asset_ {
+    case a: ByteVector => 
+        toBase58String(a)
+    case _ => 
+        WAVES
+}
+
+
+func _strToAsset (asset_) = if (if ((asset_ == WAVES))
+    then true
+    else (asset_ == ""))
+    then unit
+    else fromBase58String(asset_)
+
+
+func _loadPause () = match getBoolean(KEY_PAUSED) {
+    case a: Boolean => 
+        a
+    case _ => 
+        false
+}
+
+
+func _savePause (isPaused_) = [BooleanEntry(KEY_PAUSED, isPaused_)]
+
+
+func _loadPauser () = match getString(KEY_PAUSER) {
+    case a: String => 
+        addressFromStringValue(a)
+    case _ => 
+        Address(base58'')
+}
+
+
+func _savePauser (pauser_) = [StringEntry(KEY_PAUSER, toString(pauser_))]
+
+
+func _loadMultisig () = match getString(KEY_MULTISIG) {
+    case a: String => 
+        addressFromStringValue(a)
+    case _ => 
+        Address(base58'')
+}
+
+
+func _saveMultisig (multisig_) = [StringEntry(KEY_MULTISIG, toString(multisig_))]
+
+
+func _loadStorage () = match getString(KEY_STORAGE) {
+    case a: String => 
+        let struct = split(a, SEP)
+        $Tuple10(fromBase58String(struct[0]), (struct[1] == "1"), parseIntValue(struct[2]), parseIntValue(struct[3]), parseIntValue(struct[4]), parseIntValue(struct[5]), parseIntValue(struct[6]), parseIntValue(struct[7]), parseIntValue(struct[8]), addressFromStringValue(struct[9]))
+    case _ => 
+        $Tuple10(base58'', false, 0, 0, 0, 0, 0, 0, 0, Address(base58''))
+}
+
+
+func _saveStorage (storage_) = [StringEntry(KEY_STORAGE, makeString([toBase58String(storage_._1), if (storage_._2)
+    then "1"
+    else "0", toString(storage_._3), toString(storage_._4), toString(storage_._5), toString(storage_._6), toString(storage_._7), toString(storage_._8), toString(storage_._9), toString(storage_._10)], SEP))]
+
+
+func _loadAssets () = match getString(KEY_ASSETS) {
+    case a: String => 
+        if ((size(a) > 0))
+            then split_51C(a, SEP)
+            else nil
+    case _ => 
+        nil
+}
+
+
+func _saveAssets (assets_) = [StringEntry(KEY_ASSETS, makeString_11C(assets_, SEP))]
+
+
+func _loadAssetBalances () = {
+    func foldFunc (acc,elem) =     {
+        let balance = parseIntValue(elem)
+        $Tuple2((acc._1 :+ balance), (acc._2 + balance))
+        }
+
+    match getString(KEY_ASSET_BALANCES) {
+        case a: String => 
+            if ((size(a) > 0))
+                then {
+                    let $l = split_51C(a, SEP)
+                    let $s = size($l)
+                    let $acc0 = $Tuple2(nil, 0)
+                    func $f0_1 ($a,$i) =                     if (($i >= $s))
+                        then $a
+                        else foldFunc($a, $l[$i])
+
+                    func $f0_2 ($a,$i) =                     if (($i >= $s))
+                        then $a
+                        else throw("List size exceeds 10")
+
+                    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                    }
+                else $Tuple2(ZERO_INT_LIST_10, 0)
+        case _ => 
+            $Tuple2(ZERO_INT_LIST_10, 0)
+    }
+    }
+
+
+func _saveAssetBalances (balances_) = {
+    func foldFunc (acc,elem) =     (acc :+ toString(elem))
+
+[StringEntry(KEY_ASSET_BALANCES, makeString_11C({
+        let $l = balances_
+        let $s = size($l)
+        let $acc0 = nil
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else foldFunc($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 10")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+        }, SEP))]
+    }
+
+
+func _loadRewardBalances () = {
+    func foldFunc (acc,elem) =     {
+        let balance = parseIntValue(elem)
+        (acc :+ balance)
+        }
+
+    match getString(KEY_REWARD_BALANCES) {
+        case a: String => 
+            if ((size(a) > 0))
+                then {
+                    let $l = split_51C(a, SEP)
+                    let $s = size($l)
+                    let $acc0 = nil
+                    func $f0_1 ($a,$i) =                     if (($i >= $s))
+                        then $a
+                        else foldFunc($a, $l[$i])
+
+                    func $f0_2 ($a,$i) =                     if (($i >= $s))
+                        then $a
+                        else throw("List size exceeds 10")
+
+                    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                    }
+                else ZERO_INT_LIST_10
+        case _ => 
+            ZERO_INT_LIST_10
+    }
+    }
+
+
+func _saveRewardBalances (balances_) = {
+    func foldFunc (acc,elem) =     (acc :+ toString(elem))
+
+[StringEntry(KEY_REWARD_BALANCES, makeString_11C({
+        let $l = balances_
+        let $s = size($l)
+        let $acc0 = nil
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else foldFunc($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 10")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+        }, SEP))]
+    }
+
+
+func _loadAssetWeights () = {
+    func foldFunc (acc,elem) =     {
+        let weight = parseIntValue(elem)
+        $Tuple2((acc._1 :+ weight), (acc._2 + weight))
+        }
+
+    match getString(KEY_ASSET_WEIGHTS) {
+        case a: String => 
+            if ((size(a) > 0))
+                then {
+                    let $l = split_51C(a, SEP)
+                    let $s = size($l)
+                    let $acc0 = $Tuple2(nil, 0)
+                    func $f0_1 ($a,$i) =                     if (($i >= $s))
+                        then $a
+                        else foldFunc($a, $l[$i])
+
+                    func $f0_2 ($a,$i) =                     if (($i >= $s))
+                        then $a
+                        else throw("List size exceeds 10")
+
+                    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                    }
+                else $Tuple2(ZERO_INT_LIST_10, 0)
+        case _ => 
+            $Tuple2(ZERO_INT_LIST_10, 0)
+    }
+    }
+
+
+func _saveAssetWeights (weights_) = {
+    func foldFunc (acc,elem) =     (acc :+ toString(elem))
+
+[StringEntry(KEY_ASSET_WEIGHTS, makeString_11C({
+        let $l = weights_
+        let $s = size($l)
+        let $acc0 = nil
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else foldFunc($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 10")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+        }, SEP))]
+    }
+
+
+func _loadLpFee (assetId_) = match getInteger(makeString([KEY_LP_FEE, assetId_], SEP)) {
+    case a: Int => 
+        a
+    case _ => 
+        0
+}
+
+
+func _saveLpFee (assetId_,val_) = [IntegerEntry(makeString([KEY_LP_FEE, assetId_], SEP), val_)]
+
+
+func _loadProtocolFee (assetId_) = match getInteger(makeString([KEY_PROTOCOL_FEE, assetId_], SEP)) {
+    case a: Int => 
+        a
+    case _ => 
+        0
+}
+
+
+func _saveProtocolFee (assetId_,val_) = [IntegerEntry(makeString([KEY_PROTOCOL_FEE, assetId_], SEP), val_)]
+
+
+func _loadPrecision () = match getInteger(KEY_PRECISION) {
+    case a: Int => 
+        a
+    case _ => 
+        0
+}
+
+
+func _savePrecision (val_) = [IntegerEntry(KEY_PRECISION, val_)]
+
+
+func _loadSigmaFeePerLp () = {
+    func foldFunc (acc,elem) =     (acc :+ parseBigIntValue(elem))
+
+    match getString(KEY_SIGMA_FEE_PER_LP) {
+        case a: String => 
+            if ((size(a) > 0))
+                then {
+                    let $l = split_51C(a, SEP)
+                    let $s = size($l)
+                    let $acc0 = nil
+                    func $f0_1 ($a,$i) =                     if (($i >= $s))
+                        then $a
+                        else foldFunc($a, $l[$i])
+
+                    func $f0_2 ($a,$i) =                     if (($i >= $s))
+                        then $a
+                        else throw("List size exceeds 11")
+
+                    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11)
+                    }
+                else ZERO_BIGINT_LIST_11
+        case _ => 
+            ZERO_BIGINT_LIST_11
+    }
+    }
+
+
+func _saveSigmaFeePerLp (val_) = {
+    func foldFunc (acc,elem) =     (acc :+ toString(elem))
+
+[StringEntry(KEY_SIGMA_FEE_PER_LP, makeString_11C({
+        let $l = val_
+        let $s = size($l)
+        let $acc0 = nil
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else foldFunc($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 11")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11)
+        }, SEP))]
+    }
+
+
+func _loadUserSigmaFeePerLp (user_) = {
+    func foldFunc (acc,elem) =     (acc :+ parseBigIntValue(elem))
+
+    match getString(makeString([KEY_USER_SIGMA_FEE_PER_LP, toString(user_)], SEP)) {
+        case a: String => 
+            if ((size(a) > 0))
+                then {
+                    let $l = split_51C(a, SEP)
+                    let $s = size($l)
+                    let $acc0 = nil
+                    func $f0_1 ($a,$i) =                     if (($i >= $s))
+                        then $a
+                        else foldFunc($a, $l[$i])
+
+                    func $f0_2 ($a,$i) =                     if (($i >= $s))
+                        then $a
+                        else throw("List size exceeds 11")
+
+                    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11)
+                    }
+                else ZERO_BIGINT_LIST_11
+        case _ => 
+            ZERO_BIGINT_LIST_11
+    }
+    }
+
+
+func _saveUserSigmaFeePerLp (user_,val_) = {
+    func foldFunc (acc,elem) =     (acc :+ toString(elem))
+
+[StringEntry(makeString([KEY_USER_SIGMA_FEE_PER_LP, toString(user_)], SEP), makeString_11C({
+        let $l = val_
+        let $s = size($l)
+        let $acc0 = nil
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else foldFunc($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 11")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11)
+        }, SEP))]
+    }
+
+
+func _loadUserLp (address_) = match getInteger(makeString([KEY_USER_LP, toString(address_)], SEP)) {
+    case a: Int => 
+        a
+    case _ => 
+        0
+}
+
+
+func _saveUserLp (address_,val_) = [IntegerEntry(makeString([KEY_USER_LP, toString(address_)], SEP), val_)]
+
+
+func _loadTotalLp () = match getInteger(KEY_TOTAL_LP) {
+    case a: Int => 
+        a
+    case _ => 
+        0
+}
+
+
+func _saveTotalLp (val_) = [IntegerEntry(KEY_TOTAL_LP, val_)]
+
+
+func _loadUserProfits (user_) = {
+    func foldFunc (acc,elem) =     (acc :+ parseIntValue(elem))
+
+    match getString(makeString([KEY_USER_PROFITS, toString(user_)], SEP)) {
+        case a: String => 
+            if ((size(a) > 0))
+                then {
+                    let $l = split_51C(a, SEP)
+                    let $s = size($l)
+                    let $acc0 = nil
+                    func $f0_1 ($a,$i) =                     if (($i >= $s))
+                        then $a
+                        else foldFunc($a, $l[$i])
+
+                    func $f0_2 ($a,$i) =                     if (($i >= $s))
+                        then $a
+                        else throw("List size exceeds 11")
+
+                    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11)
+                    }
+                else ZERO_INT_LIST_11
+        case _ => 
+            ZERO_INT_LIST_11
+    }
+    }
+
+
+func _saveUserProfits (user_,val_) = {
+    func foldFunc (acc,elem) =     (acc :+ toString(elem))
+
+[StringEntry(makeString([KEY_USER_PROFITS, toString(user_)], SEP), makeString_11C({
+        let $l = val_
+        let $s = size($l)
+        let $acc0 = nil
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else foldFunc($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 11")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11)
+        }, SEP))]
+    }
+
+
+func _loadWatchdog () = match getString(KEY_WATCHDOG) {
+    case a: String => 
+        addressFromStringValue(a)
+    case _ => 
+        Address(base58'')
+}
+
+
+func _saveWatchdog (watchdog_) = [StringEntry(KEY_WATCHDOG, toString(watchdog_))]
+
+
+func _loadWatchdogOffset () = match getInteger(KEY_WATCHDOG_OFFSET) {
+    case a: Int => 
+        a
+    case _ => 
+        0
+}
+
+
+func _saveWatchdogOffset (offset_) = [IntegerEntry(KEY_WATCHDOG_OFFSET, offset_)]
+
+
+func _onlyThisContract (caller_) = if ((caller_ != this))
+    then throw("_onlyThisContract: revert")
+    else true
+
+
+func _whenMultisigSet () = if ((_loadMultisig() == Address(base58'')))
+    then throw("_whenMultisigSet: revert")
+    else true
+
+
+func _whenNotInitialized () = {
+    let storage = _loadStorage()
+    if ((storage._1 != base58''))
+        then throw("_whenNotInitialized: revert")
+        else true
+    }
+
+
+func _whenInitialized () = {
+    let storage = _loadStorage()
+    if ((storage._1 == base58''))
+        then throw("_whenInitialized: revert")
+        else true
+    }
+
+
+func _whenNotPaused () = if (_loadPause())
+    then throw("_whenNotPaused: revert")
+    else true
+
+
+func _whenPaused () = if (!(_loadPause()))
+    then throw("_whenPaused: revert")
+    else true
+
+
+func _onlyPauser (caller_) = if ((caller_ != _loadPauser()))
+    then throw("_onlyPauser: revert")
+    else true
+
+
+func _checkWatchdog () = {
+    let wd =     match getInteger(_loadWatchdog(), KEY_WATCHDOG_HEIGHT) {
+        case a: Int => 
+            (a + _loadWatchdogOffset())
+        case _ => 
+            0
+    }
+    if ((height > wd))
+        then throw("_checkWatchdog: revert")
+        else true
+    }
+
+
+func _getDecimals (assetId_) = match assetInfo(fromBase58String(assetId_)) {
+    case a: Asset => 
+        a.decimals
+    case _ => 
+        throw(("_getDecimals: no asset=" + assetId_))
+}
+
+
+func _normalizeDecimals (amount_,sourceDecimals_,targetDecimals_,round_) = if ((sourceDecimals_ >= targetDecimals_))
+    then fraction(amount_, 1, pow(10, 0, (sourceDecimals_ - targetDecimals_), 0, 0, DOWN), round_)
+    else (amount_ * pow(10, 0, (targetDecimals_ - sourceDecimals_), 0, 0, DOWN))
+
+
+func _prepareAssetBalances (assets_) = {
+    func foldFunc (acc,elem) =     (acc :+ 0)
+
+    let $l = assets_
+    let $s = size($l)
+    let $acc0 = nil
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else foldFunc($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 10")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+    }
+
+
+func _prepareAssetWeights (assetWeights_) = {
+    func foldFunc (acc,elem) =     {
+        let weight = parseIntValue(elem)
+        $Tuple2((acc._1 :+ weight), (acc._2 + weight))
+        }
+
+    let $l = assetWeights_
+    let $s = size($l)
+    let $acc0 = $Tuple2(nil, 0)
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else foldFunc($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 10")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+    }
+
+
+func _getAssetBalances (assets_,decimals_) = {
+    func foldFunc (acc,elem) =     {
+        let assetDecimals = _getDecimals(elem)
+        let balance = _normalizeDecimals(assetBalance(this, fromBase58String(elem)), assetDecimals, decimals_, DOWN)
+        $Tuple2((acc._1 :+ balance), (acc._2 + balance))
+        }
+
+    let $l = assets_
+    let $s = size($l)
+    let $acc0 = $Tuple2(nil, 0)
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else foldFunc($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 10")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+    }
+
+
+func _listIntToString (assets_) = {
+    func foldFunc (acc,elem) =     (acc :+ toString(elem))
+
+    makeString({
+        let $l = assets_
+        let $s = size($l)
+        let $acc0 = nil
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else foldFunc($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 11")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11)
+        }, SEP)
+    }
+
+
+func _listBigIntToString (assets_) = {
+    func foldFunc (acc,elem) =     (acc :+ toString(elem))
+
+    makeString({
+        let $l = assets_
+        let $s = size($l)
+        let $acc0 = nil
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else foldFunc($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 11")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11)
+        }, SEP)
+    }
+
+
+func _getEquilibriums (sigmaBalances_,weights_,sigmaWeight_) = {
+    func foldFunc (acc,elem) =     (acc :+ fraction(sigmaBalances_, elem, sigmaWeight_))
+
+    let $l = weights_
+    let $s = size($l)
+    let $acc0 = nil
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else foldFunc($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 10")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+    }
+
+
+func _incrementBalancesByAmounts (balances_,amounts_) = {
+    func foldFunc (acc,elem) =     {
+        let index = acc._1
+        let amount = amounts_[index]
+        let newBalance = (elem + amount)
+        $Tuple3((index + 1), (acc._2 :+ newBalance), (acc._3 + newBalance))
+        }
+
+    let result = {
+        let $l = balances_
+        let $s = size($l)
+        let $acc0 = $Tuple3(0, nil, 0)
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else foldFunc($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 10")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+        }
+    $Tuple2(result._2, result._3)
+    }
+
+
+func _incrementBalancesByPayments (balances_,payments_,assets_,decimals_,err_) = {
+    func foldFunc (acc,elem) =     {
+        let index = acc._1
+        let payment = payments_[index]
+        let paymentAssetStr = _assetToStr(payment.assetId)
+        let err = if ((paymentAssetStr != assets_[index]))
+            then throw(((err_ + ": index=") + toString(index)))
+            else unit
+        if ((err == err))
+            then {
+                let assetDecimals = _getDecimals(paymentAssetStr)
+                let newBalance = (elem + _normalizeDecimals(payments_[index].amount, assetDecimals, decimals_, DOWN))
+                $Tuple3((index + 1), (acc._2 :+ newBalance), (acc._3 + newBalance))
+                }
+            else throw("Strict value is not equal to itself.")
+        }
+
+    let result = {
+        let $l = balances_
+        let $s = size($l)
+        let $acc0 = $Tuple3(0, nil, 0)
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else foldFunc($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 10")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+        }
+    $Tuple2(result._2, result._3)
+    }
+
+
+func _incrementBalanceByIndex (balances_,index_,amount_) = {
+    func foldFunc (acc,elem) =     {
+        let index = acc._1
+        if ((index == index_))
+            then $Tuple2((index + 1), (acc._2 :+ (elem + amount_)))
+            else $Tuple2((index + 1), (acc._2 :+ elem))
+        }
+
+    let result = {
+        let $l = balances_
+        let $s = size($l)
+        let $acc0 = $Tuple2(0, nil)
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else foldFunc($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 10")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+        }
+    result._2
+    }
+
+
+func _decrementBalanceByIndex (balances_,index_,amount_) = {
+    func foldFunc (acc,elem) =     {
+        let index = acc._1
+        if (if ((index == index_))
+            then (amount_ > elem)
+            else false)
+            then throw("insufficient balance")
+            else if (if ((index == index_))
+                then (elem >= amount_)
+                else false)
+                then $Tuple2((index + 1), (acc._2 :+ (elem - amount_)))
+                else $Tuple2((index + 1), (acc._2 :+ elem))
+        }
+
+    let result = {
+        let $l = balances_
+        let $s = size($l)
+        let $acc0 = $Tuple2(0, nil)
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else foldFunc($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 10")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+        }
+    result._2
+    }
+
+
+func _decrementBalancesByLpAmount (balances_,amount_,lpTotalSupply_) = {
+    let rate = fraction((lpTotalSupply_ - amount_), RATE_FACTOR, lpTotalSupply_, CEILING)
+    func foldFunc (acc,elem) =     {
+        let newBalance = fraction(elem, rate, RATE_FACTOR, CEILING)
+        let deltaBalance = (elem - newBalance)
+        if ((0 > deltaBalance))
+            then throw("insufficient delta balance")
+            else $Tuple3((acc._1 :+ newBalance), (acc._2 + newBalance), (acc._3 :+ deltaBalance))
+        }
+
+    let $l = balances_
+    let $s = size($l)
+    let $acc0 = $Tuple3(nil, 0, nil)
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else foldFunc($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 10")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+    }
+
+
+func _getPaymentsFromBalances (assets_,balances_,recipient_,sourceDecimals_) = {
+    func foldFunc (acc,elem) =     {
+        let index = acc._1
+        $Tuple2((index + 1), (acc._2 :+ ScriptTransfer(recipient_, _normalizeDecimals(balances_[index], sourceDecimals_, _getDecimals(elem), DOWN), _strToAsset(elem))))
+        }
+
+    let result = {
+        let $l = assets_
+        let $s = size($l)
+        let $acc0 = $Tuple2(0, nil)
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else foldFunc($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 10")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+        }
+    result._2
+    }
+
+
+func _calculateMinusFee (balance_,equilibrium_,lpAmount_,weightAmplifier_,disbalanceCoeff_) = {
+    let threshold = fraction(equilibrium_, (MAX_WEIGHT_AMPLIFIER - weightAmplifier_), MAX_WEIGHT_AMPLIFIER)
+    if ((balance_ > threshold))
+        then 0
+        else toInt(fraction(fraction(toBigInt(lpAmount_), toBigInt(disbalanceCoeff_), DISBAlANCE_COEFF_FACTOR), toBigInt((threshold - balance_)), toBigInt(threshold), CEILING))
+    }
+
+
+func _calculateMinusFeeDelta (balanceBefore_,balanceAfter_,equilibrium_,lpAmount_,weightAmplifier_,disbalanceCoeff_) = if ((balanceAfter_ > balanceBefore_))
+    then 0
+    else (_calculateMinusFee(balanceAfter_, equilibrium_, lpAmount_, weightAmplifier_, disbalanceCoeff_) - _calculateMinusFee(balanceBefore_, equilibrium_, lpAmount_, weightAmplifier_, disbalanceCoeff_))
+
+
+func _calculatePlusFee (balance_,equilibrium_,rewardBalance_,weightAmplifier_) = {
+    let threshold = fraction(equilibrium_, (MAX_WEIGHT_AMPLIFIER - weightAmplifier_), MAX_WEIGHT_AMPLIFIER)
+    let disbalanceReward = fraction(rewardBalance_, threshold, equilibrium_)
+    if ((balance_ > threshold))
+        then disbalanceReward
+        else fraction(disbalanceReward, balance_, threshold, FLOOR)
+    }
+
+
+func _calculatePlusFeeDelta (balanceBefore_,balanceAfter_,equilibrium_,rewardBalance_,weightAmplifier_) = if ((balanceBefore_ > balanceAfter_))
+    then 0
+    else (_calculatePlusFee(balanceAfter_, equilibrium_, rewardBalance_, weightAmplifier_) - _calculatePlusFee(balanceBefore_, equilibrium_, rewardBalance_, weightAmplifier_))
+
+
+func _feeCompensation (rewardBalance_,fee_) = if ((fee_ > rewardBalance_))
+    then rewardBalance_
+    else fee_
+
+
+func _validateAllocation (assetBalances_,rewardBalances_) = {
+    let maxIndex = size(assetBalances_)
+    func foldFunc (acc,index) =     if ((index >= maxIndex))
+        then acc
+        else if ((0 > assetBalances_[index]))
+            then throw("_validateAllocation: negative assetBalances")
+            else if ((0 > rewardBalances_[index]))
+                then throw("_validateAllocation: negative rewardBalances")
+                else acc
+
+    let $l = INDEX_LIST
+    let $s = size($l)
+    let $acc0 = true
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else foldFunc($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 10")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+    }
+
+
+func _checkpoint (user_) = {
+    let userLp = _loadUserLp(user_)
+    let userProfits = _loadUserProfits(user_)
+    let sigmaFeePerLp = _loadSigmaFeePerLp()
+    let userSigmaFeePerLp = _loadUserSigmaFeePerLp(user_)
+    func foldFunc (acc,elem) =     {
+        let index = acc._1
+        let profitUpdated = (userProfits[index] + toInt(fraction(toBigInt(userLp), (sigmaFeePerLp[index] - userSigmaFeePerLp[index]), PERCENT_FACTOR)))
+        $Tuple2((index + 1), (acc._2 :+ profitUpdated))
+        }
+
+    let $t02270022773 = {
+        let $l = ZERO_INT_LIST_11
+        let $s = size($l)
+        let $acc0 = $Tuple2(0, nil)
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else foldFunc($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 11")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11)
+        }
+    let idx = $t02270022773._1
+    let profitsUpdated = $t02270022773._2
+    $Tuple2((_saveUserProfits(user_, profitsUpdated) ++ _saveUserSigmaFeePerLp(user_, sigmaFeePerLp)), profitsUpdated)
+    }
+
+
+func _updateSigmaFeePerLp (sigmaFeePerLp_,totalLp_,index_,lpFee_) = {
+    func foldFunc (acc,elem) =     {
+        let index = acc._1
+        let sigmaFeePerLpUpdated = if ((index_ == index))
+            then (sigmaFeePerLp_[index] + fraction(toBigInt(lpFee_), PERCENT_FACTOR, toBigInt(totalLp_)))
+            else sigmaFeePerLp_[index]
+        $Tuple2((index + 1), (acc._2 :+ sigmaFeePerLpUpdated))
+        }
+
+    let $t02342323502 = {
+        let $l = ZERO_INT_LIST_11
+        let $s = size($l)
+        let $acc0 = $Tuple2(0, nil)
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else foldFunc($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 11")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11)
+        }
+    let idx = $t02342323502._1
+    let sigmaFeePerLpUpdated = $t02342323502._2
+    sigmaFeePerLpUpdated
+    }
+
+
+func _calculateLpAndProtocolFees (assetIndex_,amount_,lpFeeRate_,protocolFeeRate_) = {
+    let sigmaFeePerLp = _loadSigmaFeePerLp()
+    let totalLp = _loadTotalLp()
+    let $t02372323998 = if ((totalLp == 0))
+        then $Tuple2(0, fraction(amount_, protocolFeeRate_, MAX_FEE))
+        else $Tuple2(fraction(amount_, lpFeeRate_, MAX_FEE), fraction(amount_, protocolFeeRate_, MAX_FEE))
+    let lpFee = $t02372323998._1
+    let protocolFee = $t02372323998._2
+    let sigmaFeePerLpUpdated = if ((lpFee == 0))
+        then sigmaFeePerLp
+        else _updateSigmaFeePerLp(sigmaFeePerLp, totalLp, assetIndex_, lpFee)
+    $Tuple3(lpFee, protocolFee, sigmaFeePerLpUpdated)
+    }
+
+
+func _depositAll (amount_) = {
+    let storage = _loadStorage()
+    let lpTotalSupply = storage._3
+    let assets = _loadAssets()
+    let $t02440424457 = _loadAssetWeights()
+    let assetWeights = $t02440424457._1
+    let sigmaWeight = $t02440424457._2
+    let $t02446224530 = _loadAssetBalances()
+    let prevAssetBalances = $t02446224530._1
+    let prevAssetTotalSupply = $t02446224530._2
+    let $t02453625766 = if ((prevAssetTotalSupply == 0))
+        then {
+            func foldFunc (acc,elem) =             {
+                let index = acc._1
+                let requiredAmountNormalized = fraction(assetWeights[index], amount_, sigmaWeight)
+                $Tuple2((index + 1), (acc._2 :+ requiredAmountNormalized))
+                }
+
+            let $t02497825052 = {
+                let $l = assets
+                let $s = size($l)
+                let $acc0 = $Tuple2(0, nil)
+                func $f0_1 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else foldFunc($a, $l[$i])
+
+                func $f0_2 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else throw("List size exceeds 10")
+
+                $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                }
+            let idx = $t02497825052._1
+            let requiredAmountsNormalized = $t02497825052._2
+            $Tuple2(amount_, requiredAmountsNormalized)
+            }
+        else {
+            let ratio = fraction(toBigInt(amount_), PERCENT_FACTOR, toBigInt(prevAssetTotalSupply))
+            func foldFunc1 (acc,elem) =             {
+                let index = acc._1
+                let requiredAmountNormalized = toInt(fraction(ratio, toBigInt(prevAssetBalances[index]), PERCENT_FACTOR))
+                $Tuple2((index + 1), (acc._2 :+ requiredAmountNormalized))
+                }
+
+            let $t02559525670 = {
+                let $l = assets
+                let $s = size($l)
+                let $acc0 = $Tuple2(0, nil)
+                func $f0_1 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else foldFunc1($a, $l[$i])
+
+                func $f0_2 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else throw("List size exceeds 10")
+
+                $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                }
+            let idx = $t02559525670._1
+            let requiredAmountsNormalized = $t02559525670._2
+            $Tuple2(fraction(amount_, lpTotalSupply, prevAssetTotalSupply), requiredAmountsNormalized)
+            }
+    let lpTokensToMint = $t02453625766._1
+    let requiredAmountsNormalized = $t02453625766._2
+    let $t02577225885 = _incrementBalancesByAmounts(prevAssetBalances, requiredAmountsNormalized)
+    let assetBalances = $t02577225885._1
+    let assetTotalSupply = $t02577225885._2
+    $Tuple3(lpTokensToMint, requiredAmountsNormalized, assetBalances)
+    }
+
+
+func _deposit (assetId_,amount_) = {
+    let storage = _loadStorage()
+    let lpTotalSupply = storage._3
+    let lpFeeRate = storage._4
+    let protocolFeeRate = storage._5
+    let maxAllocAmplifier = storage._6
+    let weightAmplifier = storage._7
+    let assets = _loadAssets()
+    let $t02625126304 = _loadAssetWeights()
+    let assetWeights = $t02625126304._1
+    let sigmaWeight = $t02625126304._2
+    let $t02630926377 = _loadAssetBalances()
+    let prevAssetBalances = $t02630926377._1
+    let prevAssetTotalSupply = $t02630926377._2
+    let prevRewardBalances = _loadRewardBalances()
+    let err = if (if ((prevAssetTotalSupply == 0))
+        then true
+        else (lpTotalSupply == 0))
+        then throw("_deposit: empty pool")
+        else true
+    if ((err == err))
+        then {
+            let sourceAssetIndex = value(indexOf(assets, assetId_))
+            let sourceEquilibrium = fraction(prevAssetTotalSupply, assetWeights[sourceAssetIndex], sigmaWeight)
+            let sourceBalanceBefore = prevAssetBalances[sourceAssetIndex]
+            let sourceRewardBalance = prevRewardBalances[sourceAssetIndex]
+            let sourcePlusFeeDelta = _calculatePlusFeeDelta(sourceBalanceBefore, (sourceBalanceBefore + amount_), sourceEquilibrium, sourceRewardBalance, weightAmplifier)
+            let lpTokensToMint = (amount_ + sourcePlusFeeDelta)
+            let $t02717727308 = _calculateLpAndProtocolFees(0, lpTokensToMint, (lpFeeRate / 2), (protocolFeeRate / 2))
+            let lpFee = $t02717727308._1
+            let protocolFee = $t02717727308._2
+            let sigmaFeePerLpUpdated = $t02717727308._3
+            let feeCompensation = _feeCompensation((sourceRewardBalance - sourcePlusFeeDelta), (lpFee + protocolFee))
+            let newRewardBalances = _decrementBalanceByIndex(prevRewardBalances, sourceAssetIndex, (sourcePlusFeeDelta + feeCompensation))
+            let newAssetBalances = _incrementBalanceByIndex(prevAssetBalances, sourceAssetIndex, (lpTokensToMint + feeCompensation))
+            let err1 = _validateAllocation(newAssetBalances, newRewardBalances)
+            if ((err1 == err1))
+                then $Tuple6((lpTokensToMint + feeCompensation), newAssetBalances, newRewardBalances, lpFee, protocolFee, sigmaFeePerLpUpdated)
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func _withdrawAll (amount_) = {
+    let storage = _loadStorage()
+    let lpTotalSupply = storage._3
+    let $t02797628044 = _loadAssetBalances()
+    let prevAssetBalances = $t02797628044._1
+    let prevAssetTotalSupply = $t02797628044._2
+    let $t02804928102 = _loadAssetWeights()
+    let assetWeights = $t02804928102._1
+    let sigmaWeight = $t02804928102._2
+    let lpTokensToBurn = amount_
+    let err = _validateInt(lpTokensToBurn, 0, lpTotalSupply, "_withdrawAll: invalid lpTokensToBurn")
+    if ((err == err))
+        then {
+            let $t02824628379 = _decrementBalancesByLpAmount(prevAssetBalances, lpTokensToBurn, lpTotalSupply)
+            let assetBalances = $t02824628379._1
+            let assetTotalSupply = $t02824628379._2
+            let balancesToPay = $t02824628379._3
+            $Tuple3(lpTokensToBurn, balancesToPay, assetBalances)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func _withdraw (assetId_,lpAmount_) = {
+    let storage = _loadStorage()
+    let lpTotalSupply = storage._3
+    let lpFeeRate = storage._4
+    let protocolFeeRate = storage._5
+    let maxAllocAmplifier = storage._6
+    let weightAmplifier = storage._7
+    let disbalanceCoeff = storage._8
+    let assets = _loadAssets()
+    let $t02877328841 = _loadAssetBalances()
+    let prevAssetBalances = $t02877328841._1
+    let prevAssetTotalSupply = $t02877328841._2
+    let $t02884628899 = _loadAssetWeights()
+    let assetWeights = $t02884628899._1
+    let sigmaWeight = $t02884628899._2
+    let prevRewardBalances = _loadRewardBalances()
+    let targetAssetIndex = value(indexOf(assets, assetId_))
+    let targetBalanceBefore = prevAssetBalances[targetAssetIndex]
+    let targetEquilibrium = fraction(prevAssetTotalSupply, assetWeights[targetAssetIndex], sigmaWeight)
+    let targetRewardBalance = prevRewardBalances[targetAssetIndex]
+    let targetMinusFeeDelta = _calculateMinusFeeDelta(targetBalanceBefore, (targetBalanceBefore - lpAmount_), targetEquilibrium, prevAssetTotalSupply, weightAmplifier, disbalanceCoeff)
+    let rewardBalances = _incrementBalanceByIndex(prevRewardBalances, targetAssetIndex, targetMinusFeeDelta)
+    let assetBalances = _decrementBalanceByIndex(prevAssetBalances, targetAssetIndex, lpAmount_)
+    let targetAmount = (lpAmount_ - targetMinusFeeDelta)
+    let err = _validateAllocation(assetBalances, rewardBalances)
+    if ((err == err))
+        then {
+            let $t02988530033 = _calculateLpAndProtocolFees((targetAssetIndex + 1), targetAmount, (lpFeeRate / 2), (protocolFeeRate / 2))
+            let lpFee = $t02988530033._1
+            let protocolFee = $t02988530033._2
+            let sigmaFeePerLpUpdated = $t02988530033._3
+            $Tuple6(targetAmount, assetBalances, rewardBalances, lpFee, protocolFee, sigmaFeePerLpUpdated)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func _swap (sourceAssetIndex_,targetAssetIndex_,sourceAmount_) = {
+    let storage = _loadStorage()
+    let lpAssetId = storage._1
+    let lpDecimals = _getDecimals(toBase58String(lpAssetId))
+    let lpTotalSupply = storage._3
+    let lpFeeRate = storage._4
+    let protocolFeeRate = storage._5
+    let maxAllocAmplifier = storage._6
+    let weightAmplifier = storage._7
+    let disbalanceCoeff = storage._8
+    let $t03056030628 = _loadAssetBalances()
+    let prevAssetBalances = $t03056030628._1
+    let prevAssetTotalSupply = $t03056030628._2
+    let $t03063330686 = _loadAssetWeights()
+    let assetWeights = $t03063330686._1
+    let sigmaWeight = $t03063330686._2
+    let prevRewardBalances = _loadRewardBalances()
+    let sourceEquilibrium = fraction(prevAssetTotalSupply, assetWeights[sourceAssetIndex_], sigmaWeight)
+    let sourceBalanceBefore = prevAssetBalances[sourceAssetIndex_]
+    let sourceRewardBalance = prevRewardBalances[sourceAssetIndex_]
+    let sourcePlusFeeDelta = _calculatePlusFeeDelta(sourceBalanceBefore, (sourceBalanceBefore + sourceAmount_), sourceEquilibrium, sourceRewardBalance, weightAmplifier)
+    let targetBalanceBefore = prevAssetBalances[targetAssetIndex_]
+    let targetEquilibrium = fraction(prevAssetTotalSupply, assetWeights[targetAssetIndex_], sigmaWeight)
+    let targetRewardBalance = prevRewardBalances[targetAssetIndex_]
+    let targetMinusFeeDelta = _calculateMinusFeeDelta(targetBalanceBefore, (targetBalanceBefore - sourceAmount_), targetEquilibrium, prevAssetTotalSupply, weightAmplifier, disbalanceCoeff)
+    let tempRewardBalances = _decrementBalanceByIndex(prevRewardBalances, sourceAssetIndex_, sourcePlusFeeDelta)
+    let newRewardBalances = _incrementBalanceByIndex(tempRewardBalances, targetAssetIndex_, targetMinusFeeDelta)
+    let tempAssetBalances = _incrementBalanceByIndex(prevAssetBalances, sourceAssetIndex_, (sourceAmount_ + sourcePlusFeeDelta))
+    let newAssetBalances = _decrementBalanceByIndex(tempAssetBalances, targetAssetIndex_, (sourceAmount_ + sourcePlusFeeDelta))
+    let targetAmount = ((sourceAmount_ + sourcePlusFeeDelta) - targetMinusFeeDelta)
+    let err = _validateAllocation(newAssetBalances, newRewardBalances)
+    if ((err == err))
+        then {
+            let $t03228232423 = _calculateLpAndProtocolFees((targetAssetIndex_ + 1), targetAmount, lpFeeRate, protocolFeeRate)
+            let lpFee = $t03228232423._1
+            let protocolFee = $t03228232423._2
+            let sigmaFeePerLpUpdated = $t03228232423._3
+            $Tuple6(targetAmount, newAssetBalances, newRewardBalances, lpFee, protocolFee, sigmaFeePerLpUpdated)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Callable(i)
+func init (assets_,assetWeights_,lpFeeRate_,protocolFeeRate_,lpTokenName_,lpTokenDescr_,lpTokenDecimals_,maxAllocationAmplifier_,weightAmplifier_,disbalanceCoeff_,feeMaxRate_,protocolFeeContract_,precision_,pauser_) = {
+    let err = if (if (if (if (if (if (if (if (if (if (if (if (if (if (if (if (if (_onlyThisContract(i.caller))
+        then _whenNotInitialized()
+        else false)
+        then _whenMultisigSet()
+        else false)
+        then _validateAssets(assets_, "init: invalid assets")
+        else false)
+        then _validateIntList(assetWeights_, 1, MAX_WEIGHT, "init: invalid assetWeights")
+        else false)
+        then _validateIntEquals(size(assets_), size(assetWeights_), "init: invalid assetWeights size")
+        else false)
+        then _validateInt(lpFeeRate_, 0, MAX_FEE, "init: invalid lp fee")
+        else false)
+        then _validateInt(protocolFeeRate_, 0, MAX_FEE, "init: invalid protocol fee")
+        else false)
+        then _validateTokenName(lpTokenName_, "init: invalid name")
+        else false)
+        then _validateTokenDescr(lpTokenDescr_, "init: invalid descr")
+        else false)
+        then _validateDecimals(lpTokenDecimals_, "init: invalid decimals")
+        else false)
+        then _validateInt(maxAllocationAmplifier_, 0, MAX_AMPLIFIER, "init: invalid maxAllocationAmplifier")
+        else false)
+        then _validateInt(weightAmplifier_, 0, maxAllocationAmplifier_, "init: invalid weightAmplifier")
+        else false)
+        then _validateInt(disbalanceCoeff_, 0, MAX_INT, "init: invalid disbalanceCoeff")
+        else false)
+        then _validateInt(feeMaxRate_, 0, MAX_INT, "init: invalid feeMaxRate")
+        else false)
+        then _validateAddress(protocolFeeContract_, "init: invalid protocolFeeContract")
+        else false)
+        then _validateInt(precision_, 1, MAX_INT, "init: invalid precision")
+        else false)
+        then _validateAddress(pauser_, "init: invalid pauser")
+        else false
+    if ((err == err))
+        then {
+            let $t03431234381 = _prepareAssetWeights(assetWeights_)
+            let assetWeights = $t03431234381._1
+            let sigmaWeight = $t03431234381._2
+            let assetBalances = _prepareAssetBalances(assets_)
+            let issue = Issue(lpTokenName_, lpTokenDescr_, 0, lpTokenDecimals_, true)
+            let lpAssetId = calculateAssetId(issue)
+            let storageUpdated = $Tuple10(lpAssetId, true, 0, lpFeeRate_, protocolFeeRate_, maxAllocationAmplifier_, weightAmplifier_, disbalanceCoeff_, feeMaxRate_, addressFromStringValue(protocolFeeContract_))
+            $Tuple2((((((((([issue] ++ _saveStorage(storageUpdated)) ++ _saveAssets(assets_)) ++ _saveAssetBalances(assetBalances)) ++ _saveRewardBalances(assetBalances)) ++ _saveAssetWeights(assetWeights)) ++ _savePrecision(precision_)) ++ _saveSigmaFeePerLp(_loadSigmaFeePerLp())) ++ _savePauser(addressFromStringValue(pauser_))), unit)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func depositAll (amount_) = {
+    let err = if (if (_whenInitialized())
+        then _whenNotPaused()
+        else false)
+        then _validateInt(amount_, 0, MAX_INT, "depositAll: invalid amount")
+        else false
+    if ((err == err))
+        then {
+            let storage = _loadStorage()
+            let lpAssetId = storage._1
+            let lpDecimals = _getDecimals(toBase58String(lpAssetId))
+            let assets = _loadAssets()
+            let $t03618036265 = _depositAll(amount_)
+            let lpTokensToMint = $t03618036265._1
+            let requiredAmountsNormalized = $t03618036265._2
+            let assetBalances = $t03618036265._3
+            func foldFunc (acc,elem) =             {
+                let index = acc._1
+                let paymentAssetStr = _assetToStr(i.payments[index].assetId)
+                let paymentAssetDecimals = _getDecimals(paymentAssetStr)
+                let requiredAmountNormalized = requiredAmountsNormalized[index]
+                let requiredAmount = _normalizeDecimals(requiredAmountNormalized, lpDecimals, paymentAssetDecimals, CEILING)
+                let err1 = if ((paymentAssetStr != elem))
+                    then throw(("depositAll: invalid payment: index=" + toString(index)))
+                    else if ((0 >= requiredAmount))
+                        then throw("depositAll: too little amount required")
+                        else unit
+                if ((err1 == err1))
+                    then {
+                        let change = if ((i.payments[index].amount > requiredAmount))
+                            then [ScriptTransfer(i.caller, (i.payments[index].amount - requiredAmount), i.payments[index].assetId)]
+                            else if ((requiredAmount > i.payments[index].amount))
+                                then throw(((("depositAll: insufficient payment, index=" + toString(index)) + ", required=") + toString(requiredAmount)))
+                                else nil
+                        $Tuple2((index + 1), (acc._2 ++ change))
+                        }
+                    else throw("Strict value is not equal to itself.")
+                }
+
+            let $t03740837470 = {
+                let $l = assets
+                let $s = size($l)
+                let $acc0 = $Tuple2(0, nil)
+                func $f0_1 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else foldFunc($a, $l[$i])
+
+                func $f0_2 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else throw("List size exceeds 10")
+
+                $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                }
+            let idx = $t03740837470._1
+            let changeActions = $t03740837470._2
+            let storageUpdated = $Tuple10(storage._1, storage._2, (storage._3 + lpTokensToMint), storage._4, storage._5, storage._6, storage._7, storage._8, storage._9, storage._10)
+            $Tuple2(((([Reissue(lpAssetId, lpTokensToMint, true), ScriptTransfer(i.caller, lpTokensToMint, lpAssetId)] ++ _saveStorage(storageUpdated)) ++ _saveAssetBalances(assetBalances)) ++ changeActions), unit)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func deposit (minLpAmount_) = {
+    let err = _validateInt(minLpAmount_, 0, MAX_INT, "deposit: invalid min lp amount")
+    if ((err == err))
+        then {
+            let storage = _loadStorage()
+            let lpAssetId = storage._1
+            let lpAssetIdStr = _assetToStr(lpAssetId)
+            let lpDecimals = _getDecimals(lpAssetIdStr)
+            let err1 = if (if (if (if (if (_whenInitialized())
+                then _whenNotPaused()
+                else false)
+                then _checkWatchdog()
+                else false)
+                then _validateIntEquals(size(i.payments), 1, "deposit: invalid payments size")
+                else false)
+                then _validateListContains(_loadAssets(), _assetToStr(i.payments[0].assetId), "deposit: invalid payment asset")
+                else false)
+                then _validateInt(i.payments[0].amount, 1, MAX_INT, "deposit: invalid payment amount")
+                else false
+            if ((err1 == err1))
+                then {
+                    let assetStr = _assetToStr(i.payments[0].assetId)
+                    let assetDecimals = _getDecimals(assetStr)
+                    let amountNormalized = _normalizeDecimals(i.payments[0].amount, assetDecimals, lpDecimals, DOWN)
+                    let $t03891039042 = _deposit(assetStr, amountNormalized)
+                    let lpTokensToMint = $t03891039042._1
+                    let assetBalances = $t03891039042._2
+                    let rewardBalances = $t03891039042._3
+                    let lpFee = $t03891039042._4
+                    let protocolFee = $t03891039042._5
+                    let sigmaFeePerLpUpdated = $t03891039042._6
+                    let lpTokensToSend = ((lpTokensToMint - lpFee) - protocolFee)
+                    let err2 = _validateInt(lpTokensToSend, minLpAmount_, MAX_INT, "deposit: less than min")
+                    if ((err2 == err2))
+                        then {
+                            let storageUpdated = $Tuple10(storage._1, storage._2, (storage._3 + lpTokensToMint), storage._4, storage._5, storage._6, storage._7, storage._8, storage._9, storage._10)
+                            $Tuple2((((((([Reissue(lpAssetId, lpTokensToMint, true), ScriptTransfer(i.caller, lpTokensToSend, lpAssetId)] ++ _saveStorage(storageUpdated)) ++ _saveAssetBalances(assetBalances)) ++ _saveRewardBalances(rewardBalances)) ++ _saveLpFee(lpAssetIdStr, (lpFee + _loadLpFee(lpAssetIdStr)))) ++ _saveProtocolFee(lpAssetIdStr, (protocolFee + _loadProtocolFee(lpAssetIdStr)))) ++ _saveSigmaFeePerLp(sigmaFeePerLpUpdated)), unit)
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func withdrawAll () = {
+    let storage = _loadStorage()
+    let lpAssetId = storage._1
+    let lpAssetIdStr = toBase58String(lpAssetId)
+    let lpDecimals = _getDecimals(lpAssetIdStr)
+    let assets = _loadAssets()
+    let err = if (if (if (_whenInitialized())
+        then _validateIntEquals(size(i.payments), 1, "withdrawAll: invalid payments size")
+        else false)
+        then _validateStringEqual(lpAssetIdStr, _assetToStr(i.payments[0].assetId), "withdrawAll: invalid payment asset")
+        else false)
+        then _validateInt(i.payments[0].amount, 1, MAX_INT, "withdrawAll: invalid payment amount")
+        else false
+    if ((err == err))
+        then {
+            let $t04055040637 = _withdrawAll(i.payments[0].amount)
+            let lpTokensToBurn = $t04055040637._1
+            let balancesToPay = $t04055040637._2
+            let assetBalances = $t04055040637._3
+            let paymentActions = _getPaymentsFromBalances(assets, balancesToPay, i.caller, lpDecimals)
+            let storageUpdated = $Tuple10(storage._1, storage._2, (storage._3 - lpTokensToBurn), storage._4, storage._5, storage._6, storage._7, storage._8, storage._9, storage._10)
+            $Tuple2(((([Burn(lpAssetId, lpTokensToBurn)] ++ paymentActions) ++ _saveStorage(storageUpdated)) ++ _saveAssetBalances(assetBalances)), unit)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func withdraw (assetId_,minAmount_) = {
+    let storage = _loadStorage()
+    let lpAssetId = storage._1
+    let lpAssetIdStr = toBase58String(lpAssetId)
+    let lpDecimals = _getDecimals(lpAssetIdStr)
+    let assets = _loadAssets()
+    let err = if (if (if (if (if (if (if (_whenInitialized())
+        then _whenNotPaused()
+        else false)
+        then _checkWatchdog()
+        else false)
+        then _validateIntEquals(size(i.payments), 1, "withdraw: invalid payments size")
+        else false)
+        then _validateStringEqual(lpAssetIdStr, _assetToStr(i.payments[0].assetId), "withdraw: invalid payment asset")
+        else false)
+        then _validateInt(i.payments[0].amount, 1, MAX_INT, "withdraw: invalid payment amount")
+        else false)
+        then _validateListContains(assets, assetId_, "withdraw: invalid assetId")
+        else false)
+        then _validateInt(minAmount_, 0, MAX_INT, "withdraw: invalid minAmount")
+        else false
+    if ((err == err))
+        then {
+            let $t04199142146 = _withdraw(assetId_, i.payments[0].amount)
+            let targetAmountNormalized = $t04199142146._1
+            let finalAssetBalances = $t04199142146._2
+            let finalRewardBalances = $t04199142146._3
+            let lpFee = $t04199142146._4
+            let protocolFee = $t04199142146._5
+            let sigmaFeePerLpUpdated = $t04199142146._6
+            let finalAmountNormalized = ((targetAmountNormalized - lpFee) - protocolFee)
+            let targetDecimals = _getDecimals(assetId_)
+            let finalAmount = _normalizeDecimals(finalAmountNormalized, lpDecimals, targetDecimals, DOWN)
+            let err1 = _validateInt(finalAmount, minAmount_, MAX_INT, "withdraw: less than min")
+            if ((err1 == err1))
+                then {
+                    let storageUpdated = $Tuple10(storage._1, storage._2, (storage._3 - i.payments[0].amount), storage._4, storage._5, storage._6, storage._7, storage._8, storage._9, storage._10)
+                    $Tuple2((((((([Burn(lpAssetId, i.payments[0].amount), ScriptTransfer(i.caller, finalAmount, _strToAsset(assetId_))] ++ _saveStorage(storageUpdated)) ++ _saveAssetBalances(finalAssetBalances)) ++ _saveRewardBalances(finalRewardBalances)) ++ _saveLpFee(assetId_, (lpFee + _loadLpFee(assetId_)))) ++ _saveProtocolFee(assetId_, (protocolFee + _loadProtocolFee(assetId_)))) ++ _saveSigmaFeePerLp(sigmaFeePerLpUpdated)), unit)
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func swap (targetAssetId_,minAmount_) = {
+    let storage = _loadStorage()
+    let lpAssetId = storage._1
+    let lpDecimals = _getDecimals(toBase58String(lpAssetId))
+    let assets = _loadAssets()
+    let sourceAssetStr = _assetToStr(i.payments[0].assetId)
+    let sourceAmountNormalized = _normalizeDecimals(i.payments[0].amount, _getDecimals(sourceAssetStr), lpDecimals, DOWN)
+    let sourceAssetIndex = valueOrErrorMessage(indexOf(assets, sourceAssetStr), "swap: invalid source asset")
+    if ((sourceAssetIndex == sourceAssetIndex))
+        then {
+            let targetAssetIndex = valueOrErrorMessage(indexOf(assets, targetAssetId_), "swap: invalid target asset")
+            if ((targetAssetIndex == targetAssetIndex))
+                then {
+                    let err = if (if (if (if (if (if (_whenInitialized())
+                        then _whenNotPaused()
+                        else false)
+                        then _checkWatchdog()
+                        else false)
+                        then _validateInt(minAmount_, 0, MAX_INT, "swap: invalid min target amount")
+                        else false)
+                        then _validateInt(sourceAmountNormalized, 1, MAX_INT, "swap: invalid source amount")
+                        else false)
+                        then _validateStringNotEq(sourceAssetStr, targetAssetId_, "swap: same assets")
+                        else false)
+                        then _validateIntEquals(size(i.payments), 1, "swap: invalid payments size")
+                        else false
+                    if ((err == err))
+                        then {
+                            let $t04431144490 = _swap(sourceAssetIndex, targetAssetIndex, sourceAmountNormalized)
+                            let targetAmountNormalized = $t04431144490._1
+                            let finalAssetBalances = $t04431144490._2
+                            let finalRewardBalances = $t04431144490._3
+                            let lpFee = $t04431144490._4
+                            let protocolFee = $t04431144490._5
+                            let sigmaFeePerLpUpdated = $t04431144490._6
+                            let finalAmountNormalized = ((targetAmountNormalized - lpFee) - protocolFee)
+                            let targetDecimals = _getDecimals(targetAssetId_)
+                            let finalAmount = _normalizeDecimals(finalAmountNormalized, lpDecimals, targetDecimals, DOWN)
+                            let err1 = _validateInt(finalAmount, minAmount_, MAX_INT, "swap: less than min")
+                            if ((err1 == err1))
+                                then $Tuple2(((((([ScriptTransfer(i.caller, finalAmount, _strToAsset(targetAssetId_))] ++ _saveAssetBalances(finalAssetBalances)) ++ _saveRewardBalances(finalRewardBalances)) ++ _saveLpFee(targetAssetId_, (lpFee + _loadLpFee(targetAssetId_)))) ++ _saveProtocolFee(targetAssetId_, (protocolFee + _loadProtocolFee(targetAssetId_)))) ++ _saveSigmaFeePerLp(sigmaFeePerLpUpdated)), unit)
+                                else throw("Strict value is not equal to itself.")
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func getDepositAll (lpAmount_) = {
+    let err = _validateInt(lpAmount_, 1, MAX_INT, "getDepositAll: invalid amount")
+    if ((err == err))
+        then {
+            let $t04566245749 = _depositAll(lpAmount_)
+            let lpTokensToMint = $t04566245749._1
+            let requiredAmountsNormalized = $t04566245749._2
+            let assetBalances = $t04566245749._3
+            $Tuple2(nil, $Tuple2(lpTokensToMint, requiredAmountsNormalized))
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func getDeposit (assetId_,amount_) = {
+    let err = if (_validateListContains(_loadAssets(), assetId_, "getDeposit: invalid asset"))
+        then _validateInt(amount_, 1, MAX_INT, "getDeposit: invalid amount")
+        else false
+    if ((err == err))
+        then {
+            let storage = _loadStorage()
+            let lpAssetId = storage._1
+            let lpDecimals = _getDecimals(toBase58String(lpAssetId))
+            let assetDecimals = _getDecimals(assetId_)
+            let amountNormalized = _normalizeDecimals(amount_, assetDecimals, lpDecimals, DOWN)
+            let $t04650846640 = _deposit(assetId_, amountNormalized)
+            let lpTokensToMint = $t04650846640._1
+            let assetBalances = $t04650846640._2
+            let rewardBalances = $t04650846640._3
+            let lpFee = $t04650846640._4
+            let protocolFee = $t04650846640._5
+            let sigmaFeePerLpUpdated = $t04650846640._6
+            let lpTokensToSend = ((lpTokensToMint - lpFee) - protocolFee)
+            $Tuple2(nil, lpTokensToSend)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func getWithdrawAll (lpAmount_) = {
+    let err = _validateInt(lpAmount_, 0, MAX_INT, "getWithdrawAll: invalid amount")
+    if ((err == err))
+        then {
+            let $t04707947155 = _withdrawAll(lpAmount_)
+            let lpTokensToBurn = $t04707947155._1
+            let balancesToGet = $t04707947155._2
+            let assetBalances = $t04707947155._3
+            $Tuple2(nil, balancesToGet)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func getWithdraw (assetId_,amount_) = {
+    let err = if (_validateListContains(_loadAssets(), assetId_, "getWithdraw: invalid asset"))
+        then _validateInt(amount_, 1, MAX_INT, "getWithdraw: invalid amount")
+        else false
+    if ((err == err))
+        then {
+            let storage = _loadStorage()
+            let lpAssetId = storage._1
+            let lpDecimals = _getDecimals(toBase58String(lpAssetId))
+            let $t04780647938 = _withdraw(assetId_, amount_)
+            let targetAmountNormalized = $t04780647938._1
+            let assetBalances = $t04780647938._2
+            let rewardBalances = $t04780647938._3
+            let lpFee = $t04780647938._4
+            let protocolFee = $t04780647938._5
+            let sigmaFeePerLpUpdated = $t04780647938._6
+            let finalAmountNormalized = ((targetAmountNormalized - lpFee) - protocolFee)
+            let targetDecimals = _getDecimals(assetId_)
+            let finalAmount = _normalizeDecimals(finalAmountNormalized, lpDecimals, targetDecimals, DOWN)
+            $Tuple2(nil, finalAmount)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func getSwap (sourceAssetId_,targetAssetId_,sourceAmount_) = {
+    let storage = _loadStorage()
+    let lpAssetId = storage._1
+    let lpDecimals = _getDecimals(toBase58String(lpAssetId))
+    let assets = _loadAssets()
+    let sourceAssetIndex = valueOrErrorMessage(indexOf(assets, sourceAssetId_), "swap: invalid source asset")
+    if ((sourceAssetIndex == sourceAssetIndex))
+        then {
+            let targetAssetIndex = valueOrErrorMessage(indexOf(assets, targetAssetId_), "swap: invalid target asset")
+            if ((targetAssetIndex == targetAssetIndex))
+                then {
+                    let sourceAmountNormalized = _normalizeDecimals(sourceAmount_, _getDecimals(sourceAssetId_), lpDecimals, DOWN)
+                    let err = if (_validateInt(sourceAmountNormalized, 1, MAX_INT, "swap: invalid source amount"))
+                        then _validateStringNotEq(sourceAssetId_, targetAssetId_, "swap: same assets")
+                        else false
+                    if ((err == err))
+                        then {
+                            let $t04934849527 = _swap(sourceAssetIndex, targetAssetIndex, sourceAmountNormalized)
+                            let targetAmountNormalized = $t04934849527._1
+                            let finalAssetBalances = $t04934849527._2
+                            let finalRewardBalances = $t04934849527._3
+                            let lpFee = $t04934849527._4
+                            let protocolFee = $t04934849527._5
+                            let sigmaFeePerLpUpdated = $t04934849527._6
+                            let finalAmountNormalized = ((targetAmountNormalized - lpFee) - protocolFee)
+                            let targetDecimals = _getDecimals(targetAssetId_)
+                            let finalAmount = _normalizeDecimals(finalAmountNormalized, lpDecimals, targetDecimals, DOWN)
+                            $Tuple2(nil, finalAmount)
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func getClaim (user_) = {
+    let user = if ((size(user_) > 0))
+        then valueOrErrorMessage(addressFromString(user_), "getClaim: invalid user")
+        else i.caller
+    let $t05016950225 = _checkpoint(user)
+    let checkpointActions = $t05016950225._1
+    let userProfits = $t05016950225._2
+    $Tuple2(nil, userProfits)
+    }
+
+
+
+@Callable(i)
+func getAssetId () = {
+    let storage = _loadStorage()
+    let lpAssetId = storage._1
+    $Tuple2(nil, toBase58String(lpAssetId))
+    }
+
+
+
+@Callable(i)
+func getDecimals () = {
+    let storage = _loadStorage()
+    let lpAssetId = storage._1
+    let lpDecimals = _getDecimals(toBase58String(lpAssetId))
+    $Tuple2(nil, lpDecimals)
+    }
+
+
+
+@Callable(i)
+func checkpoint (user_) = {
+    let err = if (_whenInitialized())
+        then _whenNotPaused()
+        else false
+    if ((err == err))
+        then {
+            let user = if ((size(user_) > 0))
+                then valueOrErrorMessage(addressFromString(user_), "checkpoint: invalid user")
+                else i.caller
+            _checkpoint(user)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func stake () = {
+    let err = if (_whenInitialized())
+        then _whenNotPaused()
+        else false
+    if ((err == err))
+        then {
+            let storage = _loadStorage()
+            let lpAssetIdStr = _assetToStr(storage._1)
+            let err1 = if (if (_validateIntEquals(size(i.payments), 1, "stake: invalid payments size"))
+                then _validateStringEqual(lpAssetIdStr, _assetToStr(i.payments[0].assetId), "stake: invalid payment asset")
+                else false)
+                then _validateInt(i.payments[0].amount, 0, MAX_INT, "stake: invalid payment amount")
+                else false
+            if ((err1 == err1))
+                then {
+                    let $t05143751497 = _checkpoint(i.caller)
+                    let checkpointActions = $t05143751497._1
+                    let userProfits = $t05143751497._2
+                    $Tuple2(((checkpointActions ++ _saveUserLp(i.caller, (_loadUserLp(i.caller) + i.payments[0].amount))) ++ _saveTotalLp((_loadTotalLp() + i.payments[0].amount))), unit)
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func unstake (amount_) = {
+    let err = if (_whenInitialized())
+        then _whenNotPaused()
+        else false
+    if ((err == err))
+        then {
+            let storage = _loadStorage()
+            let lpAssetId = storage._1
+            let userLp = _loadUserLp(i.caller)
+            let err1 = _validateInt(amount_, 0, userLp, "unstake: invalid amount")
+            if ((err1 == err1))
+                then {
+                    let $t05200852068 = _checkpoint(i.caller)
+                    let checkpointActions = $t05200852068._1
+                    let userProfits = $t05200852068._2
+                    $Tuple2(((([ScriptTransfer(i.caller, amount_, lpAssetId)] ++ checkpointActions) ++ _saveUserLp(i.caller, (userLp - amount_))) ++ _saveTotalLp((_loadTotalLp() - amount_))), unit)
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func claim (user_) = {
+    let err = if (_whenInitialized())
+        then _whenNotPaused()
+        else false
+    if ((err == err))
+        then {
+            let user = if ((size(user_) > 0))
+                then valueOrErrorMessage(addressFromString(user_), "claim: invalid user")
+                else i.caller
+            let storage = _loadStorage()
+            let lpAssetId = storage._1
+            let lpAssetIdStr = _assetToStr(lpAssetId)
+            let assets = [lpAssetIdStr, _loadAssets()]
+            let maxIndex = (size(assets) - 1)
+            let $t05275652812 = _checkpoint(user)
+            let checkpointActions = $t05275652812._1
+            let userProfits = $t05275652812._2
+            func foldFunc (acc,profit) =             {
+                let index = acc._1
+                if (if ((maxIndex >= index))
+                    then (profit > 0)
+                    else false)
+                    then {
+                        let asset = assets[index]
+                        $Tuple3((index + 1), (acc._2 :+ 0), (acc._3 :+ ScriptTransfer(user, profit, _strToAsset(asset))))
+                        }
+                    else $Tuple3((index + 1), (acc._2 :+ profit), acc._3)
+                }
+
+            let $t05319053281 = {
+                let $l = userProfits
+                let $s = size($l)
+                let $acc0 = $Tuple3(0, nil, nil)
+                func $f0_1 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else foldFunc($a, $l[$i])
+
+                func $f0_2 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else throw("List size exceeds 11")
+
+                $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11)
+                }
+            let idx = $t05319053281._1
+            let userProfitsUpdated = $t05319053281._2
+            let profitActions = $t05319053281._3
+            $Tuple2(((profitActions ++ removeByIndex(checkpointActions, 0)) ++ _saveUserProfits(user, userProfitsUpdated)), unit)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func claimAll (user_) = {
+    let err = if (_whenInitialized())
+        then _whenNotPaused()
+        else false
+    if ((err == err))
+        then {
+            let user = if ((size(user_) > 0))
+                then valueOrErrorMessage(addressFromString(user_), "claimAll: invalid user")
+                else i.caller
+            let storage = _loadStorage()
+            let lpAssetId = storage._1
+            let lpAssetIdStr = _assetToStr(lpAssetId)
+            let assets = [lpAssetIdStr, _loadAssets()]
+            let maxIndex = (size(assets) - 1)
+            let $t05391153971 = _loadAssetBalances()
+            let assetBalances = $t05391153971._1
+            let assetTotalSupply = $t05391153971._2
+            let $t05397754033 = _checkpoint(user)
+            let checkpointActions = $t05397754033._1
+            let userProfits = $t05397754033._2
+            func foldFunc (acc,profit) =             {
+                let index = acc._1
+                if ((index == 0))
+                    then $Tuple5((index + 1), (acc._2 :+ 0), acc._3, acc._4, (acc._5 + profit))
+                    else if (if ((index > 0))
+                        then (maxIndex >= index)
+                        else false)
+                        then {
+                            let assetIndex = (index - 1)
+                            let balance = assetBalances[assetIndex]
+                            $Tuple5((index + 1), (acc._2 :+ 0), (acc._3 :+ (balance + profit)), (acc._4 + profit), acc._5)
+                            }
+                        else $Tuple5((index + 1), (acc._2 :+ 0), acc._3, acc._4, acc._5)
+                }
+
+            let $t05456954705 = {
+                let $l = userProfits
+                let $s = size($l)
+                let $acc0 = $Tuple5(0, nil, nil, 0, 0)
+                func $f0_1 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else foldFunc($a, $l[$i])
+
+                func $f0_2 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else throw("List size exceeds 11")
+
+                $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11)
+                }
+            let idx = $t05456954705._1
+            let userProfitsUpdated = $t05456954705._2
+            let assetBalancesUpdated = $t05456954705._3
+            let lpTokensToMint = $t05456954705._4
+            let lpTokensProfit = $t05456954705._5
+            let storageUpdated = $Tuple10(storage._1, storage._2, (storage._3 + lpTokensToMint), storage._4, storage._5, storage._6, storage._7, storage._8, storage._9, storage._10)
+            $Tuple2((((([Reissue(lpAssetId, lpTokensToMint, true), ScriptTransfer(user, (lpTokensToMint + lpTokensProfit), lpAssetId)] ++ _saveStorage(storageUpdated)) ++ _saveAssetBalances(assetBalancesUpdated)) ++ removeByIndex(checkpointActions, 0)) ++ _saveUserProfits(user, userProfitsUpdated)), unit)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func updatePoolFees (lpFeeRate_,protocolFeeRate_) = {
+    let err = if (if (if (_onlyThisContract(i.caller))
+        then _whenInitialized()
+        else false)
+        then _validateInt(lpFeeRate_, 0, MAX_FEE, "updatePoolFees: invalid lp fee")
+        else false)
+        then _validateInt(protocolFeeRate_, 0, MAX_FEE, "updatePoolFees: invalid protocol fee")
+        else false
+    if ((err == err))
+        then {
+            let storage = _loadStorage()
+            let storageUpdated = $Tuple10(storage._1, storage._2, storage._3, lpFeeRate_, protocolFeeRate_, storage._6, storage._7, storage._8, storage._9, storage._10)
+            $Tuple2(_saveStorage(storageUpdated), unit)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func updatePoolParams (maxAllocationAmplifier_,weightAmplifier_,disbalanceCoeff_,feeMaxRate_) = {
+    let err = if (if (if (if (if (_onlyThisContract(i.caller))
+        then _whenInitialized()
+        else false)
+        then _validateInt(maxAllocationAmplifier_, 0, MAX_AMPLIFIER, "updatePoolParams: invalid maxAllocationAmplifier")
+        else false)
+        then _validateInt(weightAmplifier_, 0, maxAllocationAmplifier_, "updatePoolParams: invalid weightAmplifier")
+        else false)
+        then _validateInt(disbalanceCoeff_, 0, MAX_INT, "updatePoolParams: invalid disbalanceCoeff")
+        else false)
+        then _validateInt(feeMaxRate_, 0, MAX_INT, "updatePoolParams: invalid feeMaxRate")
+        else false
+    if ((err == err))
+        then {
+            let storage = _loadStorage()
+            let storageUpdated = $Tuple10(storage._1, storage._2, storage._3, storage._4, storage._5, maxAllocationAmplifier_, weightAmplifier_, disbalanceCoeff_, feeMaxRate_, storage._10)
+            $Tuple2(_saveStorage(storageUpdated), unit)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func migrateBalances () = {
+    let err = if (_onlyThisContract(i.caller))
+        then _whenInitialized()
+        else false
+    if ((err == err))
+        then {
+            let storage = _loadStorage()
+            let lpTokenSupply = storage._3
+            let $t05723657296 = _loadAssetBalances()
+            let assetBalances = $t05723657296._1
+            let assetTotalSupply = $t05723657296._2
+            let balancesDiff = max([(assetTotalSupply - lpTokenSupply), 0])
+            let storageUpdated = $Tuple10(storage._1, storage._2, (lpTokenSupply + balancesDiff), storage._4, storage._5, storage._6, storage._7, storage._8, storage._9, storage._10)
+            $Tuple2(_saveStorage(storageUpdated), unit)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func pause () = {
+    let err = if (if (_onlyPauser(i.caller))
+        then _whenInitialized()
+        else false)
+        then _whenNotPaused()
+        else false
+    if ((err == err))
+        then $Tuple2(_savePause(true), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func unpause () = {
+    let err = if (if (_onlyThisContract(i.caller))
+        then _whenInitialized()
+        else false)
+        then _whenPaused()
+        else false
+    if ((err == err))
+        then $Tuple2(_savePause(false), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func updatePauser (pauser_) = {
+    let err = if (if (_onlyThisContract(i.caller))
+        then _whenInitialized()
+        else false)
+        then _validateAddress(pauser_, "updatePauser: invalid pauser")
+        else false
+    if ((err == err))
+        then $Tuple2(_savePauser(addressFromStringValue(pauser_)), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func updateWatchdog (watchdog_,offset_) = {
+    let err = if (if (if (_onlyThisContract(i.caller))
+        then _whenInitialized()
+        else false)
+        then _validateAddress(watchdog_, "updateWatchdog: invalid watchdog")
+        else false)
+        then _validateInt(offset_, 0, MAX_INT, "updateWatchdog: invalid offset")
+        else false
+    if ((err == err))
+        then $Tuple2((_saveWatchdog(addressFromStringValue(watchdog_)) ++ _saveWatchdogOffset(offset_)), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setMultisig (multisig_) = {
+    let err = if (_onlyThisContract(i.caller))
+        then _validateAddress(multisig_, "setMultisig: invalid multisig")
+        else false
+    if ((err == err))
+        then $Tuple2(_saveMultisig(addressFromStringValue(multisig_)), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Verifier(tx)
+func verify () = match getString(KEY_MULTISIG) {
+    case multisig: String => 
+        valueOrElse(getBoolean(addressFromStringValue(multisig), makeString([KEY_STATUS, toString(this), toBase58String(tx.id)], SEP)), false)
+    case _ => 
+        sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)
+}

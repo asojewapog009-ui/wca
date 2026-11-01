@@ -1,0 +1,96 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let oracleAddress = valueOrElse(addressFromString(valueOrElse(getString("setup_unlockOracle"), "3PFiEpa8rfsTNvNeLkqJzdBTtUjJXHXLCuU")), Address(base58'3PFiEpa8rfsTNvNeLkqJzdBTtUjJXHXLCuU'))
+
+func getPrice (pool,asset0,asset1) = {
+    let bal0 = getIntegerValue(pool, (("global_" + asset0) + "_balance"))
+    let bal1 = getIntegerValue(pool, (("global_" + asset1) + "_balance"))
+    let weight0 = getIntegerValue(pool, (("static_" + asset0) + "_weight"))
+    let weight1 = getIntegerValue(pool, (("static_" + asset1) + "_weight"))
+    let scale = if ((asset1 == "WAVES"))
+        then 100000000
+        else pow(10, 0, value(assetInfo(fromBase58String(asset1))).decimals, 0, 0, DOWN)
+    let price = fraction(fraction(bal0, 10000, weight0), scale, fraction(bal1, 10000, weight1))
+    price
+    }
+
+
+@Callable(i)
+func getPriceREADONLY (poolStr,asset0,asset1) = {
+    let val = getPrice(addressFromStringValue(poolStr), asset0, asset1)
+    throw(toString(val))
+    }
+
+
+
+@Callable(i)
+func lockLiquidity (poolId,targetPrice,unlockDelay,asset0,asset1,unlockTo) = {
+    let poolAddress = valueOrErrorMessage(addressFromString(poolId), "incorrect pool id")
+    let pzId = valueOrErrorMessage(getBinary(poolAddress, "global_poolToken_id"), "pool is not initialized")
+    let pmt = i.payments[0]
+    if ((pmt.assetId != pzId))
+        then throw("incorrect asset attached to payment")
+        else if ((indexOf(getStringValue(poolAddress, "static_tokenIds"), asset0) == unit))
+            then throw((("asset " + asset0) + " is not presented in the pool"))
+            else if ((indexOf(getStringValue(poolAddress, "static_tokenIds"), asset1) == unit))
+                then throw((("asset " + asset1) + " is not presented in the pool"))
+                else {
+                    let amount = pmt.amount
+                    let lockId = toBase58String(sha256(((((i.transactionId + pzId) + toBytes(targetPrice)) + toBytes(unlockDelay)) + toBytes(amount))))
+                    ([IntegerEntry((("lock_" + lockId) + "_amount"), amount), StringEntry((("lock_" + lockId) + "_pzId"), toBase58String(pzId)), StringEntry((("lock_" + lockId) + "_owner"), toString(i.caller)), StringEntry((("lock_" + lockId) + "_poolId"), poolId), StringEntry((("lock_" + lockId) + "_asset0"), asset0), StringEntry((("lock_" + lockId) + "_asset1"), asset1), IntegerEntry((("lock_" + lockId) + "_amount"), amount), IntegerEntry((("lock_" + lockId) + "_targetPrice"), targetPrice), IntegerEntry((("lock_" + lockId) + "_unlockDelay"), unlockDelay), IntegerEntry((("lock_" + lockId) + "_status"), 0)] ++ (if ((unlockTo != ""))
+                        then [StringEntry((("lock_" + lockId) + "_unlockTo"), unlockTo)]
+                        else nil))
+                    }
+    }
+
+
+
+@Callable(i)
+func submitAchievement (lockId) = {
+    let poolId = getStringValue((("lock_" + lockId) + "_poolId"))
+    let pzId = fromBase58String(getStringValue((("lock_" + lockId) + "_pzId")))
+    let asset0 = getStringValue((("lock_" + lockId) + "_asset0"))
+    let asset1 = getStringValue((("lock_" + lockId) + "_asset1"))
+    let targetPrice = getIntegerValue((("lock_" + lockId) + "_targetPrice"))
+    let status = getIntegerValue((("lock_" + lockId) + "_status"))
+    let unlockTo = valueOrElse(getString((("lock_" + lockId) + "_unlockTo")), toString(i.caller))
+    let poolAddress = addressFromStringValue(poolId)
+    let currentPrice = getPrice(poolAddress, asset0, asset1)
+    if ((targetPrice > currentPrice))
+        then throw("target price is not reached")
+        else if ((status != 0))
+            then throw("achievement has already been submitted")
+            else [IntegerEntry((("lock_" + lockId) + "_achievementAt"), height), StringEntry((("lock_" + lockId) + "_unlockTo"), unlockTo), IntegerEntry((("lock_" + lockId) + "_status"), 1)]
+    }
+
+
+
+@Callable(i)
+func releaseAchievement (lockId) = {
+    let poolId = getStringValue((("lock_" + lockId) + "_poolId"))
+    let pzId = fromBase58String(getStringValue((("lock_" + lockId) + "_pzId")))
+    let asset0 = getStringValue((("lock_" + lockId) + "_asset0"))
+    let asset1 = getStringValue((("lock_" + lockId) + "_asset1"))
+    let targetPrice = getIntegerValue((("lock_" + lockId) + "_targetPrice"))
+    let unlockDelay = getIntegerValue((("lock_" + lockId) + "_unlockDelay"))
+    let unlockAt = (getIntegerValue((("lock_" + lockId) + "_achievementAt")) + unlockDelay)
+    let unlockTo = addressFromStringValue(getStringValue((("lock_" + lockId) + "_unlockTo")))
+    let amount = getIntegerValue((("lock_" + lockId) + "_amount"))
+    let status = getIntegerValue((("lock_" + lockId) + "_status"))
+    let poolAddress = addressFromStringValue(poolId)
+    let currentPrice = getPrice(poolAddress, asset0, asset1)
+    if ((unlockAt > height))
+        then throw("unlock delay is still ongoing")
+        else if ((status != 1))
+            then throw("achievement has not been submitted")
+            else if ((i.caller != oracleAddress))
+                then throw("whitelist access only, to prevent manipulations")
+                else if ((targetPrice > currentPrice))
+                    then [DeleteEntry((("lock_" + lockId) + "_achievementAt")), DeleteEntry((("lock_" + lockId) + "_unlockTo")), IntegerEntry((("lock_" + lockId) + "_status"), 0)]
+                    else [ScriptTransfer(unlockTo, amount, pzId), IntegerEntry((("lock_" + lockId) + "_status"), 2)]
+    }
+
+
+@Verifier(tx)
+func verify () = sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)

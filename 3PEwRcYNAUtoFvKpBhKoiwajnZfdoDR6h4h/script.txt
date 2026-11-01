@@ -1,0 +1,970 @@
+{-# STDLIB_VERSION 7 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let configAddressStore = "config"
+
+let configAddress = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(this, configAddressStore), "child: config address not found")), "invalid config address")
+
+let HEIGHT = height
+
+func opAllowedStore (op) = (("op_" + op) + "_allowed")
+
+
+let votingResults = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "contract_voting_result"), "no contract_voting_result")), "invalid contract_voting_result")
+
+let childrenContract = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "contract_children"), "no children_contract")), "invalid children address")
+
+func waveletsPerBlockStore (address) = (address + "_wavelets_per_block")
+
+
+func startHeightStore (address) = (address + "_start_height")
+
+
+func claimedStore (address) = (address + "wavelets_claimed")
+
+
+func claimedUSDStore (address) = (address + "_usdtlets_claimed")
+
+
+func maxClaimableStore (address) = (address + "_max_claimable")
+
+
+func maxClaimableIsUSDStore (address) = (address + "_max_claimable_is_usd")
+
+
+let sumStore = "wavelets_per_block_sum"
+
+let maxStore = "wavelets_per_block_max"
+
+let maximum = valueOrElse(getInteger(this, maxStore), 189950000)
+
+let oracle = valueOrErrorMessage(addressFromString(valueOrElse(getString("oracle"), "3PKkojKdd6BBzTf1RXbQVfUDraNFXXHKzQF")), "invalid oracle address")
+
+let wavePriceStore = valueOrElse(getString("wave-price-key"), "%s%s__price__WAVES-USDT")
+
+let wavePrice = valueOrErrorMessage(getInteger(oracle, wavePriceStore), "WAVES price is not in the Oracle")
+
+let digits8 = 100000000
+
+func wavesToUSD (waves) = fraction(waves, wavePrice, digits8)
+
+
+func usdToWaves (waves) = fraction(waves, digits8, wavePrice)
+
+
+let usdLimitedStreamsAllowedStore = "usd_limited_streams_allowed"
+
+let usdLimitedStreamsAllowed = valueOrElse(getBoolean(this, usdLimitedStreamsAllowedStore), false)
+
+let checkLockOnClaim = valueOrElse(getBoolean(this, "check_lock_on_claim"), false)
+
+let oldSum = valueOrElse(getInteger(sumStore), 0)
+
+let streamsStore = "streams"
+
+let streams = valueOrElse(getString(this, streamsStore), "")
+
+let MAX_STREAMS = 15
+
+let leaseListHeadStore = "lease_list_head"
+
+let leaseListHead = valueOrElse(getString(this, leaseListHeadStore), "")
+
+func leaseListNextStore (addr) = ("lease_list_next_" + addr)
+
+
+func leaseListPrevStore (addr) = ("lease_list_prev_" + addr)
+
+
+func leaseListHasStore (addr) = ("lease_list_has_" + addr)
+
+
+func leaseVoteStore (user) = ("lease_vote_" + user)
+
+
+func leaseVoteAmountStore (user) = ("lease_vote_amount_" + user)
+
+
+func leaseNodeVotesStore (node) = ("lease_node_votes_" + node)
+
+
+let leaseVotesTotalStore = "lease_votes_total"
+
+let leaseVotesTotal = valueOrElse(getInteger(this, leaseVotesTotalStore), 0)
+
+let leasePhaseStore = "lease_phase"
+
+let leasePhase = valueOrElse(getString(this, leasePhaseStore), "")
+
+let leaseCursorStore = "lease_cursor"
+
+let leaseCursor = valueOrElse(getString(this, leaseCursorStore), "")
+
+let leaseAmountStore = "lease_amount"
+
+let leasePool = valueOrElse(getInteger(this, leaseAmountStore), 0)
+
+let leaseTotalVotesSnapStore = "lease_total_votes_snap"
+
+let leaseTotalVotesSnap = valueOrElse(getInteger(this, leaseTotalVotesSnapStore), 0)
+
+let leasedTotalStore = "lease_leased_total"
+
+let leasedTotal = valueOrElse(getInteger(this, leasedTotalStore), 0)
+
+let leaseLastStartStore = "lease_last_start"
+
+let leaseLastStart = valueOrElse(getInteger(this, leaseLastStartStore), 0)
+
+let leaseRedistributionMinIntervalStore = "lease_redistribution_min_interval"
+
+let leaseRedistributionMinInterval = valueOrElse(getInteger(this, leaseRedistributionMinIntervalStore), 1440)
+
+let leaseFundingStreamReserveBlocks = valueOrElse(getInteger(configAddress, "lease_funding_stream_reserve_blocks"), (1440 * 5))
+
+let activeLeaseCountStore = "active_lease_count"
+
+let activeLeaseCount = valueOrElse(getInteger(this, activeLeaseCountStore), 0)
+
+func pendingTransferToStore (txId) = (("pending_transfer_" + txId) + "_to")
+
+
+func pendingTransferAmountStore (txId) = (("pending_transfer_" + txId) + "_amount")
+
+
+let pendingTransferTotalStore = "pending_transfer_total"
+
+func leaseIdStore (node) = ("lease_id_" + node)
+
+
+func leaseNodeAmountStore (node) = ("lease_node_amount_" + node)
+
+
+func leaseNodeVotesSnapStore (node) = ("lease_node_votes_snap_" + node)
+
+
+func isNodeSharing (node) = match addressFromString(node) {
+    case adr: Address => 
+        valueOrElse(getBoolean(adr, "sharing_enabled"), false)
+    case _ => 
+        false
+}
+
+
+func changeByInt (key,delta) = IntegerEntry(key, (valueOrElse(getInteger(this, key), 0) + delta))
+
+
+func addStream (list,address) = if ((list == ""))
+    then address
+    else if (containsElement(split(list, "|"), address))
+        then list
+        else ((list + "|") + address)
+
+
+func removeStream (list,address) = {
+    func fold (acc,el) =     if (if ((el == address))
+        then true
+        else (el == ""))
+        then acc
+        else if ((acc == ""))
+            then el
+            else ((acc + "|") + el)
+
+    let $l = split(list, "|")
+    let $s = size($l)
+    let $acc0 = ""
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else fold($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 15")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15)
+    }
+
+
+let minCommittedPowerForFunding = valueOrElse(getInteger(this, "min_committed_power_for_funding"), valueOrElse(getInteger(configAddress, (toString(this) + "_min_committed_power_for_funding")), 0))
+
+func committedPower (child) = valueOrElse(getInteger(childrenContract, ("skin_total_" + child)), 0)
+
+
+func assertChildDaoStarted (child) = {
+    let startHeight = valueOrErrorMessage(getInteger(childrenContract, ("start_height_" + child)), "child DAO is not started")
+    if ((startHeight == startHeight))
+        then {
+            let childCommittedPower = committedPower(child)
+            if ((minCommittedPowerForFunding > childCommittedPower))
+                then throw(((((("child DAO " + child) + " has insufficient committed power: ") + toString(childCommittedPower)) + " < ") + toString(minCommittedPowerForFunding)))
+                else unit
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func checkStreamRequirements (child,waveletsPerBlock,maxClaimable,isMaxClaimableUSD) = if ((0 >= waveletsPerBlock))
+    then unit
+    else {
+        let effectiveMax = if ((maxClaimable > 0))
+            then maxClaimable
+            else if ((maxClaimable == 0))
+                then valueOrElse(getInteger(maxClaimableStore(child)), 0)
+                else 0
+        if ((0 >= effectiveMax))
+            then unit
+            else assertChildDaoStarted(child)
+        }
+
+
+func availableNow (to) = {
+    let perBlock = valueOrElse(getInteger(waveletsPerBlockStore(to)), 0)
+    let total = if ((perBlock == 0))
+        then 0
+        else {
+            let firstBlock = value(getInteger(startHeightStore(to)))
+            let blocks = (HEIGHT - firstBlock)
+            (perBlock * blocks)
+            }
+    let claimedWAVES = valueOrElse(getInteger(claimedStore(to)), 0)
+    let restWaves = (total - claimedWAVES)
+    let maxClaimable = getInteger(maxClaimableStore(to))
+    if (isDefined(maxClaimable))
+        then {
+            let maxClaimableValue = value(maxClaimable)
+            if (valueOrElse(getBoolean(maxClaimableIsUSDStore(to)), false))
+                then {
+                    let claimedUSD = valueOrElse(getInteger(claimedUSDStore(to)), wavesToUSD(claimedWAVES))
+                    let restUSD = (maxClaimableValue - claimedUSD)
+                    let restUsdInWaves = usdToWaves(restUSD)
+                    min([restUsdInWaves, restWaves])
+                    }
+                else {
+                    let grant = min([total, maxClaimableValue])
+                    (grant - claimedWAVES)
+                    }
+            }
+        else restWaves
+    }
+
+
+func availableToClaimTotal () = {
+    func fold (acc,address) =     if ((address == ""))
+        then acc
+        else (acc + availableNow(address))
+
+    let $l = split(streams, "|")
+    let $s = size($l)
+    let $acc0 = 0
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else fold($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 15")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15)
+    }
+
+
+func setScheduleInternal (to,waveletsPerBlock,maxClaimable,isMaxClaimableUSD,sum) = {
+    let adr = valueOrErrorMessage(addressFromString(to), ("invalid address: " + to))
+    if ((adr == adr))
+        then {
+            let perBlockStore = waveletsPerBlockStore(to)
+            let oldPerBlock = valueOrElse(getInteger(perBlockStore), 0)
+            let requirements = checkStreamRequirements(to, waveletsPerBlock, maxClaimable, isMaxClaimableUSD)
+            if ((requirements == requirements))
+                then if (if (isMaxClaimableUSD)
+                    then !(usdLimitedStreamsAllowed)
+                    else false)
+                    then throw("USD-limited streams are temporarily disabled. Use WAVES-denominated limits instead.")
+                    else if ((0 > waveletsPerBlock))
+                        then throw("waveletsPerBlock should be >= 0")
+                        else if (if (isMaxClaimableUSD)
+                            then (10000 > waveletsPerBlock)
+                            else false)
+                            then throw("10000 wavelets is a minimun to use within USD limits")
+                            else if (if (isMaxClaimableUSD)
+                                then (1000000 > maxClaimable)
+                                else false)
+                                then throw("USD limits should starts from 1000000 usdtlets")
+                                else {
+                                    let newSum = ((sum - oldPerBlock) + waveletsPerBlock)
+                                    if ((newSum > maximum))
+                                        then throw("maximum exceeded")
+                                        else {
+                                            let maxClaimableStore1 = maxClaimableStore(to)
+                                            let maxClaimableIsUSDStore1 = maxClaimableIsUSDStore(to)
+                                            let maxClaimableEntry = if ((maxClaimable == 0))
+                                                then nil
+                                                else if ((0 > maxClaimable))
+                                                    then [DeleteEntry(maxClaimableStore1), DeleteEntry(maxClaimableIsUSDStore1)]
+                                                    else [IntegerEntry(maxClaimableStore1, maxClaimable), BooleanEntry(maxClaimableIsUSDStore1, isMaxClaimableUSD)]
+                                            let availableNowWaves = availableNow(to)
+                                            let updatedStreams = if ((waveletsPerBlock > 0))
+                                                then addStream(streams, to)
+                                                else removeStream(streams, to)
+                                            if (if ((updatedStreams != ""))
+                                                then (size(split(updatedStreams, "|")) > MAX_STREAMS)
+                                                else false)
+                                                then throw((("max " + toString(MAX_STREAMS)) + " streams, can't add more"))
+                                                else (([IntegerEntry(perBlockStore, waveletsPerBlock), IntegerEntry(startHeightStore(to), HEIGHT), IntegerEntry(claimedStore(to), -(availableNowWaves)), IntegerEntry(claimedUSDStore(to), -(wavesToUSD(availableNowWaves))), IntegerEntry(sumStore, newSum)] ++ maxClaimableEntry) ++ [StringEntry(streamsStore, updatedStreams)])
+                                            }
+                                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func leaseTarget (node) = {
+    let votes = valueOrElse(getInteger(this, leaseNodeVotesSnapStore(node)), 0)
+    if (if (if ((0 >= votes))
+        then true
+        else (0 >= leasePool))
+        then true
+        else (0 >= leaseTotalVotesSnap))
+        then 0
+        else if (!(isNodeSharing(node)))
+            then 0
+            else fraction(leasePool, votes, leaseTotalVotesSnap)
+    }
+
+
+func replaceLease (node,newAmount) = {
+    let cancel =     match getBinary(this, leaseIdStore(node)) {
+        case id: ByteVector => 
+[LeaseCancel(id)]
+        case _ => 
+            nil
+    }
+    if ((newAmount > 0))
+        then {
+            let newLease = Lease(valueOrErrorMessage(addressFromString(node), ("invalid node address: " + node)), newAmount)
+            (cancel ++ [newLease, BinaryEntry(leaseIdStore(node), calculateLeaseId(newLease)), IntegerEntry(leaseNodeAmountStore(node), newAmount)])
+            }
+        else (cancel ++ [DeleteEntry(leaseIdStore(node)), DeleteEntry(leaseNodeAmountStore(node))])
+    }
+
+
+func leaseCountDelta (current,newAmount) = if (if ((current == 0))
+    then (newAmount > 0)
+    else false)
+    then 1
+    else if (if ((current > 0))
+        then (newAmount == 0)
+        else false)
+        then -1
+        else 0
+
+
+func snapshotFold (acc,_step) = {
+    let $t01190611948 = acc
+    let actions = $t01190611948._1
+    let cursor = $t01190611948._2
+    let eligibleVotes = $t01190611948._3
+    if ((cursor == ""))
+        then acc
+        else if (if (isDefined(getBinary(this, leaseIdStore(cursor))))
+            then !(isDefined(getInteger(this, leaseNodeAmountStore(cursor))))
+            else false)
+            then throw((("legacy lease to " + cursor) + " has no tracked amount: call migrateLegacyLease first"))
+            else {
+                let nodeVotes = valueOrElse(getInteger(this, leaseNodeVotesStore(cursor)), 0)
+                let eligible = if ((nodeVotes > 0))
+                    then isNodeSharing(cursor)
+                    else false
+                let snapAction = if (eligible)
+                    then IntegerEntry(leaseNodeVotesSnapStore(cursor), nodeVotes)
+                    else DeleteEntry(leaseNodeVotesSnapStore(cursor))
+                let nextCursor = valueOrElse(getString(this, leaseListNextStore(cursor)), "")
+                $Tuple3((actions :+ snapAction), nextCursor, (eligibleVotes + (if (eligible)
+                    then nodeVotes
+                    else 0)))
+                }
+    }
+
+
+func shrinkFold (acc,_step) = {
+    let $t01281012862 = acc
+    let actions = $t01281012862._1
+    let cursor = $t01281012862._2
+    let leasedDelta = $t01281012862._3
+    let countDelta = $t01281012862._4
+    if ((cursor == ""))
+        then acc
+        else {
+            let nextCursor = valueOrElse(getString(this, leaseListNextStore(cursor)), "")
+            let current = valueOrElse(getInteger(this, leaseNodeAmountStore(cursor)), 0)
+            let target = leaseTarget(cursor)
+            if ((target >= current))
+                then $Tuple4(actions, nextCursor, leasedDelta, countDelta)
+                else $Tuple4((actions ++ replaceLease(cursor, target)), nextCursor, ((leasedDelta + target) - current), (countDelta + leaseCountDelta(current, target)))
+            }
+    }
+
+
+func growFold (acc,_step) = {
+    let $t01346213520 = acc
+    let actions = $t01346213520._1
+    let cursor = $t01346213520._2
+    let leasedDelta = $t01346213520._3
+    let countDelta = $t01346213520._4
+    let free = $t01346213520._5
+    if ((cursor == ""))
+        then acc
+        else {
+            let nextCursor = valueOrElse(getString(this, leaseListNextStore(cursor)), "")
+            let current = valueOrElse(getInteger(this, leaseNodeAmountStore(cursor)), 0)
+            let target = leaseTarget(cursor)
+            let newAmount = if ((target > current))
+                then min([target, (current + max([free, 0]))])
+                else target
+            if ((newAmount == current))
+                then $Tuple5(actions, nextCursor, leasedDelta, countDelta, free)
+                else $Tuple5((actions ++ replaceLease(cursor, newAmount)), nextCursor, ((leasedDelta + newAmount) - current), (countDelta + leaseCountDelta(current, newAmount)), (free - (newAmount - current)))
+            }
+    }
+
+
+func leaseCycleCleanup () = [StringEntry(leasePhaseStore, ""), DeleteEntry(leaseCursorStore), DeleteEntry(leaseAmountStore), DeleteEntry(leaseTotalVotesSnapStore)]
+
+
+func leaseStatsUpdate (leasedDelta,countDelta) = ((if ((leasedDelta != 0))
+    then [IntegerEntry(leasedTotalStore, (leasedTotal + leasedDelta))]
+    else nil) ++ (if ((countDelta != 0))
+    then [IntegerEntry(activeLeaseCountStore, (activeLeaseCount + countDelta))]
+    else nil))
+
+
+@Callable(i)
+func setSchedule (to,waveletsPerBlock,maxClaimable,isMaxClaimableUSD) = if ((i.caller != this))
+    then throw("denied")
+    else setScheduleInternal(to, waveletsPerBlock, maxClaimable, isMaxClaimableUSD, oldSum)
+
+
+
+@Callable(i)
+func cancelSchedule (address) = if ((i.caller != this))
+    then throw("denied")
+    else setScheduleInternal(address, 0, -1, false, oldSum)
+
+
+
+@Callable(i)
+func cleanSchedule () = {
+    func fold (acc,address) =     if ((address == ""))
+        then acc
+        else {
+            let $t01554715588 = acc
+            let entries = $t01554715588._1
+            let currentSum = $t01554715588._2
+            let toRemove = $t01554715588._3
+            let maxClaimable = getInteger(maxClaimableStore(address))
+            if (!(isDefined(maxClaimable)))
+                then acc
+                else {
+                    let maxClaimableValue = value(maxClaimable)
+                    let availableWAVES = availableNow(address)
+                    let isExhausted = if (valueOrElse(getBoolean(maxClaimableIsUSDStore(address)), false))
+                        then {
+                            let claimedUSD = valueOrElse(getInteger(claimedUSDStore(address)), 0)
+                            ((claimedUSD + wavesToUSD(availableWAVES)) >= maxClaimableValue)
+                            }
+                        else {
+                            let claimedWAVES = valueOrElse(getInteger(claimedStore(address)), 0)
+                            ((claimedWAVES + availableWAVES) >= maxClaimableValue)
+                            }
+                    if (!(isExhausted))
+                        then acc
+                        else {
+                            let perBlock = valueOrElse(getInteger(waveletsPerBlockStore(address)), 0)
+                            $Tuple3((entries ++ [IntegerEntry(waveletsPerBlockStore(address), 0), IntegerEntry(startHeightStore(address), HEIGHT), IntegerEntry(claimedStore(address), -(availableWAVES)), IntegerEntry(claimedUSDStore(address), -(wavesToUSD(availableWAVES))), DeleteEntry(maxClaimableStore(address)), DeleteEntry(maxClaimableIsUSDStore(address))]), (currentSum - perBlock), (toRemove ++ [address]))
+                            }
+                    }
+            }
+
+    let $t01692517013 = {
+        let $l = split(streams, "|")
+        let $s = size($l)
+        let $acc0 = $Tuple3(nil, oldSum, nil)
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else fold($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 15")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15)
+        }
+    let entries = $t01692517013._1
+    let finalSum = $t01692517013._2
+    let toRemove = $t01692517013._3
+    if ((size(toRemove) == 0))
+        then throw("no exhausted streams found")
+        else {
+            func filterStreams (acc,el) =             if (if ((el == ""))
+                then true
+                else containsElement(toRemove, el))
+                then acc
+                else if ((acc == ""))
+                    then el
+                    else ((acc + "|") + el)
+
+            let finalStreams = {
+                let $l = split(streams, "|")
+                let $s = size($l)
+                let $acc0 = ""
+                func $f1_1 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else filterStreams($a, $l[$i])
+
+                func $f1_2 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else throw("List size exceeds 15")
+
+                $f1_2($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15)
+                }
+            (entries ++ [IntegerEntry(sumStore, finalSum), StringEntry(streamsStore, finalStreams)])
+            }
+    }
+
+
+
+@Callable(i)
+func Claim () = {
+    let toAdr = i.caller
+    let to = toString(toAdr)
+    let a = valueOrErrorMessage(getInteger(waveletsPerBlockStore(to)), "address not found")
+    if ((a == a))
+        then {
+            let eligibility = if (checkLockOnClaim)
+                then {
+                    let perBlock = valueOrElse(getInteger(waveletsPerBlockStore(to)), 0)
+                    let maxCl = valueOrElse(getInteger(maxClaimableStore(to)), 0)
+                    let isUSD = valueOrElse(getBoolean(maxClaimableIsUSDStore(to)), false)
+                    checkStreamRequirements(to, perBlock, maxCl, isUSD)
+                    }
+                else unit
+            if ((eligibility == eligibility))
+                then {
+                    let amount = availableNow(to)
+                    let payment = min([wavesBalance(this).available, amount])
+                    if ((0 >= payment))
+                        then throw("nothing to claim")
+                        else {
+                            let claimedStore1 = claimedStore(to)
+                            let claimed = valueOrElse(getInteger(claimedStore1), 0)
+                            let claimedUSDStore1 = claimedUSDStore(to)
+                            let claimedUSD = valueOrElse(getInteger(claimedUSDStore1), wavesToUSD(claimed))
+                            let paymentUSD = wavesToUSD(payment)
+                            if (if (valueOrElse(getBoolean(maxClaimableIsUSDStore(to)), false))
+                                then (30 > paymentUSD)
+                                else false)
+                                then throw("usd amount too small")
+                                else [ScriptTransfer(toAdr, payment, unit), IntegerEntry(claimedStore1, (claimed + payment)), IntegerEntry(claimedUSDStore1, (claimedUSD + paymentUSD))]
+                            }
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func approveLeaseNodes (nodesStr) = if ((i.caller != this))
+    then throw("denied")
+    else if ((leasePhase != ""))
+        then throw("lease redistribution in progress")
+        else {
+            let nodes = split_4C(nodesStr, ",")
+            if ((size(nodes) == 0))
+                then throw("empty list")
+                else if ((size(nodes) > 20))
+                    then throw("max 20 nodes per call")
+                    else {
+                        func fold (acc,node) =                         {
+                            let $t01956619604 = acc
+                            let actions = $t01956619604._1
+                            let currentHead = $t01956619604._2
+                            let seen = $t01956619604._3
+                            if (containsElement(seen, node))
+                                then acc
+                                else if (valueOrElse(getBoolean(this, leaseListHasStore(node)), false))
+                                    then acc
+                                    else {
+                                        let adr = valueOrErrorMessage(addressFromString(node), ("invalid node address: " + node))
+                                        if ((adr == adr))
+                                            then {
+                                                let prevEntry = if ((currentHead != ""))
+                                                    then [StringEntry(leaseListPrevStore(currentHead), node)]
+                                                    else nil
+                                                let nextEntry = if ((currentHead != ""))
+                                                    then [StringEntry(leaseListNextStore(node), currentHead)]
+                                                    else nil
+                                                $Tuple3((((actions ++ [BooleanEntry(leaseListHasStore(node), true)]) ++ nextEntry) ++ prevEntry), node, (seen ++ [node]))
+                                                }
+                                            else throw("Strict value is not equal to itself.")
+                                        }
+                            }
+
+                        let $t02019120271 = {
+                            let $l = nodes
+                            let $s = size($l)
+                            let $acc0 = $Tuple3(nil, leaseListHead, nil)
+                            func $f0_1 ($a,$i) =                             if (($i >= $s))
+                                then $a
+                                else fold($a, $l[$i])
+
+                            func $f0_2 ($a,$i) =                             if (($i >= $s))
+                                then $a
+                                else throw("List size exceeds 20")
+
+                            $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18), 19), 20)
+                            }
+                        let entries = $t02019120271._1
+                        let finalHead = $t02019120271._2
+                        let _seen = $t02019120271._3
+                        (entries ++ [StringEntry(leaseListHeadStore, finalHead)])
+                        }
+            }
+
+
+
+@Callable(i)
+func removeLeaseNode (node) = if ((i.caller != this))
+    then throw("denied")
+    else if ((leasePhase != ""))
+        then throw("lease redistribution in progress")
+        else if (!(valueOrElse(getBoolean(this, leaseListHasStore(node)), false)))
+            then throw("not listed")
+            else {
+                let prev = valueOrElse(getString(this, leaseListPrevStore(node)), "")
+                let next = valueOrElse(getString(this, leaseListNextStore(node)), "")
+                let relinkPrev = if ((prev != ""))
+                    then [StringEntry(leaseListNextStore(prev), next)]
+                    else [StringEntry(leaseListHeadStore, next)]
+                let relinkNext = if ((next != ""))
+                    then [StringEntry(leaseListPrevStore(next), prev)]
+                    else nil
+                let cancelLease = {
+                    let oldLeaseId = getBinary(this, leaseIdStore(node))
+                    let oldAmount = valueOrElse(getInteger(this, leaseNodeAmountStore(node)), 0)
+                    if (isDefined(oldLeaseId))
+                        then [LeaseCancel(value(oldLeaseId)), DeleteEntry(leaseIdStore(node)), DeleteEntry(leaseNodeAmountStore(node)), IntegerEntry(leasedTotalStore, (leasedTotal - oldAmount)), IntegerEntry(activeLeaseCountStore, (activeLeaseCount - 1))]
+                        else nil
+                    }
+                let nodeVotes = valueOrElse(getInteger(this, leaseNodeVotesStore(node)), 0)
+                let adjustTotal = if ((nodeVotes > 0))
+                    then [IntegerEntry(leaseVotesTotalStore, (leaseVotesTotal - nodeVotes))]
+                    else nil
+                ((((relinkPrev ++ relinkNext) ++ [DeleteEntry(leaseListHasStore(node)), DeleteEntry(leaseListNextStore(node)), DeleteEntry(leaseListPrevStore(node)), DeleteEntry(leaseNodeVotesSnapStore(node))]) ++ cancelLease) ++ adjustTotal)
+                }
+
+
+
+@Callable(i)
+func voteLeaseNode (node) = if (!(valueOrElse(getBoolean(this, leaseListHasStore(node)), false)))
+    then throw("node not listed")
+    else {
+        let user = toString(i.caller)
+        let skinAmount = valueOrElse(getInteger(childrenContract, ((("skin_" + toString(this)) + "_") + user)), 0)
+        if ((0 >= skinAmount))
+            then throw("no committed power")
+            else {
+                let oldNode = valueOrElse(getString(this, leaseVoteStore(user)), "")
+                let oldAmount = valueOrElse(getInteger(this, leaseVoteAmountStore(user)), 0)
+                let hadVote = if ((oldNode != ""))
+                    then (oldAmount > 0)
+                    else false
+                let oldNodeListed = if (hadVote)
+                    then valueOrElse(getBoolean(this, leaseListHasStore(oldNode)), false)
+                    else false
+                let nodeVoteUpdate = if (if (if (hadVote)
+                    then oldNodeListed
+                    else false)
+                    then (oldNode == node)
+                    else false)
+                    then [changeByInt(leaseNodeVotesStore(node), (skinAmount - oldAmount))]
+                    else if (if (hadVote)
+                        then oldNodeListed
+                        else false)
+                        then [changeByInt(leaseNodeVotesStore(oldNode), -(oldAmount)), changeByInt(leaseNodeVotesStore(node), skinAmount)]
+                        else [changeByInt(leaseNodeVotesStore(node), skinAmount)]
+                let totalDelta = (skinAmount - (if (if (hadVote)
+                    then oldNodeListed
+                    else false)
+                    then oldAmount
+                    else 0))
+                (nodeVoteUpdate ++ [StringEntry(leaseVoteStore(user), node), IntegerEntry(leaseVoteAmountStore(user), skinAmount), IntegerEntry(leaseVotesTotalStore, (leaseVotesTotal + totalDelta))])
+                }
+        }
+
+
+
+@Callable(i)
+func withdrawLeaseVote () = {
+    let user = toString(i.caller)
+    let oldNode = valueOrErrorMessage(getString(this, leaseVoteStore(user)), "no active vote")
+    let oldAmount = valueOrElse(getInteger(this, leaseVoteAmountStore(user)), 0)
+    let oldNodeListed = valueOrElse(getBoolean(this, leaseListHasStore(oldNode)), false)
+    ([DeleteEntry(leaseVoteStore(user)), DeleteEntry(leaseVoteAmountStore(user))] ++ (if (if ((oldAmount > 0))
+        then oldNodeListed
+        else false)
+        then [changeByInt(leaseNodeVotesStore(oldNode), -(oldAmount)), changeByInt(leaseVotesTotalStore, -(oldAmount))]
+        else nil))
+    }
+
+
+
+@Callable(i)
+func refreshLeaseVote (user) = {
+    let node = valueOrErrorMessage(getString(this, leaseVoteStore(user)), "user has no active vote")
+    let oldAmount = valueOrElse(getInteger(this, leaseVoteAmountStore(user)), 0)
+    let nodeListed = valueOrElse(getBoolean(this, leaseListHasStore(node)), false)
+    if (!(nodeListed))
+        then [DeleteEntry(leaseVoteStore(user)), DeleteEntry(leaseVoteAmountStore(user))]
+        else {
+            let newAmount = valueOrElse(getInteger(childrenContract, ((("skin_" + toString(this)) + "_") + user)), 0)
+            let delta = (newAmount - oldAmount)
+            if ((newAmount == 0))
+                then [DeleteEntry(leaseVoteStore(user)), DeleteEntry(leaseVoteAmountStore(user)), changeByInt(leaseNodeVotesStore(node), -(oldAmount)), changeByInt(leaseVotesTotalStore, -(oldAmount))]
+                else if ((delta == 0))
+                    then throw("vote weight unchanged")
+                    else [IntegerEntry(leaseVoteAmountStore(user), newAmount), changeByInt(leaseNodeVotesStore(node), delta), changeByInt(leaseVotesTotalStore, delta)]
+            }
+    }
+
+
+
+@Callable(i)
+func redistributeLeases () = {
+    let phase = leasePhase
+    let dummy35 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    if (if ((phase == ""))
+        then true
+        else (phase == "snapshot"))
+        then {
+            let isStart = (phase == "")
+            if (if (if (isStart)
+                then (leaseRedistributionMinInterval > (HEIGHT - leaseLastStart))
+                else false)
+                then (leaseLastStart > 0)
+                else false)
+                then throw(("too soon, available at height " + toString((leaseLastStart + leaseRedistributionMinInterval))))
+                else if (if (isStart)
+                    then (leaseListHead == "")
+                    else false)
+                    then throw("no lease targets")
+                    else if (if (isStart)
+                        then (0 >= leaseVotesTotal)
+                        else false)
+                        then throw("no votes")
+                        else {
+                            let startCursor = if (isStart)
+                                then leaseListHead
+                                else leaseCursor
+                            let votesSoFar = if (isStart)
+                                then 0
+                                else leaseTotalVotesSnap
+                            let $t02771127832 = {
+                                let $l = (dummy35 ++ dummy35)
+                                let $s = size($l)
+                                let $acc0 = $Tuple3(nil, startCursor, votesSoFar)
+                                func $f0_1 ($a,$i) =                                 if (($i >= $s))
+                                    then $a
+                                    else snapshotFold($a, $l[$i])
+
+                                func $f0_2 ($a,$i) =                                 if (($i >= $s))
+                                    then $a
+                                    else throw("List size exceeds 70")
+
+                                $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18), 19), 20), 21), 22), 23), 24), 25), 26), 27), 28), 29), 30), 31), 32), 33), 34), 35), 36), 37), 38), 39), 40), 41), 42), 43), 44), 45), 46), 47), 48), 49), 50), 51), 52), 53), 54), 55), 56), 57), 58), 59), 60), 61), 62), 63), 64), 65), 66), 67), 68), 69), 70)
+                                }
+                            let snapActions = $t02771127832._1
+                            let afterCursor = $t02771127832._2
+                            let eligibleVotes = $t02771127832._3
+                            let startEntries = if (isStart)
+                                then [IntegerEntry(leaseLastStartStore, HEIGHT)]
+                                else nil
+                            let phaseEntries = if ((afterCursor != ""))
+                                then [StringEntry(leasePhaseStore, "snapshot"), StringEntry(leaseCursorStore, afterCursor)]
+                                else {
+                                    let totalClaimable = (availableToClaimTotal() + (oldSum * leaseFundingStreamReserveBlocks))
+                                    let pendingTotal = valueOrElse(getInteger(this, pendingTransferTotalStore), 0)
+                                    let pool = max([0, (((wavesBalance(this).available + leasedTotal) - pendingTotal) - totalClaimable)])
+[IntegerEntry(leaseAmountStore, pool), StringEntry(leasePhaseStore, "shrink"), StringEntry(leaseCursorStore, leaseListHead)]
+                                    }
+                            (((startEntries ++ snapActions) ++ [IntegerEntry(leaseTotalVotesSnapStore, eligibleVotes)]) ++ phaseEntries)
+                            }
+            }
+        else if ((phase == "shrink"))
+            then {
+                let $t02883328941 = {
+                    let $l = dummy35
+                    let $s = size($l)
+                    let $acc0 = $Tuple4(nil, leaseCursor, 0, 0)
+                    func $f0_1 ($a,$i) =                     if (($i >= $s))
+                        then $a
+                        else shrinkFold($a, $l[$i])
+
+                    func $f0_2 ($a,$i) =                     if (($i >= $s))
+                        then $a
+                        else throw("List size exceeds 35")
+
+                    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18), 19), 20), 21), 22), 23), 24), 25), 26), 27), 28), 29), 30), 31), 32), 33), 34), 35)
+                    }
+                let actions = $t02883328941._1
+                let afterCursor = $t02883328941._2
+                let leasedDelta = $t02883328941._3
+                let countDelta = $t02883328941._4
+                let nextEntries = if ((afterCursor != ""))
+                    then [StringEntry(leaseCursorStore, afterCursor)]
+                    else [StringEntry(leasePhaseStore, "grow"), StringEntry(leaseCursorStore, leaseListHead)]
+                ((actions ++ leaseStatsUpdate(leasedDelta, countDelta)) ++ nextEntries)
+                }
+            else if ((phase == "grow"))
+                then {
+                    let pendingTotal = valueOrElse(getInteger(this, pendingTransferTotalStore), 0)
+                    let free = ((wavesBalance(this).available - pendingTotal) - availableToClaimTotal())
+                    let $t02944229561 = {
+                        let $l = dummy35
+                        let $s = size($l)
+                        let $acc0 = $Tuple5(nil, leaseCursor, 0, 0, free)
+                        func $f0_1 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else growFold($a, $l[$i])
+
+                        func $f0_2 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else throw("List size exceeds 35")
+
+                        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18), 19), 20), 21), 22), 23), 24), 25), 26), 27), 28), 29), 30), 31), 32), 33), 34), 35)
+                        }
+                    let actions = $t02944229561._1
+                    let afterCursor = $t02944229561._2
+                    let leasedDelta = $t02944229561._3
+                    let countDelta = $t02944229561._4
+                    let _free = $t02944229561._5
+                    let nextEntries = if ((afterCursor != ""))
+                        then [StringEntry(leaseCursorStore, afterCursor)]
+                        else leaseCycleCleanup()
+                    ((actions ++ leaseStatsUpdate(leasedDelta, countDelta)) ++ nextEntries)
+                    }
+                else throw(("invalid lease phase: " + phase))
+    }
+
+
+
+@Callable(i)
+func migrateLegacyLeaseCancel (node) = if (if ((i.caller != this))
+    then true
+    else (i.originCaller == this))
+    then throw("denied")
+    else if (isDefined(getInteger(this, leaseNodeAmountStore(node))))
+        then throw("lease already tracked")
+        else [LeaseCancel(valueOrErrorMessage(getBinary(this, leaseIdStore(node)), "no lease for node"))]
+
+
+
+@Callable(i)
+func migrateLegacyLease (node) = if (isDefined(getInteger(this, leaseNodeAmountStore(node))))
+    then throw("lease already tracked")
+    else {
+        let before = wavesBalance(this).available
+        if ((before == before))
+            then {
+                let cancelled = invoke(this, "migrateLegacyLeaseCancel", [node], nil)
+                if ((cancelled == cancelled))
+                    then {
+                        let amount = (wavesBalance(this).available - before)
+                        if ((0 >= amount))
+                            then throw("cannot determine legacy lease amount")
+                            else {
+                                let newLease = Lease(valueOrErrorMessage(addressFromString(node), ("invalid node address: " + node)), amount)
+[newLease, BinaryEntry(leaseIdStore(node), calculateLeaseId(newLease)), IntegerEntry(leaseNodeAmountStore(node), amount), IntegerEntry(leasedTotalStore, (leasedTotal + amount))]
+                                }
+                        }
+                    else throw("Strict value is not equal to itself.")
+                }
+            else throw("Strict value is not equal to itself.")
+        }
+
+
+
+@Callable(i)
+func transferWaves (childDao,amount) = if ((i.caller != this))
+    then throw("denied")
+    else if ((0 >= amount))
+        then throw("amount must be positive")
+        else {
+            let adr = valueOrErrorMessage(addressFromString(childDao), ("invalid address: " + childDao))
+            if ((adr == adr))
+                then {
+                    let eligibility = assertChildDaoStarted(childDao)
+                    if ((eligibility == eligibility))
+                        then {
+                            let pendingTotal = valueOrElse(getInteger(this, pendingTransferTotalStore), 0)
+                            let balanceAfter = (wavesBalance(this).regular - (pendingTotal + amount))
+                            let totalClaimable = availableToClaimTotal()
+                            if ((totalClaimable > balanceAfter))
+                                then throw(((("transfer would leave insufficient balance for active streams: " + toString(balanceAfter)) + " < ") + toString(totalClaimable)))
+                                else {
+                                    let txId = toBase58String(i.transactionId)
+[StringEntry(pendingTransferToStore(txId), childDao), IntegerEntry(pendingTransferAmountStore(txId), amount), IntegerEntry(pendingTransferTotalStore, (pendingTotal + amount))]
+                                    }
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+
+
+
+@Callable(i)
+func executeTransfer (txId) = if ((leasePhase != ""))
+    then throw("redistribution in progress")
+    else {
+        let to = valueOrErrorMessage(getString(this, pendingTransferToStore(txId)), "no pending transfer")
+        let amount = valueOrErrorMessage(getInteger(this, pendingTransferAmountStore(txId)), "no pending amount")
+        let adr = valueOrErrorMessage(addressFromString(to), ("invalid address: " + to))
+        if ((adr == adr))
+            then [ScriptTransfer(adr, amount, unit), DeleteEntry(pendingTransferToStore(txId)), DeleteEntry(pendingTransferAmountStore(txId)), changeByInt(pendingTransferTotalStore, -(amount))]
+            else throw("Strict value is not equal to itself.")
+        }
+
+
+
+@Callable(i)
+func resetLeasePhase () = if ((i.caller != this))
+    then throw("denied")
+    else if ((leasePhase == ""))
+        then throw("no active cycle")
+        else [StringEntry(leasePhaseStore, ""), DeleteEntry(leaseCursorStore), DeleteEntry(leaseAmountStore), DeleteEntry(leaseTotalVotesSnapStore), DeleteEntry(leaseLastStartStore)]
+
+
+@Verifier(tx)
+func verify () = {
+    let enabled = valueOrElse(getBoolean(configAddress, opAllowedStore("child_governance_apply_tx")), true)
+    if (!(enabled))
+        then throw("tx application throw governance not enabled")
+        else {
+            let check =             match tx {
+                case t: TransferTransaction => 
+                    if ((t.assetId == unit))
+                        then throw("use transferWaves function instead")
+                        else unit
+                case _: LeaseTransaction => 
+                    throw("use redistributeLeases function instead")
+                case _ => 
+                    unit
+            }
+            if ((check == check))
+                then (height >= getIntegerValue(votingResults, ((("proposal_allow_broadcast_" + toString(this)) + "_") + toBase58String(tx.id))))
+                else throw("Strict value is not equal to itself.")
+            }
+    }

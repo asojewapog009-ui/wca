@@ -1,0 +1,179 @@
+{-# STDLIB_VERSION 5 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let prot = addressFromStringValue("3PJKKT7gsWiPBJj11gkF3Xv7gKt8s2WPdTr")
+
+let stkr = addressFromStringValue("3PMrcFXJx23B9zbxxUT49z6ET6wF2dKfTdW")
+
+let dist = addressFromStringValue("3P2RkFDTHJCB82HcVvJNU2eMEfUo82ZFagV")
+
+let lckr = addressFromStringValue("3PFraDBNUFry9mgcfMo3hGcr3dm43TuYmN6")
+
+let eb = addressFromStringValue("3PMqStMdARUA1KDNSrknUkQgXBVJR9Kgxko")
+
+let va = addressFromStringValue("3PKZk5TdPCLP2GZviipLFfK46ExTnwkRCBd")
+
+let vw = addressFromStringValue("3P3VTtUiwJ91Ly7vwtRVKv5NkNNiPoWe7oP")
+
+let div = addressFromStringValue("3PHvU5KXYJUAReeActQpS56TCdF8gupEjdR")
+
+func onlyMe (i) = if ((i.caller != this))
+    then throw("no")
+    else true
+
+
+@Callable(i)
+func harvest (rsr,victim) = {
+    let g = onlyMe(i)
+    if (g)
+        then {
+            let w = invoke(addressFromStringValue(rsr), "withdrawToMain", [victim, -1], nil)
+            if ((w == w))
+                then nil
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("no")
+    }
+
+
+
+@Callable(i)
+func borrowAll (rsr,who) = {
+    let g = onlyMe(i)
+    if (g)
+        then {
+            let sb = invoke(addressFromStringValue(rsr), "storedDepositBorrow", nil, nil)
+            if ((sb == sb))
+                then {
+                    let avail =                     match sb {
+                        case x: (Int, Int) => 
+                            (x._1 - x._2)
+                        case _ => 
+                            throw("bad sb")
+                    }
+                    let b = invoke(addressFromStringValue(rsr), "borrowFor", [who, avail], nil)
+                    if ((b == b))
+                        then nil
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("no")
+    }
+
+
+
+@Callable(i)
+func harvestProtected (assetId,victim) = {
+    let g = onlyMe(i)
+    if (g)
+        then {
+            let p = invoke(prot, "withdrawToMain", [victim, assetId], nil)
+            if ((p == p))
+                then nil
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("no")
+    }
+
+
+
+@Callable(i)
+func unstake (victim) = {
+    let g = onlyMe(i)
+    if (g)
+        then {
+            let u = invoke(stkr, "unstakeAllViresFrom", [victim], nil)
+            if ((u == u))
+                then nil
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("no")
+    }
+
+
+
+@Callable(i)
+func claimRewards (rsr,victim) = {
+    let g = onlyMe(i)
+    if (g)
+        then {
+            let aTok = valueOrErrorMessage(getString(addressFromStringValue(rsr), "aTokenId"), "no aTok")
+            let a = invoke(dist, "claimRewardFor", [rsr, victim, -1], nil)
+            if ((a == a))
+                then {
+                    let b = invoke(lckr, "claimLpRewardFor", [victim, aTok, -1], nil)
+                    if ((b == b))
+                        then {
+                            let c = invoke(eb, "claimEbRewardFor", [victim, -1], nil)
+                            if ((c == c))
+                                then nil
+                                else throw("Strict value is not equal to itself.")
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("no")
+    }
+
+
+
+@Callable(i)
+func vesting (victim) = {
+    let g = onlyMe(i)
+    if (g)
+        then {
+            let v = invoke(va, "withdrawAllVestedForTo", [victim, toString(this)], nil)
+            if ((v == v))
+                then nil
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("no")
+    }
+
+
+
+@Callable(i)
+func vestingWhale (victim) = {
+    let g = onlyMe(i)
+    if (g)
+        then {
+            let v = invoke(vw, "withdrawVestedForTo", [victim, toString(this)], nil)
+            if ((v == v))
+                then nil
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("no")
+    }
+
+
+
+@Callable(i)
+func myDividends () = {
+    let g = onlyMe(i)
+    if (g)
+        then {
+            let d = invoke(div, "claimProfit", [toString(this), toString(this), false], nil)
+            if ((d == d))
+                then nil
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("no")
+    }
+
+
+
+@Callable(i)
+func payout (assetId) = {
+    let g = onlyMe(i)
+    if (g)
+        then if ((assetId == "WAVES"))
+            then [ScriptTransfer(this, wavesBalance(this).available, unit)]
+            else {
+                let b = fromBase58String(assetId)
+[ScriptTransfer(this, assetBalance(this, b), b)]
+                }
+        else throw("no")
+    }
+

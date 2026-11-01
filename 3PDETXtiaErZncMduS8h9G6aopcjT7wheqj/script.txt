@@ -1,0 +1,333 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let SEPARATOR = "__"
+
+let KEY_INIT = "INIT"
+
+let KEY_MULTISIG = "MULTISIG"
+
+let KEY_STATUS = "STATUS"
+
+let KEY_CLAIMER = "CLAIMER"
+
+let KEY_LAST_SWAP_AT = "LAST_SWAP_AT"
+
+let KEY_WAVES_DAO_CONTRACT = "WAVES_DAO_CONTRACT"
+
+let KEY_SWAP_CONTRACT = "SWAP_CONTRACT"
+
+let KEY_SWAP_LIMIT = "SWAP_LIMIT"
+
+let KEY_UNITS_CHAIN_CONTRACT = "UNITS_CHAIN_CONTRACT"
+
+let FUNC_CLAIM_LP = "claimLP"
+
+let FUNC_SWAP = "swap"
+
+let ONE_HOUR_IN_BLOCKS = 60
+
+let COMPENSATION = 500000
+
+func _validateAddress (address_) = match addressFromString(address_) {
+    case a: Address => 
+        true
+    case _ => 
+        false
+}
+
+
+func _validateAsset (assetId_,err_) = match assetInfo(fromBase58String(assetId_)) {
+    case _: Asset => 
+        true
+    case _: Unit => 
+        throw(err_)
+    case _ => 
+        throw("Match error")
+}
+
+
+func _validateInt (val_,lowerBoundary_,upperBoundary_,err_) = if (if ((lowerBoundary_ > val_))
+    then true
+    else (val_ > upperBoundary_))
+    then throw(err_)
+    else true
+
+
+func _loadWavesDAOContract () = match getString(KEY_WAVES_DAO_CONTRACT) {
+    case a: String => 
+        addressFromStringValue(a)
+    case _ => 
+        Address(base58'')
+}
+
+
+func _saveWavesDAOContract (val_) = [StringEntry(KEY_WAVES_DAO_CONTRACT, toString(val_))]
+
+
+func _loadSwapContract () = match getString(KEY_SWAP_CONTRACT) {
+    case a: String => 
+        addressFromStringValue(a)
+    case _ => 
+        Address(base58'')
+}
+
+
+func _saveSwapContract (val_) = [StringEntry(KEY_SWAP_CONTRACT, toString(val_))]
+
+
+func _loadLastSwapAt (asset_) = match getInteger(makeString([KEY_LAST_SWAP_AT, asset_], SEPARATOR)) {
+    case a: Int => 
+        a
+    case _ => 
+        0
+}
+
+
+func _saveLastSwapAt (asset_,val_) = [IntegerEntry(makeString([KEY_LAST_SWAP_AT, asset_], SEPARATOR), val_)]
+
+
+func _loadSwapLimit (asset_) = match getInteger(makeString([KEY_SWAP_LIMIT, asset_], SEPARATOR)) {
+    case a: Int => 
+        a
+    case _ => 
+        0
+}
+
+
+func _saveSwapLimit (asset_,val_) = [IntegerEntry(makeString([KEY_SWAP_LIMIT, asset_], SEPARATOR), val_)]
+
+
+func _loadUnitsChainContract () = match getString(KEY_UNITS_CHAIN_CONTRACT) {
+    case a: String => 
+        addressFromStringValue(a)
+    case _ => 
+        Address(base58'')
+}
+
+
+func _saveUnitsChainContract (val_) = [StringEntry(KEY_UNITS_CHAIN_CONTRACT, toString(val_))]
+
+
+func _getWAVESDLPAsset () = match getString(_loadWavesDAOContract(), "%s__lpAssetId") {
+    case a: String => 
+        fromBase58String(a)
+    case _ => 
+        throw("_getWAVESDLPAsset: revert")
+}
+
+
+func _getAvailableWAVESDLP () = match getInteger(_loadWavesDAOContract(), ("%s%s__available__" + toString(this))) {
+    case a: Int => 
+        a
+    case _ => 
+        0
+}
+
+
+@Callable(i)
+func init (claimer_) = {
+    let multisig = valueOrErrorMessage(getString(KEY_MULTISIG), "init: no multisig set")
+    if ((multisig == multisig))
+        then {
+            let init = valueOrElse(getBoolean(KEY_INIT), false)
+            let err = if ((i.caller != this))
+                then throw("init: permission denied")
+                else if (init)
+                    then throw("init: already initialized")
+                    else if (!(_validateAddress(claimer_)))
+                        then throw("init: invalid claimer address")
+                        else unit
+            if ((err == err))
+                then $Tuple2([BooleanEntry(KEY_INIT, true), StringEntry(KEY_CLAIMER, claimer_)], unit)
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setMultisig (multisig_) = {
+    let err = if ((i.caller != this))
+        then throw("setMultisig: permission denied")
+        else if (!(_validateAddress(multisig_)))
+            then throw("setMultisig: invalid multisig address")
+            else unit
+    if ((err == err))
+        then $Tuple2([StringEntry(KEY_MULTISIG, multisig_)], unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setClaimer (claimer_) = {
+    let err = if ((i.caller != this))
+        then throw("setClaimer: permission denied")
+        else if (!(_validateAddress(claimer_)))
+            then throw("setClaimer: invalid claimer address")
+            else unit
+    if ((err == err))
+        then $Tuple2([StringEntry(KEY_CLAIMER, claimer_)], unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func claim (amount_) = if ((i.caller != addressFromStringValue(getStringValue(KEY_CLAIMER))))
+    then throw("claim: permission denied")
+    else if (if ((0 >= amount_))
+        then true
+        else (amount_ > wavesBalance(this).regular))
+        then throw("claim: invalid amount")
+        else $Tuple2([ScriptTransfer(i.caller, amount_, unit)], unit)
+
+
+
+@Callable(i)
+func getAvailableWAVESDLP () = $Tuple2(nil, _getAvailableWAVESDLP())
+
+
+
+@Callable(i)
+func claimAndSwapWAVESDLP () = {
+    let asset = _getWAVESDLPAsset()
+    let assetStr = toBase58String(asset)
+    let invocation = invoke(_loadWavesDAOContract(), FUNC_CLAIM_LP, nil, nil)
+    if ((invocation == invocation))
+        then {
+            let totalAmount = assetBalance(this, asset)
+            if ((totalAmount == totalAmount))
+                then {
+                    let swapLimit = _loadSwapLimit(assetStr)
+                    let amountToSwap = if ((totalAmount > swapLimit))
+                        then swapLimit
+                        else totalAmount
+                    let result = if ((height > (_loadLastSwapAt(assetStr) + ONE_HOUR_IN_BLOCKS)))
+                        then invoke(_loadSwapContract(), FUNC_SWAP, [1, "", toString(this)], [AttachedPayment(asset, amountToSwap)])
+                        else throw("claimAndSwapWAVESDLP: too often")
+                    if ((result == result))
+                        then                         match result {
+                            case a: Int => 
+                                if ((a > COMPENSATION))
+                                    then $Tuple2((_saveLastSwapAt(assetStr, height) ++ [ScriptTransfer(i.caller, COMPENSATION, unit)]), unit)
+                                    else throw("claimAndSwapWAVESDLP: too little amount got")
+                            case _ => 
+                                throw("claimAndSwapWAVESDLP: swap revert")
+                        }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func swapAsset (assetId_) = {
+    let err = _validateAsset(assetId_, "swapAsset: invalid asset")
+    if ((err == err))
+        then {
+            let asset = fromBase58String(assetId_)
+            let totalAmount = assetBalance(this, asset)
+            if ((totalAmount == totalAmount))
+                then {
+                    let swapLimit = _loadSwapLimit(assetId_)
+                    let amountToSwap = if ((totalAmount > swapLimit))
+                        then swapLimit
+                        else totalAmount
+                    let result = if ((height > (_loadLastSwapAt(assetId_) + ONE_HOUR_IN_BLOCKS)))
+                        then invoke(_loadSwapContract(), FUNC_SWAP, [1, "", toString(this)], [AttachedPayment(asset, amountToSwap)])
+                        else throw("swapAsset: too often")
+                    if ((result == result))
+                        then                         match result {
+                            case a: Int => 
+                                if ((a > COMPENSATION))
+                                    then $Tuple2((_saveLastSwapAt(assetId_, height) ++ [ScriptTransfer(i.caller, COMPENSATION, unit)]), unit)
+                                    else throw("swapAsset: too little amount got")
+                            case _ => 
+                                throw("swapAsset: swap revert")
+                        }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setWavesDAOContract (address_) = {
+    let err = if ((i.caller != this))
+        then throw("setWavesDAOContract: permission denied")
+        else if (!(_validateAddress(address_)))
+            then throw("setWavesDAOContract: invalid address")
+            else unit
+    if ((err == err))
+        then $Tuple2(_saveWavesDAOContract(addressFromStringValue(address_)), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setSwapContract (address_) = {
+    let err = if ((i.caller != this))
+        then throw("setSwapContract: permission denied")
+        else if (!(_validateAddress(address_)))
+            then throw("setSwapContract: invalid address")
+            else unit
+    if ((err == err))
+        then $Tuple2(_saveSwapContract(addressFromStringValue(address_)), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setSwapLimit (assetId_,limit_) = {
+    let err = if (_validateAsset(assetId_, "setSwapLimit: invalid asset"))
+        then if ((i.caller != this))
+            then throw("setSwapLimit: permission denied")
+            else if ((0 >= limit_))
+                then throw("setSwapLimit: invalid limit")
+                else unit
+        else false
+    if ((err == err))
+        then $Tuple2(_saveSwapLimit(assetId_, limit_), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setUnitsChainContract (address_) = {
+    let err = if ((i.caller != this))
+        then throw("setUnitsChainContract: permission denied")
+        else if (!(_validateAddress(address_)))
+            then throw("setUnitsChainContract: invalid address")
+            else unit
+    if ((err == err))
+        then $Tuple2(_saveUnitsChainContract(addressFromStringValue(address_)), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Verifier(tx)
+func verify () = match getString(KEY_MULTISIG) {
+    case multisig: String => 
+        match tx {
+            case tx: InvokeScriptTransaction => 
+                if ((tx.dApp == _loadUnitsChainContract()))
+                    then sigVerify_128Kb(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)
+                    else valueOrElse(getBoolean(addressFromStringValue(multisig), makeString([KEY_STATUS, toString(this), toBase58String(tx.id)], SEPARATOR)), false)
+            case _ => 
+                valueOrElse(getBoolean(addressFromStringValue(multisig), makeString([KEY_STATUS, toString(this), toBase58String(tx.id)], SEPARATOR)), false)
+        }
+    case _ => 
+        sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)
+}

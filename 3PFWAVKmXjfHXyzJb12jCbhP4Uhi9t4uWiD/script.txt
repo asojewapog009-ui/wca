@@ -1,0 +1,41 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let usdnId = base58'DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p'
+
+let usdnIdStr = "DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p"
+
+let puzzleId = base58'HEB8Qaw9xrWpWs8tHsiATYGBWDBtP2S7kcPALrMu43AS'
+
+let puzzleIdStr = "HEB8Qaw9xrWpWs8tHsiATYGBWDBtP2S7kcPALrMu43AS"
+
+func tryGetInteger (key) = match getInteger(this, key) {
+    case b: Int => 
+        b
+    case _ => 
+        0
+}
+
+
+@Callable(i)
+func swapAndTopupStaking () = {
+    let balance = assetBalance(this, usdnId)
+    let inv = invoke(Address(base58'3PLPCb3wF2H2gtzohoAjeWcGaMKEiJvtE5X'), "exchangeThenInvoke", [puzzleIdStr, "3PFTbywqxtFfukX3HyT881g4iW5K4QL3FAS", "topUpReward", nil, 0], [AttachedPayment(usdnId, balance)])
+    if ((inv == inv))
+        then [IntegerEntry("stats_lastSwap", height), IntegerEntry(("stats_totalSwapped_" + usdnIdStr), (tryGetInteger(("stats_totalSwapped_" + usdnIdStr)) + balance))]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func topupStaking () = {
+    let inv = invoke(Address(base58'3PFTbywqxtFfukX3HyT881g4iW5K4QL3FAS'), "topUpReward", nil, [AttachedPayment(puzzleId, assetBalance(this, puzzleId))])
+    if ((inv == inv))
+        then [IntegerEntry("stats_lastSwap", height)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Verifier(tx)
+func verify () = sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)

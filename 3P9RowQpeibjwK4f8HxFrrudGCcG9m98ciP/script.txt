@@ -1,0 +1,273 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let CONTRACT_TYPE = "LEND_FEECOLLECTOR"
+
+let VERSION = "LFC-0.0.2"
+
+let k_active = "setup_active"
+
+let k_markets = "setup_markets"
+
+let k_shutdownAddresses = "setup_shutdownAddresses"
+
+let shutdowners = ["3PMcMiMEs6w56NRGacksXtFG5zS7doE9fpL", "3PJu3pb7BST5XV7qUiHWDKmrzAkEpDSCewa"]
+
+let markets = ["3P4uA5etnZi4AmBabKinq2bMiWU8KcnHZdH", "3P4DK5VzDwL3vfc5ahUEhtoe5ByZNyacJ3X", "3PHpuQUPVUoR3AYzFeJzeWJfYLsLTmWssVH", "3P8Df2b7ywHtLBHBe8PBVQYd3A5MdEEJAou", "3PAd9Aqg3cQSzu26MFYWQYcjSXPVCJtuf5V"]
+
+func tryGetInteger (key) = match getInteger(this, key) {
+    case b: Int => 
+        b
+    case _ => 
+        0
+}
+
+
+func getAssetBytes (assetIdStr) = if ((assetIdStr == "WAVES"))
+    then unit
+    else fromBase58String(assetIdStr)
+
+
+func getAssetString (assetId) = match assetId {
+    case b: ByteVector => 
+        toBase58String(b)
+    case _ => 
+        "WAVES"
+}
+
+
+func isPaused () = !(valueOrElse(getBoolean(this, k_active), true))
+
+
+func getAddressList (key,default) = match getString(this, key) {
+    case s: String => 
+        split_4C(s, ",")
+    case _ => 
+        default
+}
+
+
+func isShutdowner (addr) = (indexOf(getAddressList(k_shutdownAddresses, shutdowners), toString(addr)) != unit)
+
+
+func isMarket (addr) = (indexOf(getAddressList(k_markets, markets), toString(addr)) != unit)
+
+
+@Callable(i)
+func processFees (assetIdStr,interest,staking,liquidation) = {
+    let total = ((interest + staking) + liquidation)
+    let _active = if (!(isPaused()))
+        then true
+        else throw("contract is paused")
+    if ((_active == _active))
+        then {
+            let _market = if (isMarket(i.caller))
+                then true
+                else throw("caller is not a whitelisted market")
+            if ((_market == _market))
+                then {
+                    let _nonneg = if (if (if ((interest >= 0))
+                        then (staking >= 0)
+                        else false)
+                        then (liquidation >= 0)
+                        else false)
+                        then true
+                        else throw("amounts must be non-negative")
+                    if ((_nonneg == _nonneg))
+                        then {
+                            let _pmt = if ((size(i.payments) == 1))
+                                then true
+                                else throw("1 payment has to be attached")
+                            if ((_pmt == _pmt))
+                                then {
+                                    let pmt = i.payments[0]
+                                    let _notZero = if ((pmt.amount > 0))
+                                        then true
+                                        else throw("payment amount must be positive")
+                                    if ((_notZero == _notZero))
+                                        then {
+                                            let _asset = if ((getAssetString(pmt.assetId) == assetIdStr))
+                                                then true
+                                                else throw("payment asset mismatch")
+                                            if ((_asset == _asset))
+                                                then {
+                                                    let _sum = if ((pmt.amount == total))
+                                                        then true
+                                                        else throw("payment amount must equal sum of sources")
+                                                    if ((_sum == _sum))
+                                                        then {
+                                                            let m = toString(i.caller)
+                                                            let mPrefix = (((("collected_" + m) + "_") + assetIdStr) + "_")
+                                                            let tPrefix = (("total_" + assetIdStr) + "_")
+[IntegerEntry((mPrefix + "interest"), (tryGetInteger((mPrefix + "interest")) + interest)), IntegerEntry((mPrefix + "staking"), (tryGetInteger((mPrefix + "staking")) + staking)), IntegerEntry((mPrefix + "liquidation"), (tryGetInteger((mPrefix + "liquidation")) + liquidation)), IntegerEntry((tPrefix + "interest"), (tryGetInteger((tPrefix + "interest")) + interest)), IntegerEntry((tPrefix + "staking"), (tryGetInteger((tPrefix + "staking")) + staking)), IntegerEntry((tPrefix + "liquidation"), (tryGetInteger((tPrefix + "liquidation")) + liquidation))]
+                                                            }
+                                                        else throw("Strict value is not equal to itself.")
+                                                    }
+                                                else throw("Strict value is not equal to itself.")
+                                            }
+                                        else throw("Strict value is not equal to itself.")
+                                    }
+                                else throw("Strict value is not equal to itself.")
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func withdraw (assetIdStr,amount,recipient) = {
+    let _active = if (!(isPaused()))
+        then true
+        else throw("contract is paused")
+    if ((_active == _active))
+        then {
+            let isSelf = if ((i.caller == this))
+                then true
+                else throw("Only self-invoke allowed")
+            if ((isSelf == isSelf))
+                then {
+                    let _amount = if ((amount > 0))
+                        then true
+                        else throw("amount must be positive")
+                    if ((_amount == _amount))
+                        then {
+                            let addr = valueOrErrorMessage(addressFromString(recipient), "invalid recipient")
+                            if ((addr == addr))
+                                then {
+                                    let wKey = ("withdrawn_" + assetIdStr)
+[ScriptTransfer(addr, amount, getAssetBytes(assetIdStr)), IntegerEntry(wKey, (tryGetInteger(wKey) + amount))]
+                                    }
+                                else throw("Strict value is not equal to itself.")
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func shutdown (shutdown) = if (!(isShutdowner(i.caller)))
+    then throw("user not in a whitelist")
+    else [BooleanEntry(k_active, !(shutdown))]
+
+
+
+@Callable(i)
+func updateString (key,val) = {
+    let isSelf = if ((i.caller == this))
+        then true
+        else throw("Only self-invoke allowed")
+    if ((isSelf == isSelf))
+        then [StringEntry(key, val)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func updateInteger (key,val) = {
+    let isSelf = if ((i.caller == this))
+        then true
+        else throw("Only self-invoke allowed")
+    if ((isSelf == isSelf))
+        then [IntegerEntry(key, val)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setApproverAddress (approverAddress) = {
+    let isSelf = if ((i.caller == this))
+        then true
+        else throw("Only self invoke")
+    if ((isSelf == isSelf))
+        then {
+            let _approverAddress = addressFromString(approverAddress)
+            let approverOk =             match _approverAddress {
+                case t: Address => 
+                    true
+                case _ => 
+                    false
+            }
+            let canSetApprover = if (if (approverOk)
+                then true
+                else (approverAddress == ""))
+                then true
+                else throw("Wrong approver address")
+            if ((canSetApprover == canSetApprover))
+                then {
+                    let isInited = valueOrElse(getBoolean(value(_approverAddress), "INITED"), false)
+                    let hasAdmins = (valueOrElse(getString(value(_approverAddress), "ADMINS_PBKS"), "") != "")
+                    let isApproverContract = if (if ((approverAddress == ""))
+                        then true
+                        else if (isInited)
+                            then hasAdmins
+                            else false)
+                        then true
+                        else throw("Address is not approver contract")
+                    if ((isApproverContract == isApproverContract))
+                        then [StringEntry("APPROVER_ADDRESS", approverAddress)]
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Verifier(tx)
+func verify () = {
+    let multisigStr = valueOrElse(getString("APPROVER_ADDRESS"), "")
+    let multisigAddress = addressFromString(multisigStr)
+    let multisigOk =     match multisigAddress {
+        case t: Address => 
+            true
+        case _ => 
+            false
+    }
+    let isInited = if (multisigOk)
+        then valueOrElse(getBoolean(value(multisigAddress), "INITED"), false)
+        else false
+    let hasAdmins = if (multisigOk)
+        then (valueOrElse(getString(value(multisigAddress), "ADMINS_PBKS"), "") != "")
+        else false
+    if (if (if (multisigOk)
+        then isInited
+        else false)
+        then hasAdmins
+        else false)
+        then         match tx {
+            case ttx: SetScriptTransaction => 
+                match ttx.script {
+                    case script: ByteVector => 
+                        let scriptHasha = toBase58String(blake2b256(script))
+                        let validFrom = valueOrErrorMessage(getInteger(value(multisigAddress), (((("script%%" + CONTRACT_TYPE) + "%%") + scriptHasha) + "%%validFrom")), "validFrom not set")
+                        let validTo = valueOrErrorMessage(getInteger(value(multisigAddress), (((("script%%" + CONTRACT_TYPE) + "%%") + scriptHasha) + "%%validTo")), "validTo not set")
+                        if (if (if ((height >= validFrom))
+                            then (validTo >= height)
+                            else false)
+                            then (12000000 >= ttx.fee)
+                            else false)
+                            then (scriptHash(this) != blake2b256(script))
+                            else false
+                    case _ => 
+                        false
+                }
+            case otx => 
+                let taskId = ((("tx_" + toString(this)) + "_") + toBase58String(otx.id))
+                let isApproved = valueOrElse(getBoolean(value(multisigAddress), (((toString(this) + "_") + toBase58String(otx.id)) + "__approved")), false)
+                let approvedFrom = valueOrElse(getInteger(value(multisigAddress), (taskId + "__approvedFrom")), 0)
+                if (isApproved)
+                    then (height >= approvedFrom)
+                    else false
+        }
+        else sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)
+    }

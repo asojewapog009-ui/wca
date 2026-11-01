@@ -1,0 +1,347 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let INITIAL_TOKEN_AMOUNT = 1000000000000000
+
+let PERCENT_SCALE = 1000
+
+let kWDaoAddress = "wDaoAddress"
+
+let kWDaoAmount = "wDaoAmount"
+
+let kWDaoLock = "wDaoLockPeriod"
+
+let kWDaoVesting = "wDaoVestingPeriod"
+
+let kWDaoWithdrawed = "wDaoWithdrawed"
+
+let kTeamAddress = "teamAddress"
+
+let kTeamAmount = "teamAmount"
+
+let kTeamLock = "teamLockPeriod"
+
+let kTeamVesting = "teamVestingPeriod"
+
+let kTeamWithdrawed = "teamWithdrawed"
+
+let kMarketingAmount = "marketAmount"
+
+let kMarketingWithdrawed = "marketingWithdrawed"
+
+let kPartnerAmount = "partnerAmount"
+
+let kPartnersWithdrawed = "partnersWithdrawed"
+
+let kRetroDropAmount = "retroDropAmount"
+
+let kRetroDropWithdrawed = "retroDropWithdrawed"
+
+let kLendRewardAmount = "lendRewardsAmount"
+
+let kLendRewardWithdrawed = "lendRewardWithdrawed"
+
+let kLPRewardAmount = "lpRewardAmount"
+
+let kLPRewardWithdrawed = "lpRewardWithdrawed"
+
+let kPoolInitAmount = "poolInitAmount"
+
+let kPoolInitWithdrawed = "poolInitWithdrawed"
+
+let kLaunchpadAmount = "launchpadAmount"
+
+let kLaunchpadWithdrawed = "launchpadWithdrawed"
+
+let kAXLYTokenId = "axlyTokenId"
+
+let kStartHeight = "startHeight"
+
+let kAdmin1PK = "group1_admin1_pub_key"
+
+let kAdmin2PK = "group1_admin2_pub_key"
+
+let kAdmin3PK = "group1_admin3_pub_key"
+
+let kAxlyMainContract = "mainContract"
+
+let kAxlyFarming = "farmingAddress"
+
+let mainContract = addressFromStringValue(valueOrErrorMessage(getString(this, kAxlyMainContract), "Can't get mainContact key"))
+
+let farmingAddress = addressFromStringValue(valueOrErrorMessage(getString(this, kAxlyFarming), "Can't get farmingAddress key"))
+
+let admin1PK = fromBase58String(valueOrErrorMessage(getString(mainContract, kAdmin1PK), "Can't get admin1PK"))
+
+let admin2PK = fromBase58String(valueOrErrorMessage(getString(mainContract, kAdmin2PK), "Can't get admin2PK"))
+
+let admin3PK = fromBase58String(valueOrErrorMessage(getString(mainContract, kAdmin3PK), "Can't get admin3PK"))
+
+let AXLYId = fromBase58String(getStringValue(this, kAXLYTokenId))
+
+func isAdminCall (i) = if (containsElement([admin1PK, admin2PK, admin3PK], i.callerPublicKey))
+    then unit
+    else throw("Only admin group1 can call this function")
+
+
+func isSelfCall (i) = if ((i.caller == this))
+    then unit
+    else throw("Only contract itself can call this function")
+
+
+func isFarmingCall (i) = if ((i.caller == farmingAddress))
+    then unit
+    else throw("Only farming contract can call this function")
+
+
+func parsePercentParamToAmount (param) = {
+    let percent =     match param {
+        case p: Int => 
+            p
+        case p: String => 
+            valueOrErrorMessage(parseInt(p), "Can't parse percent in params")
+        case _ => 
+            throw("Match error")
+    }
+    if (if ((0 >= percent))
+        then true
+        else (percent >= PERCENT_SCALE))
+        then throw("percent must be number between 1(0.1) and 999(99.9)")
+        else {
+            let amount = fraction(INITIAL_TOKEN_AMOUNT, percent, PERCENT_SCALE)
+            amount
+            }
+    }
+
+
+func parseLockVestingPeriod (lockStr,vestStr) = {
+    let lockPeriod = valueOrErrorMessage(parseInt(lockStr), "Can't parse lock period")
+    let vestingPeriod = valueOrErrorMessage(parseInt(vestStr), "Can't parse vesting period")
+    if (if ((0 >= lockPeriod))
+        then true
+        else (0 >= vestingPeriod))
+        then throw("lockPeriod and vestingPeriod must be greater than 0")
+        else if ((lockPeriod > vestingPeriod))
+            then throw("vestingPeriod must be greater than lockPeriod")
+            else $Tuple2(lockPeriod, vestingPeriod)
+    }
+
+
+func validateAddress (aStr) = toString(valueOrErrorMessage(addressFromString(aStr), "Wrong address in params"))
+
+
+func parseWDAOTeamParams (params) = {
+    let address = validateAddress(params[0])
+    let amount = parsePercentParamToAmount(params[1])
+    let $t045414619 = parseLockVestingPeriod(params[2], params[3])
+    let lockPeriod = $t045414619._1
+    let vestingPeriod = $t045414619._2
+    $Tuple4(address, amount, lockPeriod, vestingPeriod)
+    }
+
+
+func parseParams (params) = {
+    let address = validateAddress(params[0])
+    let amount = parsePercentParamToAmount(params[1])
+    $Tuple2(address, amount)
+    }
+
+
+func withdrawTeamDao (totalAmount,lockPeriod,vestingPeriod,withdrawed,address,wKey) = {
+    let startHeight = getIntegerValue(this, kStartHeight)
+    let lockTill = (startHeight + lockPeriod)
+    let canWithdraw = (fraction(totalAmount, min([(height - (startHeight + lockPeriod)), vestingPeriod]), vestingPeriod) - withdrawed)
+    if ((lockTill >= height))
+        then throw("Lock period is not end")
+        else if ((0 >= canWithdraw))
+            then throw("Nothing to withdraw")
+            else [IntegerEntry(wKey, (withdrawed + canWithdraw)), ScriptTransfer(address, canWithdraw, AXLYId)]
+    }
+
+
+func withdrawToOther (amount,totalAmount,withdrawed,address,wKey) = if ((0 >= amount))
+    then throw("amount must be positive value")
+    else if (((withdrawed + amount) > totalAmount))
+        then throw(((("You can't withdraw more than " + toString(totalAmount)) + " Your balance: ") + toString((totalAmount - withdrawed))))
+        else [IntegerEntry(wKey, (withdrawed + amount)), ScriptTransfer(address, amount, AXLYId)]
+
+
+@Callable(i)
+func init (wDaoParams,teamParams,marketingPercent,partnerPercent,retroDropPercent,lendRewardPercent,lpRewardPercent,poolInitPercent,launchpadPercent,mainContractAddr,farmingAddr) = valueOrElse(isSelfCall(i), if ((size(wDaoParams) != 4))
+    then throw("wDaoParams must have 4 args")
+    else if ((size(teamParams) != 4))
+        then throw("teamParams must have 4 args")
+        else if ((0 >= marketingPercent))
+            then throw("marketingPercent must be > 0")
+            else if ((0 >= partnerPercent))
+                then throw("partnerPercent must be > 0")
+                else if ((0 >= retroDropPercent))
+                    then throw("retroDropPercent must be > 0")
+                    else if ((0 >= lendRewardPercent))
+                        then throw("lendRewardParams must be > 0")
+                        else if ((0 >= lpRewardPercent))
+                            then throw("lpRewardParams must be > 0")
+                            else if ((0 >= poolInitPercent))
+                                then throw("poolInitParams must be > 0")
+                                else if (!(isDefined(addressFromString(farmingAddr))))
+                                    then throw("Wrong farming address")
+                                    else if (!(isDefined(addressFromString(mainContractAddr))))
+                                        then throw("Wrong main contract address")
+                                        else {
+                                            let $t072697367 = parseWDAOTeamParams(wDaoParams)
+                                            let wDaoAddress = $t072697367._1
+                                            let wDaoAmount = $t072697367._2
+                                            let wDaoLockPeriod = $t072697367._3
+                                            let wDaoVestingPeriod = $t072697367._4
+                                            let $t073707468 = parseWDAOTeamParams(teamParams)
+                                            let teamAddress = $t073707468._1
+                                            let teamAmount = $t073707468._2
+                                            let teamLockPeriod = $t073707468._3
+                                            let teamVestingPeriod = $t073707468._4
+                                            let mAmount = parsePercentParamToAmount(marketingPercent)
+                                            let pAmount = parsePercentParamToAmount(partnerPercent)
+                                            let rAmount = parsePercentParamToAmount(retroDropPercent)
+                                            let lAmount = parsePercentParamToAmount(lendRewardPercent)
+                                            let lpAmount = parsePercentParamToAmount(lpRewardPercent)
+                                            let piAmount = parsePercentParamToAmount(poolInitPercent)
+                                            let laAmount = parsePercentParamToAmount(launchpadPercent)
+                                            let sum = (((((((wDaoAmount + teamAmount) + mAmount) + pAmount) + rAmount) + lAmount) + lpAmount) + piAmount)
+                                            if ((sum > INITIAL_TOKEN_AMOUNT))
+                                                then throw("Wrong percents( > 100%)")
+                                                else {
+                                                    let issue = Issue("AXLY", "AXLY protocol token", INITIAL_TOKEN_AMOUNT, 8, false)
+                                                    let idStr = toBase58String(calculateAssetId(issue))
+[StringEntry(kWDaoAddress, wDaoAddress), IntegerEntry(kWDaoAmount, wDaoAmount), IntegerEntry(kWDaoLock, wDaoLockPeriod), IntegerEntry(kWDaoVesting, wDaoVestingPeriod), StringEntry(kTeamAddress, teamAddress), IntegerEntry(kTeamAmount, teamAmount), IntegerEntry(kTeamLock, teamLockPeriod), IntegerEntry(kTeamVesting, teamVestingPeriod), IntegerEntry(kMarketingAmount, mAmount), IntegerEntry(kPartnerAmount, pAmount), IntegerEntry(kRetroDropAmount, rAmount), IntegerEntry(kLendRewardAmount, lAmount), IntegerEntry(kLPRewardAmount, lpAmount), IntegerEntry(kPoolInitAmount, piAmount), IntegerEntry(kLaunchpadAmount, laAmount), IntegerEntry(kStartHeight, height), StringEntry(kAxlyMainContract, mainContractAddr), StringEntry(kAxlyFarming, farmingAddr), issue, StringEntry(kAXLYTokenId, idStr)]
+                                                    }
+                                            })
+
+
+
+@Callable(i)
+func withdrawWDao () = {
+    let amount = getIntegerValue(this, kWDaoAmount)
+    let lockPeriod = getIntegerValue(this, kWDaoLock)
+    let vestingPeriod = getIntegerValue(this, kWDaoVesting)
+    let address = addressFromStringValue(getStringValue(this, kWDaoAddress))
+    let withdrawed = valueOrElse(getInteger(this, kWDaoWithdrawed), 0)
+    withdrawTeamDao(amount, lockPeriod, vestingPeriod, withdrawed, address, kWDaoWithdrawed)
+    }
+
+
+
+@Callable(i)
+func withdrawTeam () = {
+    let amount = getIntegerValue(this, kTeamAmount)
+    let lockPeriod = getIntegerValue(this, kTeamLock)
+    let vestingPeriod = getIntegerValue(this, kTeamVesting)
+    let address = addressFromStringValue(getStringValue(this, kTeamAddress))
+    let withdrawed = valueOrElse(getInteger(this, kTeamWithdrawed), 0)
+    withdrawTeamDao(amount, lockPeriod, vestingPeriod, withdrawed, address, kTeamWithdrawed)
+    }
+
+
+
+@Callable(i)
+func withdrawMarketing (amount,addressStr) = valueOrElse(isSelfCall(i), {
+    let totalAmount = getIntegerValue(this, kMarketingAmount)
+    let withdrawed = valueOrElse(getInteger(this, kMarketingWithdrawed), 0)
+    let address = addressFromStringValue(addressStr)
+    withdrawToOther(amount, totalAmount, withdrawed, address, kMarketingWithdrawed)
+    })
+
+
+
+@Callable(i)
+func withdrawPartners (amount,addressStr) = valueOrElse(isSelfCall(i), {
+    let totalAmount = getIntegerValue(this, kPartnerAmount)
+    let withdrawed = valueOrElse(getInteger(this, kPartnersWithdrawed), 0)
+    let address = addressFromStringValue(addressStr)
+    withdrawToOther(amount, totalAmount, withdrawed, address, kPartnersWithdrawed)
+    })
+
+
+
+@Callable(i)
+func withdrawRetroDrop (amount,addressStr) = valueOrElse(isSelfCall(i), {
+    let totalAmount = getIntegerValue(this, kRetroDropAmount)
+    let withdrawed = valueOrElse(getInteger(this, kRetroDropWithdrawed), 0)
+    let address = addressFromStringValue(addressStr)
+    withdrawToOther(amount, totalAmount, withdrawed, address, kRetroDropWithdrawed)
+    })
+
+
+
+@Callable(i)
+func withdrawPollInit (amount,addressStr) = valueOrElse(isSelfCall(i), {
+    let totalAmount = getIntegerValue(this, kPoolInitAmount)
+    let withdrawed = valueOrElse(getInteger(this, kPoolInitWithdrawed), 0)
+    let address = addressFromStringValue(addressStr)
+    withdrawToOther(amount, totalAmount, withdrawed, address, kPoolInitWithdrawed)
+    })
+
+
+
+@Callable(i)
+func withdrawLendReward (amount,addressToStr) = valueOrElse(isFarmingCall(i), {
+    let totalAmount = getIntegerValue(this, kLendRewardAmount)
+    let withdrawed = valueOrElse(getInteger(this, kLendRewardWithdrawed), 0)
+    let address = addressFromStringValue(addressToStr)
+    withdrawToOther(amount, totalAmount, withdrawed, address, kLendRewardWithdrawed)
+    })
+
+
+
+@Callable(i)
+func withdrawLpReward (amount,addressToStr) = valueOrElse(isFarmingCall(i), {
+    let totalAmount = getIntegerValue(this, kLPRewardAmount)
+    let withdrawed = valueOrElse(getInteger(this, kLPRewardWithdrawed), 0)
+    let address = addressFromStringValue(addressToStr)
+    withdrawToOther(amount, totalAmount, withdrawed, address, kLPRewardWithdrawed)
+    })
+
+
+
+@Callable(i)
+func withdrawLaunchpad (amount,addressToStr) = valueOrElse(isSelfCall(i), {
+    let totalAmount = getIntegerValue(this, kLaunchpadAmount)
+    let withdrawed = valueOrElse(getInteger(this, kLaunchpadWithdrawed), 0)
+    let address = addressFromStringValue(addressToStr)
+    withdrawToOther(amount, totalAmount, withdrawed, address, kLaunchpadWithdrawed)
+    })
+
+
+@Verifier(tx)
+func verify () = {
+    let multiSignedByAdmins = {
+        let adminPubKey1Signed = if (sigVerify(tx.bodyBytes, tx.proofs[0], admin1PK))
+            then 1
+            else 0
+        let adminPubKey2Signed = if (sigVerify(tx.bodyBytes, tx.proofs[1], admin2PK))
+            then 1
+            else 0
+        let adminPubKey3Signed = if (sigVerify(tx.bodyBytes, tx.proofs[2], admin3PK))
+            then 1
+            else 0
+        (((adminPubKey1Signed + adminPubKey2Signed) + adminPubKey3Signed) >= 2)
+        }
+    match tx {
+        case inv: InvokeScriptTransaction => 
+            let isSelf = sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)
+            let isRightFee = if ((inv.fee == 100900000))
+                then (inv.feeAssetId == unit)
+                else false
+            let isInitCall = (inv.function == "init")
+            let isnoPayments = (size(inv.payments) == 0)
+            if (if (if (if (isRightFee)
+                then isInitCall
+                else false)
+                then isSelf
+                else false)
+                then isnoPayments
+                else false)
+                then true
+                else multiSignedByAdmins
+        case _ => 
+            multiSignedByAdmins
+    }
+    }

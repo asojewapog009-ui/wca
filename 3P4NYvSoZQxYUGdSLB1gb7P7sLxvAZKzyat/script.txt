@@ -1,0 +1,57 @@
+{-# STDLIB_VERSION 5 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+func writeConstString (key,value) = if (!(isDefined(getString(this, key))))
+    then StringEntry(key, value)
+    else throw(("already initialized: " + key))
+
+
+let reserve = valueOrErrorMessage(getString(this, "reserve"), "neutrino-staker: no reserve")
+
+let node = valueOrErrorMessage(getString(this, "node"), "no node")
+
+let nodeAddress = valueOrErrorMessage(addressFromString(node), "bad node address")
+
+let neutrinoId = valueOrErrorMessage(getString(this, "neutrinoId"), "no neutrino id")
+
+let sp = valueOrErrorMessage(getString(this, "sp"), "no sp")
+
+@Callable(i)
+func initialize (reserve,node,neutrinoId,sp) = [writeConstString("reserve", reserve), writeConstString("node", node), writeConstString("neutrinoId", neutrinoId), writeConstString("sp", sp)]
+
+
+
+@Callable(i)
+func put () = if ((toString(i.caller) != reserve))
+    then throw("reserve only")
+    else {
+        let attachedAssetId = toBase58String(value(i.payments[0].assetId))
+        if ((attachedAssetId != neutrinoId))
+            then throw(((("usdn only: " + neutrinoId) + ", but got ") + attachedAssetId))
+            else {
+                let action = invoke(nodeAddress, "lockNeutrinoSP", [sp, 100], [AttachedPayment(fromBase58String(neutrinoId), i.payments[0].amount)])
+                if ((action == action))
+                    then nil
+                    else throw("Strict value is not equal to itself.")
+                }
+        }
+
+
+
+@Callable(i)
+func get (removedAmount) = if ((toString(i.caller) != reserve))
+    then throw("reserve only")
+    else if ((0 > removedAmount))
+        then throw("pulling negative amount")
+        else {
+            let action = invoke(nodeAddress, "unlockNeutrino", [removedAmount, neutrinoId], nil)
+            if ((action == action))
+                then [ScriptTransfer(i.caller, removedAmount, fromBase58String(neutrinoId))]
+                else throw("Strict value is not equal to itself.")
+            }
+
+
+
+@Callable(i)
+func info () = $Tuple2(nil, valueOrElse(getInteger(nodeAddress, ((("rpd_balance_" + neutrinoId) + "_") + toString(this))), 0))
+

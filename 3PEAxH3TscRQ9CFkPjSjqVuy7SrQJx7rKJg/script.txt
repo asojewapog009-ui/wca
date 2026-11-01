@@ -1,0 +1,85 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let btcAssetId = base58'8LQW8f7P5d5PZM7GtZEBgaqRPGSzS3DfPuiXrURJ4AJS'
+
+let executor = Address(base58'3PGUVhopvqBU3THAfUxSLtVJjc5zKNdvT6K')
+
+let viresMain = Address(base58'3PAZv9tgK1PX7dKR7b4kchq5qdpUS3G5sYT')
+
+let viresBtcStr = "3PA7QMFyHMtHeP66SUQnwCgwKQHKpCyXWwd"
+
+let viresBtc = Address(base58'3PA7QMFyHMtHeP66SUQnwCgwKQHKpCyXWwd')
+
+let viresEthStr = "3PPdeWwrzaxqgr6BuReoF3sWfxW8SYv743D"
+
+let viresEth = Address(base58'3PPdeWwrzaxqgr6BuReoF3sWfxW8SYv743D')
+
+@Callable(i)
+func b () = if (if ((i.caller != executor))
+    then (i.caller != this)
+    else false)
+    then throw("failed")
+    else {
+        let data = getStringValue(viresBtc, "reserveGlobalData")
+        let dataArray = split(data, "|")
+        let storedTotalDeposit = parseIntValue(dataArray[1])
+        let storedTotalReserve = parseIntValue(dataArray[3])
+        let storedTotalDebt = parseIntValue(dataArray[2])
+        let maxWithdraw = ((storedTotalDeposit + storedTotalReserve) - storedTotalDebt)
+        let balanceRes = invoke(viresBtc, "userBalance", [toString(this)], nil)
+        if ((balanceRes == balanceRes))
+            then             match balanceRes {
+                case r: (Int, Int, Int, Int, Int, Boolean) => 
+                    let withdrawBalance = if ((maxWithdraw > r._2))
+                        then r._2
+                        else maxWithdraw
+                    if ((0 >= withdrawBalance))
+                        then throw("zero")
+                        else {
+                            let res = invoke(viresMain, "withdraw2", [viresBtcStr, withdrawBalance], nil)
+                            if ((res == res))
+                                then nil
+                                else throw("Strict value is not equal to itself.")
+                            }
+                case _ => 
+                    throw("wrong type")
+            }
+            else throw("Strict value is not equal to itself.")
+        }
+
+
+
+@Callable(i)
+func e () = if (if ((i.caller != executor))
+    then (i.caller != this)
+    else false)
+    then throw("failed")
+    else {
+        let data = getStringValue(viresEth, "reserveGlobalData")
+        let dataArray = split(data, "|")
+        let storedTotalDeposit = parseIntValue(dataArray[1])
+        let storedTotalReserve = parseIntValue(dataArray[3])
+        let storedTotalDebt = parseIntValue(dataArray[2])
+        let maxWithdraw = ((storedTotalDeposit + storedTotalReserve) - storedTotalDebt)
+        let balanceRes = invoke(viresEth, "userBalance", [toString(this)], nil)
+        if ((balanceRes == balanceRes))
+            then             match balanceRes {
+                case r: (Int, Int, Int, Int, Int, Boolean) => 
+                    let withdrawBalance = if ((maxWithdraw > r._2))
+                        then r._2
+                        else maxWithdraw
+                    if ((0 >= withdrawBalance))
+                        then throw("zero")
+                        else {
+                            let res = invoke(viresMain, "withdraw2", [viresEthStr, withdrawBalance], nil)
+                            if ((res == res))
+                                then nil
+                                else throw("Strict value is not equal to itself.")
+                            }
+                case _ => 
+                    throw("wrong type")
+            }
+            else throw("Strict value is not equal to itself.")
+        }
+

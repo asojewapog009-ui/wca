@@ -1,0 +1,982 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let SEP = "__"
+
+let SCALE8 = 8
+
+let MULT8 = 100000000
+
+let POOLWEIGHTMULT = MULT8
+
+let LONG_MAX = 9223372036854775807
+
+func wrapErr (msg) = makeString(["boosting.ride:", msg], " ")
+
+
+func throwErr (msg) = throw(wrapErr(msg))
+
+
+func strf (address,key) = valueOrErrorMessage(getString(address, key), wrapErr((("mandatory this." + key) + " is not defined")))
+
+
+func ioz (address,key) = valueOrElse(getInteger(address, key), 0)
+
+
+func iod (address,key,defaultVal) = valueOrElse(getInteger(address, key), defaultVal)
+
+
+func iof (address,key) = valueOrErrorMessage(getInteger(address, key), wrapErr((("mandatory this." + key) + " is not defined")))
+
+
+func abs (val) = if ((0 > val))
+    then -(val)
+    else val
+
+
+func aal (val) = match val {
+    case valAnyLyst: List[Any] => 
+        valAnyLyst
+    case _ => 
+        throwErr("fail to cast into List[Any]")
+}
+
+
+func ai (val) = match val {
+    case valInt: Int => 
+        valInt
+    case _ => 
+        throwErr("fail to cast into Int")
+}
+
+
+func keyReferralsContractAddress () = makeString(["%s%s", "config", "referralsContractAddress"], SEP)
+
+
+let referralsContractAddressOrFail = addressFromStringValue(strf(this, keyReferralsContractAddress()))
+
+let keyReferralProgramName = makeString(["%s%s", "referral", "programName"], SEP)
+
+let referralProgramNameDefault = "wxlock"
+
+let referralProgramName = valueOrElse(getString(this, keyReferralProgramName), referralProgramNameDefault)
+
+func keyFactoryAddress () = "%s%s__config__factoryAddress"
+
+
+let IdxFactoryCfgStakingDapp = 1
+
+let IdxFactoryCfgBoostingDapp = 2
+
+let IdxFactoryCfgIdoDapp = 3
+
+let IdxFactoryCfgTeamDapp = 4
+
+let IdxFactoryCfgEmissionDapp = 5
+
+let IdxFactoryCfgRestDapp = 6
+
+let IdxFactoryCfgSlippageDapp = 7
+
+let IdxFactoryCfgDaoDapp = 8
+
+let IdxFactoryCfgMarketingDapp = 9
+
+let IdxFactoryCfgGwxRewardDapp = 10
+
+let IdxFactoryCfgBirdsDapp = 11
+
+func keyFactoryCfg () = "%s__factoryConfig"
+
+
+func keyFactoryLpList () = "%s__lpTokensList"
+
+
+func keyFactoryLpAssetToPoolContractAddress (lpAssetStr) = makeString(["%s%s%s", lpAssetStr, "mappings__lpAsset2PoolContract"], SEP)
+
+
+func keyFactoryPoolWeight (contractAddress) = makeString(["%s%s", "poolWeight", contractAddress], SEP)
+
+
+func keyFactoryPoolWeightHistory (poolAddress,num) = ((("%s%s__poolWeight__" + poolAddress) + "__") + toString(num))
+
+
+func readFactoryAddressOrFail () = addressFromStringValue(strf(this, keyFactoryAddress()))
+
+
+func readLpList () = split(valueOrElse(getString(readFactoryAddressOrFail(), keyFactoryLpList()), ""), SEP)
+
+
+func readFactoryCfgOrFail (factory) = split(strf(factory, keyFactoryCfg()), SEP)
+
+
+func getBoostingAddressOrFail (factoryCfg) = addressFromStringValue(factoryCfg[IdxFactoryCfgBoostingDapp])
+
+
+func getEmissionAddressOrFail (factoryCfg) = addressFromStringValue(factoryCfg[IdxFactoryCfgEmissionDapp])
+
+
+func getStakingAddressOrFail (factoryCfg) = addressFromStringValue(factoryCfg[IdxFactoryCfgStakingDapp])
+
+
+func getGwxRewardAddressOrFail (factoryCfg) = addressFromStringValue(factoryCfg[IdxFactoryCfgGwxRewardDapp])
+
+
+func keyManagerPublicKey () = "%s__managerPublicKey"
+
+
+func keyManagerVaultAddress () = "%s__managerVaultAddress"
+
+
+func keyEmissionRatePerBlockCurrent () = "%s%s__ratePerBlock__current"
+
+
+func keyEmissionRatePerBlockMaxCurrent () = "%s%s__ratePerBlockMax__current"
+
+
+func keyEmissionStartBlock () = "%s%s__emission__startBlock"
+
+
+func keyBoostingV2LastUpdateHeight () = "%s%s__boostingV2__startBlock"
+
+
+func keyBoostingV2Integral () = "%s%s__boostingV2__integral"
+
+
+func keyEmissionDurationInBlocks () = "%s%s__emission__duration"
+
+
+func keyEmissionEndBlock () = "%s%s__emission__endBlock"
+
+
+func keyNextPeriod () = "%s__nextPeriod"
+
+
+func keyGwxRewardEmissionStartHeight () = "%s%s__gwxRewardEmissionPart__startHeight"
+
+
+let IdxCfgAssetId = 1
+
+let IdxCfgMinLockAmount = 2
+
+let IdxCfgMinLockDuration = 3
+
+let IdxCfgMaxLockDuration = 4
+
+let IdxCfgMathContract = 5
+
+func keyConfig () = "%s__config"
+
+
+func readConfigArrayOrFail () = split(strf(this, keyConfig()), SEP)
+
+
+let mathContract = addressFromStringValue(readConfigArrayOrFail()[IdxCfgMathContract])
+
+func formatConfigS (assetId,minLockAmount,minLockDuration,maxLockDuration,mathContract) = makeString(["%s%d%d%d", assetId, minLockAmount, minLockDuration, maxLockDuration, mathContract], SEP)
+
+
+func formatConfig (assetId,minLockAmount,minLockDuration,maxLockDuration,mathContract) = formatConfigS(assetId, toString(minLockAmount), toString(minLockDuration), toString(maxLockDuration), mathContract)
+
+
+func getManagerVaultAddressOrThis () = match getString(keyManagerVaultAddress()) {
+    case s: String => 
+        addressFromStringValue(s)
+    case _ => 
+        this
+}
+
+
+func managerPublicKeyOrUnit () = {
+    let managerVaultAddress = getManagerVaultAddressOrThis()
+    match getString(managerVaultAddress, keyManagerPublicKey()) {
+        case s: String => 
+            fromBase58String(s)
+        case _: Unit => 
+            unit
+        case _ => 
+            throw("Match error")
+    }
+    }
+
+
+func mustManager (i) = {
+    let pd = throwErr("Permission denied")
+    match managerPublicKeyOrUnit() {
+        case pk: ByteVector => 
+            if ((i.callerPublicKey == pk))
+                then true
+                else pd
+        case _: Unit => 
+            if ((i.caller == this))
+                then true
+                else pd
+        case _ => 
+            throw("Match error")
+    }
+    }
+
+
+let IdxLockUserNum = 1
+
+let IdxLockAmount = 2
+
+let IdxLockStart = 3
+
+let IdxLockDuration = 4
+
+let IdxLockParamK = 5
+
+let IdxLockParamB = 6
+
+func keyLockParamsRecord (userAddress) = makeString(["%s%s__lock", userAddress], SEP)
+
+
+func readLockParamsRecordOrFail (userAddress) = split(strf(this, keyLockParamsRecord(userAddress)), SEP)
+
+
+func formatLockParamsRecordS (userNum,amount,start,duration,paramK,paramB,lastUpdTimestamp,gwxAmount) = makeString(["%d%d%d%d%d%d%d%d", userNum, amount, start, duration, paramK, paramB, lastUpdTimestamp, gwxAmount], SEP)
+
+
+func formatLockParamsRecord (userNum,amount,start,duration,paramK,paramB,gwxAmount) = formatLockParamsRecordS(userNum, toString(amount), toString(start), toString(duration), toString(paramK), toString(paramB), toString(lastBlock.timestamp), toString(gwxAmount))
+
+
+func keyNextUserNum () = "%s__nextUserNum"
+
+
+func keyUser2NumMapping (userAddress) = makeString(["%s%s%s__mapping__user2num", userAddress], SEP)
+
+
+func keyNum2UserMapping (num) = makeString(["%s%s%s__mapping__num2user", num], SEP)
+
+
+func keyLockParamUserAmount (userNum) = makeString(["%s%d%s__paramByUserNum", userNum, "amount"], SEP)
+
+
+func keyLockParamStartBlock (userNum) = makeString(["%s%d%s__paramByUserNum", userNum, "start"], SEP)
+
+
+func keyLockParamDuration (userNum) = makeString(["%s%d%s__paramByUserNum", userNum, "duration"], SEP)
+
+
+func keyLockParamK (userNum) = makeString(["%s%d%s__paramByUserNum", userNum, "k"], SEP)
+
+
+func keyLockParamB (userNum) = makeString(["%s%d%s__paramByUserNum", userNum, "b"], SEP)
+
+
+func keyLockParamByPeriodK (userNum,period) = makeString(["%s%d%s%d__paramByPeriod", userNum, "k", period], SEP)
+
+
+func keyLockParamByPeriodB (userNum,period) = makeString(["%s%d%s%d__paramByPeriod", userNum, "b", period], SEP)
+
+
+func keyLockParamTotalAmount () = "%s%s__stats__activeTotalLocked"
+
+
+func keyStatsLocksDurationSumInBlocks () = "%s%s__stats__locksDurationSumInBlocks"
+
+
+func keyStatsLocksCount () = "%s%s__stats__locksCount"
+
+
+func keyStatsUsersCount () = "%s%s__stats__activeUsersCount"
+
+
+func keyUserBoostEmissionLastINTEGRAL (userNum) = makeString(["%s%d__userBoostEmissionLastIntV2", userNum], SEP)
+
+
+func keyUserLpBoostEmissionLastINTEGRAL (userNum,lpAssetId) = makeString(["%s%d__userBoostEmissionLastIntV2", userNum, lpAssetId], SEP)
+
+
+func keyUserMaxBoostINTEGRAL (userNum) = makeString(["%s%d__maxBoostInt", userNum], SEP)
+
+
+func keyTotalMaxBoostINTEGRAL () = "%s%s__maxBoostInt__total"
+
+
+func keyUserBoostAvalaibleToClaimTotal (userNum) = makeString(["%s%d__userBoostAvaliableToClaimTotal", userNum], SEP)
+
+
+func keyUserBoostClaimed (userNum) = makeString(["%s%d__userBoostClaimed", userNum], SEP)
+
+
+func keyTotalCachedGwx () = "%s%s__gwxCached__total"
+
+
+func keyTotalCachedGwxCorrective () = "%s__gwxCachedTotalCorrective"
+
+
+func keyVote (amountAssetId,priceAssetId,address,epoch) = makeString(["%s%s%s%s%d", "vote", amountAssetId, priceAssetId, toString(address), toString(epoch)], SEP)
+
+
+func keyStartHeightByEpoch (epoch) = makeString(["%s%d", "startHeight", toString(epoch)], SEP)
+
+
+func keyCurrentEpochUi () = makeString(["%s", "currentEpochUi"], SEP)
+
+
+func keyVotingResultStaked (lpAssetIdStr,epoch) = makeString(["%s%s%d", "votingResultStaked", lpAssetIdStr, toString(epoch)], SEP)
+
+
+func keyVotingResultStakedIntegral (lpAssetIdStr,epoch) = makeString(["%s%s%d", "votingResultStakedIntegral", lpAssetIdStr, toString(epoch)], SEP)
+
+
+func keyVotingResultStakedLastUpdateHeight (lpAssetIdStr,epoch) = makeString(["%s%s%d", "votingResultStakedIntegralLastUpdateHeight", lpAssetIdStr, toString(epoch)], SEP)
+
+
+func keyVotingResultStakedIntegralLast (lpAssetIdStr,address,epoch) = makeString(["%s%s%s%d", "votingResultStakedIntegralLast", lpAssetIdStr, toString(address), toString(epoch)], SEP)
+
+
+func keyVoteStakedIntegral (lpAssetIdStr,address,epoch) = makeString(["%s%s%s%d", "voteStakedIntegral", lpAssetIdStr, toString(address), toString(epoch)], SEP)
+
+
+func keyVoteStakedLastUpdateHeight (lpAssetIdStr,address,epoch) = makeString(["%s%s%s%d", "voteStakedIntegralLastUpdateHeight", lpAssetIdStr, toString(address), toString(epoch)], SEP)
+
+
+func keyVoteStakedIntegralLast (lpAssetIdStr,address,epoch) = makeString(["%s%s%s%d", "voteStakedIntegralLast", lpAssetIdStr, toString(address), toString(epoch)], SEP)
+
+
+func keyStakedByUser (userAddressStr,lpAssetIdStr) = makeString(["%s%s%s", "staked", userAddressStr, lpAssetIdStr], SEP)
+
+
+let factoryContract = readFactoryAddressOrFail()
+
+let factoryCfg = readFactoryCfgOrFail(factoryContract)
+
+let emissionContract = getEmissionAddressOrFail(factoryCfg)
+
+let stakingContract = getStakingAddressOrFail(factoryCfg)
+
+let gwxRewardContract = getGwxRewardAddressOrFail(factoryCfg)
+
+let lpStakingPoolsContract = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(makeString(["%s", "lpStakingPoolsContract"], SEP)), wrapErr("lp_staking_pools contract address is undefined"))), wrapErr("invalid lp_staking_pools contract address"))
+
+let keyVotingEmissionContract = makeString(["%s", "votingEmissionContract"], SEP)
+
+let votingEmissionContract = addressFromStringValue(getStringValue(factoryContract, keyVotingEmissionContract))
+
+let boostCoeff = {
+    let @ = invoke(emissionContract, "getBoostCoeffREADONLY", nil, nil)
+    if ($isInstanceOf(@, "Int"))
+        then @
+        else throw(($getType(@) + " couldn't be cast to Int"))
+    }
+
+func getTotalCachedGwx (correct) = {
+    let currentEpochUi = getIntegerValue(votingEmissionContract, keyCurrentEpochUi())
+    let keyTargetEpoch = makeString(["%s%s", "totalCachedGwxCorrection__activationEpoch"], SEP)
+    let targetEpochOption = getInteger(this, keyTargetEpoch)
+    let totalCachedGwxRaw = valueOrElse(getInteger(this, keyTotalCachedGwx()), 0)
+    let isCorrectionActivated = if (isDefined(targetEpochOption))
+        then (currentEpochUi >= value(targetEpochOption))
+        else false
+    let corrective = if (if (isCorrectionActivated)
+        then correct
+        else false)
+        then valueOrElse(getInteger(this, keyTotalCachedGwxCorrective()), 0)
+        else 0
+    max([0, (totalCachedGwxRaw + corrective)])
+    }
+
+
+func HistoryEntry (type,user,amount,lockStart,duration,k,b,i) = {
+    let historyKEY = makeString(["%s%s%s%s__history", type, user, toBase58String(i.transactionId)], SEP)
+    let historyDATA = makeString(["%d%d%d%d%d%d%d", toString(lastBlock.height), toString(lastBlock.timestamp), toString(amount), toString(lockStart), toString(duration), toString(k), toString(b)], SEP)
+    StringEntry(historyKEY, historyDATA)
+    }
+
+
+func StatsEntry (totalLockedInc,durationInc,lockCountInc,usersCountInc) = {
+    let locksDurationSumInBlocksKEY = keyStatsLocksDurationSumInBlocks()
+    let locksCountKEY = keyStatsLocksCount()
+    let usersCountKEY = keyStatsUsersCount()
+    let totalAmountKEY = keyLockParamTotalAmount()
+    let locksDurationSumInBlocks = ioz(this, locksDurationSumInBlocksKEY)
+    let locksCount = ioz(this, locksCountKEY)
+    let usersCount = ioz(this, usersCountKEY)
+    let totalAmount = ioz(this, totalAmountKEY)
+[IntegerEntry(locksDurationSumInBlocksKEY, (locksDurationSumInBlocks + durationInc)), IntegerEntry(locksCountKEY, (locksCount + lockCountInc)), IntegerEntry(usersCountKEY, (usersCount + usersCountInc)), IntegerEntry(totalAmountKEY, (totalAmount + totalLockedInc))]
+    }
+
+
+func calcGwxAmount (kRaw,bRaw,h) = {
+    let SCALE = 1000
+    (((kRaw * h) + bRaw) / SCALE)
+    }
+
+
+func LockParamsEntry (userAddress,userNum,amount,start,duration,k,b,period) = {
+    let userAmountKEY = keyLockParamUserAmount(userNum)
+    let startBlockKEY = keyLockParamStartBlock(userNum)
+    let durationKEY = keyLockParamDuration(userNum)
+    let kKEY = keyLockParamK(userNum)
+    let bKEY = keyLockParamB(userNum)
+    let kByPeriodKEY = keyLockParamByPeriodK(userNum, period)
+    let bByPeriodKEY = keyLockParamByPeriodB(userNum, period)
+    let gwxAmount = calcGwxAmount(k, b, height)
+[IntegerEntry(userAmountKEY, amount), IntegerEntry(startBlockKEY, start), IntegerEntry(durationKEY, duration), IntegerEntry(kKEY, k), IntegerEntry(bKEY, b), IntegerEntry(kByPeriodKEY, k), IntegerEntry(bByPeriodKEY, b), StringEntry(keyLockParamsRecord(userAddress), formatLockParamsRecord(userNum, amount, start, duration, k, b, gwxAmount))]
+    }
+
+
+func extractOptionalPaymentAmountOrFail (i,expectedAssetId) = if ((size(i.payments) > 1))
+    then throwErr("only one payment is allowed")
+    else if ((size(i.payments) == 0))
+        then 0
+        else {
+            let pmt = i.payments[0]
+            if ((value(pmt.assetId) != expectedAssetId))
+                then throwErr("invalid asset id in payment")
+                else pmt.amount
+            }
+
+
+func calcUserGwxAmountAtHeight (userAddress,targetHeight) = {
+    let EMPTY = "empty"
+    let user2NumMappingKEY = keyUser2NumMapping(userAddress)
+    let userNum = valueOrElse(getString(user2NumMappingKEY), EMPTY)
+    let k = valueOrElse(getInteger(keyLockParamK(userNum)), 0)
+    let b = valueOrElse(getInteger(keyLockParamB(userNum)), 0)
+    let gwxAmountCalc = calcGwxAmount(k, b, targetHeight)
+    let gwxAmount = if ((0 > gwxAmountCalc))
+        then 0
+        else gwxAmountCalc
+    gwxAmount
+    }
+
+
+func calcCurrentGwxAmount (userAddress) = calcUserGwxAmountAtHeight(userAddress, height)
+
+
+func getVotingEmissionEpochInfo () = {
+    let $t01786418154 = {
+        let currentEpochUi = value(getInteger(votingEmissionContract, keyCurrentEpochUi()))
+        let lastFinalizedEpoch = (currentEpochUi - 1)
+        if ((0 > lastFinalizedEpoch))
+            then throwErr("invalid epoch")
+            else $Tuple2(currentEpochUi, lastFinalizedEpoch)
+        }
+    let currentEpochUi = $t01786418154._1
+    let lastFinalizedEpoch = $t01786418154._2
+    let currentEpochStartHeight = value(getInteger(votingEmissionContract, keyStartHeightByEpoch(currentEpochUi)))
+    $Tuple2(lastFinalizedEpoch, currentEpochStartHeight)
+    }
+
+
+func getPoolAssetsByLpAssetId (lpAssetIdStr) = {
+    let idxAmountAssetId = 4
+    let idxPriceAssetId = 5
+    let poolCfg = {
+        let @ = invoke(factoryContract, "getPoolConfigByLpAssetIdREADONLY", [lpAssetIdStr], nil)
+        if ($isInstanceOf(@, "List[Any]"))
+            then @
+            else throw(($getType(@) + " couldn't be cast to List[Any]"))
+        }
+    let amountAssetId = {
+        let @ = poolCfg[idxAmountAssetId]
+        if ($isInstanceOf(@, "String"))
+            then @
+            else throw(($getType(@) + " couldn't be cast to String"))
+        }
+    let priceAssetId = {
+        let @ = poolCfg[idxPriceAssetId]
+        if ($isInstanceOf(@, "String"))
+            then @
+            else throw(($getType(@) + " couldn't be cast to String"))
+        }
+    $Tuple2(amountAssetId, priceAssetId)
+    }
+
+
+func getUserVoteFinalized (lpAssetIdStr,userAddressStr) = {
+    let userAddress = addressFromStringValue(userAddressStr)
+    let $t01884518925 = getVotingEmissionEpochInfo()
+    let lastFinalizedEpoch = $t01884518925._1
+    let currentEpochStartHeight = $t01884518925._2
+    let $t01892819003 = getPoolAssetsByLpAssetId(lpAssetIdStr)
+    let amountAssetId = $t01892819003._1
+    let priceAssetId = $t01892819003._2
+    let userVoteKey = keyVote(amountAssetId, priceAssetId, userAddress, lastFinalizedEpoch)
+    let userVote = valueOrElse(getInteger(votingEmissionContract, userVoteKey), 0)
+    userVote
+    }
+
+
+func getUserVoteStaked (lpAssetIdStr,userAddressStr) = {
+    let stakedByUser = valueOrElse(getInteger(stakingContract, keyStakedByUser(userAddressStr, lpAssetIdStr)), 0)
+    let userVote = getUserVoteFinalized(lpAssetIdStr, userAddressStr)
+    if ((stakedByUser == 0))
+        then 0
+        else userVote
+    }
+
+
+func getVotingResultStaked (lpAssetIdStr) = {
+    let $t01954719627 = getVotingEmissionEpochInfo()
+    let lastFinalizedEpoch = $t01954719627._1
+    let currentEpochStartHeight = $t01954719627._2
+    let votingResultStakedStart = valueOrElse(getInteger(votingEmissionContract, keyVotingResultStaked(lpAssetIdStr, lastFinalizedEpoch)), 0)
+    let votingResultStaked = valueOrElse(getInteger(this, keyVotingResultStaked(lpAssetIdStr, lastFinalizedEpoch)), votingResultStakedStart)
+    votingResultStaked
+    }
+
+
+func getVotingResultStakedIntegral (lpAssetIdStr) = {
+    let $t01998920069 = getVotingEmissionEpochInfo()
+    let lastFinalizedEpoch = $t01998920069._1
+    let currentEpochStartHeight = $t01998920069._2
+    let votingResultStaked = getVotingResultStaked(lpAssetIdStr)
+    let votingResultStakedIntegralPrev = valueOrElse(getInteger(this, keyVotingResultStakedIntegral(lpAssetIdStr, lastFinalizedEpoch)), 0)
+    let votingResultStakedLastUpdateHeight = valueOrElse(getInteger(this, keyVotingResultStakedLastUpdateHeight(lpAssetIdStr, lastFinalizedEpoch)), currentEpochStartHeight)
+    let votingResultStakedIntegralDh = (height - votingResultStakedLastUpdateHeight)
+    let votingResultStakedIntegral = ((votingResultStakedIntegralDh * votingResultStaked) + votingResultStakedIntegralPrev)
+    let trunkLongMax = fraction(LONG_MAX, 1, MULT8)
+    let trunkDhStaked = fraction(votingResultStakedIntegralDh, votingResultStaked, MULT8)
+    let trunkResult = (trunkDhStaked + fraction(votingResultStakedIntegralPrev, 1, MULT8))
+    let isMax = if ((trunkDhStaked >= trunkLongMax))
+        then true
+        else (trunkResult >= trunkLongMax)
+    if (isMax)
+        then LONG_MAX
+        else votingResultStakedIntegral
+    }
+
+
+func refreshVotingResultStakedIntegral (lpAssetIdStr,stakedVoteDelta) = {
+    let $t02123721317 = getVotingEmissionEpochInfo()
+    let lastFinalizedEpoch = $t02123721317._1
+    let currentEpochStartHeight = $t02123721317._2
+    let votingResultStaked = getVotingResultStaked(lpAssetIdStr)
+    let votingResultStakedNew = (votingResultStaked + stakedVoteDelta)
+    let votingResultStakedIntegral = getVotingResultStakedIntegral(lpAssetIdStr)
+[IntegerEntry(keyVotingResultStaked(lpAssetIdStr, lastFinalizedEpoch), votingResultStakedNew), IntegerEntry(keyVotingResultStakedLastUpdateHeight(lpAssetIdStr, lastFinalizedEpoch), height), IntegerEntry(keyVotingResultStakedIntegral(lpAssetIdStr, lastFinalizedEpoch), votingResultStakedIntegral)]
+    }
+
+
+func getUserVoteStakedIntegral (lpAssetIdStr,userAddressStr) = {
+    let $t02192822008 = getVotingEmissionEpochInfo()
+    let lastFinalizedEpoch = $t02192822008._1
+    let currentEpochStartHeight = $t02192822008._2
+    let userAddress = addressFromStringValue(userAddressStr)
+    let userVoteStaked = getUserVoteStaked(lpAssetIdStr, userAddressStr)
+    let userVoteStakedIntegralPrev = valueOrElse(getInteger(this, keyVoteStakedIntegral(lpAssetIdStr, userAddress, lastFinalizedEpoch)), 0)
+    let userVoteStakedLastUpdateHeight = valueOrElse(getInteger(this, keyVoteStakedLastUpdateHeight(lpAssetIdStr, userAddress, lastFinalizedEpoch)), currentEpochStartHeight)
+    let userVoteStakedIntegralDh = (height - userVoteStakedLastUpdateHeight)
+    let userVoteStakedIntegral = ((userVoteStakedIntegralDh * userVoteStaked) + userVoteStakedIntegralPrev)
+    let trunkLongMax = fraction(LONG_MAX, 1, MULT8)
+    let trunkDhStaked = fraction(userVoteStakedIntegralDh, userVoteStaked, MULT8)
+    let trunkResult = (trunkDhStaked + fraction(userVoteStakedIntegralPrev, 1, MULT8))
+    let isMax = if ((trunkDhStaked >= trunkLongMax))
+        then true
+        else (trunkResult >= trunkLongMax)
+    if (isMax)
+        then LONG_MAX
+        else userVoteStakedIntegral
+    }
+
+
+func refreshVoteStakedIntegral (lpAssetIdStr,userAddressStr,edge) = {
+    let $t02311723197 = getVotingEmissionEpochInfo()
+    let lastFinalizedEpoch = $t02311723197._1
+    let currentEpochStartHeight = $t02311723197._2
+    let userAddress = addressFromStringValue(userAddressStr)
+    let userVoteFinalized = getUserVoteFinalized(lpAssetIdStr, userAddressStr)
+    let actions = if ((userVoteFinalized == 0))
+        then nil
+        else {
+            let stakedVoteDelta = if (edge)
+                then userVoteFinalized
+                else -(userVoteFinalized)
+            let votingResultActions = refreshVotingResultStakedIntegral(lpAssetIdStr, stakedVoteDelta)
+            let userVoteStakedIntegral = getUserVoteStakedIntegral(lpAssetIdStr, userAddressStr)
+            let voteActions = [IntegerEntry(keyVoteStakedLastUpdateHeight(lpAssetIdStr, userAddress, lastFinalizedEpoch), height), IntegerEntry(keyVoteStakedIntegral(lpAssetIdStr, userAddress, lastFinalizedEpoch), userVoteStakedIntegral)]
+            (votingResultActions ++ voteActions)
+            }
+    actions
+    }
+
+
+func getStakedVotesIntegralsDiff (lpAssetIdStr,userAddressStr) = {
+    let $t02405124131 = getVotingEmissionEpochInfo()
+    let lastFinalizedEpoch = $t02405124131._1
+    let currentEpochStartHeight = $t02405124131._2
+    let userAddress = addressFromStringValue(userAddressStr)
+    let userVoteStakedIntegralLastKey = keyVoteStakedIntegralLast(lpAssetIdStr, userAddress, lastFinalizedEpoch)
+    let userVoteStakedIntegralLast = valueOrElse(getInteger(this, userVoteStakedIntegralLastKey), 0)
+    let votingResultStakedIntegralLastKey = keyVotingResultStakedIntegralLast(lpAssetIdStr, userAddress, lastFinalizedEpoch)
+    let votingResultStakedIntegralLast = valueOrElse(getInteger(this, votingResultStakedIntegralLastKey), 0)
+    let userVoteStakedIntegral = getUserVoteStakedIntegral(lpAssetIdStr, userAddressStr)
+    let votingResultStakedIntegral = getVotingResultStakedIntegral(lpAssetIdStr)
+    let userVoteStakedIntegralDiff = (userVoteStakedIntegral - userVoteStakedIntegralLast)
+    let votingResultStakedIntegralDiff = (votingResultStakedIntegral - votingResultStakedIntegralLast)
+    $Tuple3([IntegerEntry(userVoteStakedIntegralLastKey, userVoteStakedIntegral), IntegerEntry(votingResultStakedIntegralLastKey, votingResultStakedIntegral)], userVoteStakedIntegralDiff, votingResultStakedIntegralDiff)
+    }
+
+
+func refreshBoostEmissionIntegral () = {
+    let wxEmissionPerBlock = iof(emissionContract, keyEmissionRatePerBlockCurrent())
+    let boostingV2LastUpdateHeightOption = getInteger(this, keyBoostingV2LastUpdateHeight())
+    let boostingV2IngergalOption = getInteger(this, keyBoostingV2Integral())
+    let emissionEnd = iof(emissionContract, keyEmissionEndBlock())
+    let h = if ((height > emissionEnd))
+        then emissionEnd
+        else height
+    let dh =     match boostingV2LastUpdateHeightOption {
+        case lastUpdateHeight: Int => 
+            max([(h - lastUpdateHeight), 0])
+        case _: Unit => 
+            0
+        case _ => 
+            throw("Match error")
+    }
+    let boostEmissionPerBlock = ((wxEmissionPerBlock * (boostCoeff - 1)) / boostCoeff)
+    let boostEmissionIntegralPrev = valueOrElse(boostingV2IngergalOption, 0)
+    let boostEmissionIntegral = ((boostEmissionPerBlock * dh) + boostEmissionIntegralPrev)
+    $Tuple2([IntegerEntry(keyBoostingV2Integral(), boostEmissionIntegral), IntegerEntry(keyBoostingV2LastUpdateHeight(), height)], boostEmissionIntegral)
+    }
+
+
+func internalClaimWxBoost (lpAssetIdStr,userAddressStr,readOnly) = {
+    let userRecordOption = getString(this, keyLockParamsRecord(userAddressStr))
+    if ((userRecordOption == unit))
+        then $Tuple3(0, nil, "userRecord::is::empty")
+        else {
+            let userRecordArray = split(value(userRecordOption), SEP)
+            let userNumStr = userRecordArray[IdxLockUserNum]
+            let EMPTYSTR = "empty"
+            let poolWeight = if ((lpAssetIdStr != EMPTYSTR))
+                then {
+                    let poolAddressStr = valueOrErrorMessage(getString(factoryContract, keyFactoryLpAssetToPoolContractAddress(lpAssetIdStr)), wrapErr(("unsupported lp asset " + lpAssetIdStr)))
+                    getIntegerValue(factoryContract, keyFactoryPoolWeight(poolAddressStr))
+                    }
+                else if (readOnly)
+                    then 0
+                    else throwErr(("not readonly mode: unsupported lp asset " + lpAssetIdStr))
+            let userLpBoostEmissionLastIntegralKEY = keyUserLpBoostEmissionLastINTEGRAL(userNumStr, lpAssetIdStr)
+            let userBoostEmissionLastIntegralKEY = keyUserBoostEmissionLastINTEGRAL(userNumStr)
+            let userBoostEmissionLastIntegral = valueOrElse(getInteger(this, userLpBoostEmissionLastIntegralKEY), ioz(this, userBoostEmissionLastIntegralKEY))
+            let boostEmissionIntegral = refreshBoostEmissionIntegral()._2
+            let userBoostEmissionIntegral = (boostEmissionIntegral - userBoostEmissionLastIntegral)
+            if ((0 > userBoostEmissionIntegral))
+                then throwErr("wrong calculations")
+                else {
+                    let $t02775027889 = getStakedVotesIntegralsDiff(lpAssetIdStr, userAddressStr)
+                    let stakedVotesIntegralsActions = $t02775027889._1
+                    let userVoteIntegralDiff = $t02775027889._2
+                    let totalVotesIntegralDiff = $t02775027889._3
+                    let poolUserBoostEmissionIntegral = fraction(userBoostEmissionIntegral, poolWeight, POOLWEIGHTMULT)
+                    let userBoostAvaliableToClaimTotalNew = if ((totalVotesIntegralDiff == 0))
+                        then 0
+                        else fraction(poolUserBoostEmissionIntegral, userVoteIntegralDiff, totalVotesIntegralDiff)
+                    let dataState = ([IntegerEntry(userLpBoostEmissionLastIntegralKEY, boostEmissionIntegral)] ++ stakedVotesIntegralsActions)
+                    let debug = makeString([toString(userBoostEmissionLastIntegral), toString(userBoostEmissionIntegral), toString(poolWeight), toString(userVoteIntegralDiff), toString(totalVotesIntegralDiff)], ":")
+                    $Tuple3(userBoostAvaliableToClaimTotalNew, dataState, debug)
+                    }
+            }
+    }
+
+
+func lockActions (i,duration) = {
+    let cfgArray = readConfigArrayOrFail()
+    let assetIdStr = cfgArray[IdxCfgAssetId]
+    let assetId = fromBase58String(assetIdStr)
+    let minLockAmount = parseIntValue(cfgArray[IdxCfgMinLockAmount])
+    let minLockDuration = parseIntValue(cfgArray[IdxCfgMinLockDuration])
+    let maxLockDuration = parseIntValue(cfgArray[IdxCfgMaxLockDuration])
+    if ((size(i.payments) != 1))
+        then throwErr("invalid payment - exact one payment must be attached")
+        else {
+            let pmt = i.payments[0]
+            let pmtAmount = pmt.amount
+            if ((assetId != value(pmt.assetId)))
+                then throwErr((("invalid asset is in payment - " + assetIdStr) + " is expected"))
+                else {
+                    let nextUserNumKEY = keyNextUserNum()
+                    let userAddressStr = toString(i.caller)
+                    let userIsExisting = isDefined(getString(keyUser2NumMapping(userAddressStr)))
+                    let userNumStr = if (userIsExisting)
+                        then value(getString(keyUser2NumMapping(userAddressStr)))
+                        else toString(iof(this, nextUserNumKEY))
+                    let userNum = parseIntValue(userNumStr)
+                    let lockStart = height
+                    let startBlockKEY = keyLockParamStartBlock(userNumStr)
+                    let durationKEY = keyLockParamDuration(userNumStr)
+                    let userAmountKEY = keyLockParamUserAmount(userNumStr)
+                    if (if ((minLockAmount > pmtAmount))
+                        then (i.caller != lpStakingPoolsContract)
+                        else false)
+                        then throwErr(("amount is less then minLockAmount=" + toString(minLockAmount)))
+                        else if ((minLockDuration > duration))
+                            then throwErr(("passed duration is less then minLockDuration=" + toString(minLockDuration)))
+                            else if ((duration > maxLockDuration))
+                                then throwErr(("passed duration is greater then maxLockDuration=" + toString(maxLockDuration)))
+                                else if (if (userIsExisting)
+                                    then ((iof(this, startBlockKEY) + iof(this, durationKEY)) >= lockStart)
+                                    else false)
+                                    then throwErr("there is an active lock - consider to use increaseLock")
+                                    else if ((ioz(this, userAmountKEY) > 0))
+                                        then throwErr(("there are locked WXs - consider to use increaseLock " + userAmountKEY))
+                                        else {
+                                            let coeffX8 = fraction(duration, MULT8, maxLockDuration)
+                                            let gWxAmountStart = fraction(pmtAmount, coeffX8, MULT8)
+                                            let gWxParamsResultList = aal(invoke(mathContract, "calcGwxParamsREADONLY", [gWxAmountStart, lockStart, duration], nil))
+                                            let k = ai(gWxParamsResultList[0])
+                                            let b = ai(gWxParamsResultList[1])
+                                            let period = toString(ai(gWxParamsResultList[2]))
+                                            let totalCachedGwxRaw = getTotalCachedGwx(false)
+                                            let userBoostEmissionLastIntegralKEY = keyUserBoostEmissionLastINTEGRAL(userNumStr)
+                                            let boostEmissionIntegral = refreshBoostEmissionIntegral()._2
+                                            let arr = if (userIsExisting)
+                                                then nil
+                                                else [IntegerEntry(nextUserNumKEY, (userNum + 1)), StringEntry(keyUser2NumMapping(userAddressStr), userNumStr), StringEntry(keyNum2UserMapping(userNumStr), userAddressStr)]
+                                            $Tuple2(((((arr ++ LockParamsEntry(userAddressStr, userNumStr, pmtAmount, lockStart, duration, k, b, period)) ++ StatsEntry(pmtAmount, duration, 1, if (userIsExisting)
+                                                then 0
+                                                else 1)) :+ HistoryEntry("lock", userAddressStr, pmtAmount, lockStart, duration, k, b, i)) ++ [IntegerEntry(userBoostEmissionLastIntegralKEY, boostEmissionIntegral), IntegerEntry(keyTotalCachedGwx(), (totalCachedGwxRaw + gWxAmountStart))]), gWxAmountStart)
+                                            }
+                    }
+            }
+    }
+
+
+@Callable(i)
+func constructor (factoryAddressStr,lockAssetIdStr,minLockAmount,minDuration,maxDuration,mathContract) = {
+    let checkCaller = mustManager(i)
+    if ((checkCaller == checkCaller))
+        then ([IntegerEntry(keyNextUserNum(), 0), StringEntry(keyConfig(), formatConfig(lockAssetIdStr, minLockAmount, minDuration, maxDuration, mathContract)), StringEntry(keyFactoryAddress(), factoryAddressStr)] ++ StatsEntry(0, 0, 0, 0))
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func lockRef (duration,referrerAddress,signature) = {
+    let $t03250032565 = lockActions(i, duration)
+    let lockActionsResult = $t03250032565._1
+    let gWxAmountStart = $t03250032565._2
+    let referralAddress = toString(i.caller)
+    let refInv = if (if ((referrerAddress == ""))
+        then true
+        else (signature == base58''))
+        then unit
+        else invoke(referralsContractAddressOrFail, "createPair", [referralProgramName, referrerAddress, referralAddress, signature], nil)
+    if ((refInv == refInv))
+        then {
+            let updateRefActivity = invoke(mathContract, "updateReferralActivity", [toString(i.caller), gWxAmountStart], nil)
+            if ((updateRefActivity == updateRefActivity))
+                then $Tuple2(lockActionsResult, unit)
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func lock (duration) = {
+    let $t03302333088 = lockActions(i, duration)
+    let lockActionsResult = $t03302333088._1
+    let gWxAmountStart = $t03302333088._2
+    let updateRefActivity = invoke(mathContract, "updateReferralActivity", [toString(i.caller), gWxAmountStart], nil)
+    if ((updateRefActivity == updateRefActivity))
+        then $Tuple2(lockActionsResult, unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func increaseLock (deltaDuration) = {
+    let cfgArray = readConfigArrayOrFail()
+    let assetIdStr = cfgArray[IdxCfgAssetId]
+    let assetId = fromBase58String(assetIdStr)
+    let minLockDuration = parseIntValue(cfgArray[IdxCfgMinLockDuration])
+    let maxLockDuration = parseIntValue(cfgArray[IdxCfgMaxLockDuration])
+    let pmtAmount = extractOptionalPaymentAmountOrFail(i, assetId)
+    let userAddressStr = toString(i.caller)
+    let userRecordArray = readLockParamsRecordOrFail(userAddressStr)
+    let userNumStr = userRecordArray[IdxLockUserNum]
+    let userAmount = parseIntValue(userRecordArray[IdxLockAmount])
+    let lockStart = parseIntValue(userRecordArray[IdxLockStart])
+    let lockDuration = parseIntValue(userRecordArray[IdxLockDuration])
+    let lockEnd = (lockStart + lockDuration)
+    let remainingDuration = max([(lockEnd - height), 0])
+    let userAmountNew = (userAmount + pmtAmount)
+    let lockDurationNew = (remainingDuration + deltaDuration)
+    if ((0 > deltaDuration))
+        then throwErr("duration is less then zero")
+        else if ((minLockDuration > lockDurationNew))
+            then throwErr(("lockDurationNew is less then minLockDuration=" + toString(minLockDuration)))
+            else if ((lockDurationNew > maxLockDuration))
+                then throwErr(("deltaDuration + existedLockDuration is greater then maxLockDuration=" + toString(maxLockDuration)))
+                else {
+                    let coeffX8 = fraction(lockDurationNew, MULT8, maxLockDuration)
+                    let gWxAmountStart = fraction(userAmountNew, coeffX8, MULT8)
+                    let updateRefActivity = invoke(mathContract, "updateReferralActivity", [toString(i.caller), gWxAmountStart], nil)
+                    if ((updateRefActivity == updateRefActivity))
+                        then {
+                            let lockStartNew = height
+                            let gWxParamsResultList = aal(invoke(mathContract, "calcGwxParamsREADONLY", [gWxAmountStart, lockStartNew, lockDurationNew], nil))
+                            let k = ai(gWxParamsResultList[0])
+                            let b = ai(gWxParamsResultList[1])
+                            let period = toString(ai(gWxParamsResultList[2]))
+                            let currUserGwx = calcCurrentGwxAmount(userAddressStr)
+                            let gwxDiff = (gWxAmountStart - currUserGwx)
+                            if ((0 > gwxDiff))
+                                then throwErr(("gwxDiff is less then 0: " + toString(gwxDiff)))
+                                else {
+                                    let totalCachedGwxRaw = getTotalCachedGwx(false)
+                                    let totalCachedGwxCorrected = getTotalCachedGwx(true)
+                                    (((LockParamsEntry(userAddressStr, userNumStr, userAmountNew, lockStartNew, lockDurationNew, k, b, period) ++ StatsEntry(pmtAmount, deltaDuration, 0, 0)) :+ HistoryEntry("lock", userAddressStr, pmtAmount, lockStart, lockDurationNew, k, b, i)) ++ [IntegerEntry(keyTotalCachedGwx(), (totalCachedGwxRaw + gwxDiff))])
+                                    }
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+    }
+
+
+
+@Callable(i)
+func claimWxBoost (lpAssetIdStr,userAddressStr) = if ((stakingContract != i.caller))
+    then throwErr("permissions denied")
+    else {
+        let $t03619336295 = internalClaimWxBoost(lpAssetIdStr, userAddressStr, false)
+        let userBoostAvailable = $t03619336295._1
+        let dataState = $t03619336295._2
+        let debug = $t03619336295._3
+        $Tuple2(dataState, [userBoostAvailable])
+        }
+
+
+
+@Callable(i)
+func claimWxBoostREADONLY (lpAssetIdStr,userAddressStr) = {
+    let $t03642736528 = internalClaimWxBoost(lpAssetIdStr, userAddressStr, true)
+    let userBoostAvailable = $t03642736528._1
+    let dataState = $t03642736528._2
+    let debug = $t03642736528._3
+    $Tuple2(nil, [userBoostAvailable, debug])
+    }
+
+
+
+@Callable(i)
+func unlock (userAddress) = {
+    let userRecordArray = readLockParamsRecordOrFail(userAddress)
+    let userNumStr = userRecordArray[IdxLockUserNum]
+    let userAmount = parseIntValue(userRecordArray[IdxLockAmount])
+    let lockStart = parseIntValue(userRecordArray[IdxLockStart])
+    let lockDuration = parseIntValue(userRecordArray[IdxLockDuration])
+    let lockEnd = (lockStart + lockDuration)
+    let cfgArray = readConfigArrayOrFail()
+    let assetId = fromBase58String(cfgArray[IdxCfgAssetId])
+    if ((lockEnd >= height))
+        then throwErr((("wait " + toString(lockEnd)) + " to unlock"))
+        else if ((0 >= userAmount))
+            then throwErr("nothing to unlock")
+            else {
+                let period = valueOrElse(getInteger(mathContract, keyNextPeriod()), 0)
+                (((LockParamsEntry(userAddress, userNumStr, 0, lockStart, lockDuration, 0, 0, toString(period)) ++ StatsEntry(-(userAmount), 0, 0, -1)) :+ HistoryEntry("unlock", userAddress, userAmount, lockStart, lockDuration, 0, 0, i)) :+ ScriptTransfer(addressFromStringValue(userAddress), userAmount, assetId))
+                }
+    }
+
+
+
+@Callable(i)
+func gwxUserInfoREADONLY (userAddress) = {
+    let gwxAmount = calcCurrentGwxAmount(userAddress)
+    $Tuple2(nil, [gwxAmount])
+    }
+
+
+
+@Callable(i)
+func userMaxDurationREADONLY (userAddressStr) = {
+    let cfgArray = readConfigArrayOrFail()
+    let maxLockDuration = parseIntValue(cfgArray[IdxCfgMaxLockDuration])
+    let userRecordOption = getString(this, keyLockParamsRecord(userAddressStr))
+    if ((userRecordOption == unit))
+        then $Tuple2(nil, $Tuple2("lock", maxLockDuration))
+        else {
+            let userRecordArray = split(value(userRecordOption), SEP)
+            let lockStart = parseIntValue(userRecordArray[IdxLockStart])
+            let lockDuration = parseIntValue(userRecordArray[IdxLockDuration])
+            let lockEnd = (lockStart + lockDuration)
+            let remainingDuration = max([(lockEnd - height), 0])
+            let maxDeltaDuration = (maxLockDuration - remainingDuration)
+            $Tuple2(nil, $Tuple2("increaseLock", maxDeltaDuration))
+            }
+    }
+
+
+
+@Callable(i)
+func getUserGwxAmountAtHeightREADONLY (userAddress,targetHeight) = {
+    let gwxAmount = calcUserGwxAmountAtHeight(userAddress, targetHeight)
+    $Tuple2(nil, gwxAmount)
+    }
+
+
+
+@Callable(i)
+func getTotalCachedGwxREADONLY () = $Tuple2(nil, getTotalCachedGwx(true))
+
+
+
+@Callable(i)
+func onBoostEmissionUpdate () = {
+    let checkCaller = if ((i.caller == emissionContract))
+        then true
+        else mustManager(i)
+    if ((checkCaller == checkCaller))
+        then refreshBoostEmissionIntegral()
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func onStakedVoteUpdate (lpAssetIdStr,userAddressStr,edge) = {
+    let checkCaller = if ((i.caller == stakingContract))
+        then true
+        else mustManager(i)
+    if ((checkCaller == checkCaller))
+        then {
+            let actions = refreshVoteStakedIntegral(lpAssetIdStr, userAddressStr, edge)
+            $Tuple2(actions, unit)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func getVotingResultStakedREADONLY (lpAssetIdStr) = $Tuple2(nil, getVotingResultStaked(lpAssetIdStr))
+
+
+
+@Callable(i)
+func getVotingResultStakedIntegralREADONLY (lpAssetIdStr) = $Tuple2(nil, getVotingResultStakedIntegral(lpAssetIdStr))
+
+
+
+@Callable(i)
+func getUserVoteFinalizedREADONLY (lpAssetIdStr,userAddressStr) = $Tuple2(nil, getUserVoteFinalized(lpAssetIdStr, userAddressStr))
+
+
+
+@Callable(i)
+func getUserVoteStakedIntegralREADONLY (lpAssetIdStr,userAddressStr) = $Tuple2(nil, getUserVoteStakedIntegral(lpAssetIdStr, userAddressStr))
+
+
+@Verifier(tx)
+func verify () = {
+    let targetPublicKey =     match managerPublicKeyOrUnit() {
+        case pk: ByteVector => 
+            pk
+        case _: Unit => 
+            tx.senderPublicKey
+        case _ => 
+            throw("Match error")
+    }
+    sigVerify(tx.bodyBytes, tx.proofs[0], targetPublicKey)
+    }

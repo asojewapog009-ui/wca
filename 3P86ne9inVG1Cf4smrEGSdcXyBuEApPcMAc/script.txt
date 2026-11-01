@@ -1,0 +1,316 @@
+{-# STDLIB_VERSION 7 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+func writeConstString (key,value) = if (!(isDefined(getString(this, key))))
+    then StringEntry(key, value)
+    else throw(("already initialized: " + key))
+
+
+func writeInt (key,value) = if ((0 > value))
+    then throw(((("writing negative value " + toString(value)) + " for key ") + key))
+    else IntegerEntry(key, value)
+
+
+func changeBy (key,value) = writeInt(key, (valueOrElse(getInteger(this, key), 0) + value))
+
+
+let configAddressStore = "config"
+
+let configAddress = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(this, configAddressStore), "staking: config address not found")), "invalid config address")
+
+func allowed (op) = invoke(configAddress, "opAllowed", [op], nil)
+
+
+let pwrAssetIdStr = valueOrErrorMessage(getString(configAddress, "powerAssetId"), "pwr asset id not found")
+
+let pwrAssetId = fromBase58String(pwrAssetIdStr)
+
+let minterContract = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "contract_minter"), "no contract_minter")), "invalid minter contract")
+
+let votingRewardsContract = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "contract_voting_rewards"), "no contract_voting_rewards")), "invalid voting rewards contract")
+
+let motherVotingContract = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "contract_voting"), "no contract_voting")), "invalid voting contract")
+
+let mainAddresses = valueOrElse(getString(configAddress, "main_addresses"), "")
+
+let withdrawalContract = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "contract_withdrawal"), "no contract_withdrawal")), "invalid withdrawal contract")
+
+let exitCooldown = valueOrElse(getInteger(configAddress, (toString(this) + "_exit_cooldown")), 43200)
+
+let kpiSafetyWindow = valueOrElse(getInteger(configAddress, (toString(this) + "_kpi_safety_window")), 43200)
+
+func userSharesStore (user) = (user + "_shares")
+
+
+func storeHeight (store) = (store + "_height")
+
+
+func storeLock (store) = (store + "_lock")
+
+
+func lockHeight (address) = valueOrElse(getInteger(this, storeLock(userSharesStore(address))), 0)
+
+
+func stakeHeight (address) = valueOrElse(getInteger(this, storeHeight(userSharesStore(address))), 0)
+
+
+let minLockTime = valueOrElse(getInteger(configAddress, (toString(this) + "_min_lock_time")), 0)
+
+func legacyUnlockHeight (address) = max([(lockHeight(address) + minLockTime), (stakeHeight(address) + minLockTime)])
+
+
+let HEIGHT = height
+
+let stakedHeightStore = "stakedHeight"
+
+let totalSharesStore = "totalShares"
+
+let stakedStore = "staked"
+
+let RBase = 10000000000000000
+
+let apr = valueOrErrorMessage(getInteger(configAddress, (toString(this) + "_staker_apr")), "no staker_apr")
+
+let blocksPerYear = ((365 * 24) * 60)
+
+let RPerBlock = fraction(apr, RBase, (1000 * blocksPerYear))
+
+let totalStaked = valueOrElse(getInteger(this, stakedStore), 0)
+
+let currentStaked = {
+    let stakedHeight = valueOrElse(getInteger(this, stakedHeightStore), 0)
+    let d = (HEIGHT - stakedHeight)
+    let r = (RBase + (d * RPerBlock))
+    fraction(totalStaked, r, RBase)
+    }
+
+func pwrToShares (pwrAmount) = {
+    let totalShares = valueOrElse(getInteger(this, totalSharesStore), 0)
+    if ((totalShares == 0))
+        then pwrAmount
+        else fraction(pwrAmount, totalShares, currentStaked)
+    }
+
+
+func sharesToPwr (sharesAmount) = {
+    let totalShares = valueOrElse(getInteger(this, totalSharesStore), 0)
+    if ((totalShares == 0))
+        then sharesAmount
+        else fraction(sharesAmount, currentStaked, totalShares)
+    }
+
+
+func ensurePwrBalance (amount) = {
+    let pwrBalance = assetBalance(this, pwrAssetId)
+    if ((amount > pwrBalance))
+        then {
+            let mint = invoke(minterContract, "mint", [(amount - pwrBalance)], nil)
+            if ((mint == mint))
+                then nil
+                else throw("Strict value is not equal to itself.")
+            }
+        else nil
+    }
+
+
+func payout (user,amount) = {
+    let ensure = ensurePwrBalance(amount)
+    if ((ensure == ensure))
+        then ScriptTransfer(addressFromStringValue(user), amount, pwrAssetId)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func shares (address) = valueOrElse(getInteger(this, userSharesStore(address)), 0)
+
+
+func staked (address) = sharesToPwr(shares(address))
+
+
+func advise () = {
+    let totalShares = valueOrElse(getInteger(this, totalSharesStore), 0)
+    let totalStaked1 = sharesToPwr(totalShares)
+    ((((("height: " + toString(HEIGHT)) + ", totalStaked: ") + toString(totalStaked1)) + ", totalShares: ") + toString(totalShares))
+    }
+
+
+func adviseUser (user) = {
+    let shares1 = shares(user)
+    let available = sharesToPwr(shares1)
+    let heightAndAcc = ((("height: " + toString(HEIGHT)) + ", account: ") + user)
+    if ((shares1 == 0))
+        then ((heightAndAcc + ", staked: 0") + ", voting_power: 0")
+        else ((((heightAndAcc + ", staked: ") + toString(available)) + ", voting_power: ") + toString(shares1))
+    }
+
+
+func userFirstStakeEpochStore (address) = ("first_stake_epoch_" + address)
+
+
+func stakeForInt (address,p) = if ((p.assetId != pwrAssetId))
+    then throw("invalid asset id")
+    else {
+        let additional = p.amount
+        let sharesAmount = pwrToShares(additional)
+        let hasNeverStaked = if (!(isDefined(getInteger(this, storeHeight(userSharesStore(address))))))
+            then !(isDefined(getInteger(userFirstStakeEpochStore(address))))
+            else false
+        let firstStakeEntry = if (hasNeverStaked)
+            then {
+                let currentEpoch = valueOrElse(getInteger(votingRewardsContract, "epoch"), 0)
+[IntegerEntry(userFirstStakeEpochStore(address), currentEpoch)]
+                }
+            else nil
+        (firstStakeEntry ++ [writeInt(stakedStore, (currentStaked + additional)), writeInt(stakedHeightStore, HEIGHT), changeBy(totalSharesStore, sharesAmount), changeBy(userSharesStore(address), sharesAmount), IntegerEntry(storeHeight(userSharesStore(address)), HEIGHT)])
+        }
+
+
+func unstakeFromInt (address,payoutAddress,pwrAmount) = {
+    let shares1 = shares(address)
+    if ((shares1 == 0))
+        then throw("nothing to unstake")
+        else {
+            let maxAvailable = sharesToPwr(shares1)
+            let amount = if ((pwrAmount == -1))
+                then maxAvailable
+                else pwrAmount
+            if ((0 > amount))
+                then throw("cannot unstake negative amount")
+                else if ((amount > maxAvailable))
+                    then throw("cannot unstake more than you have")
+                    else {
+                        let sharesAmount = min([pwrToShares(amount), shares1])
+                        if ((sharesAmount == 0))
+                            then throw("cannot unstake 0 shares")
+                            else $Tuple2([writeInt(stakedStore, (currentStaked - amount)), writeInt(stakedHeightStore, HEIGHT), changeBy(totalSharesStore, -(sharesAmount)), changeBy(userSharesStore(address), -(sharesAmount)), payout(payoutAddress, amount)], amount)
+                        }
+            }
+    }
+
+
+func exitUnstakeInt (address) = {
+    let shares1 = shares(address)
+    if ((shares1 == 0))
+        then throw("nothing to unstake")
+        else {
+            let amount = sharesToPwr(shares1)
+            $Tuple2([writeInt(stakedStore, (currentStaked - amount)), writeInt(stakedHeightStore, HEIGHT), changeBy(totalSharesStore, -(shares1)), DeleteEntry(userSharesStore(address)), DeleteEntry(storeHeight(userSharesStore(address))), DeleteEntry(storeLock(userSharesStore(address)))], amount)
+            }
+    }
+
+
+let bots = valueOrErrorMessage(addressFromString(valueOrElse(getString(configAddress, "twitter_airdrop"), "3PN2vcpyjABTCMvPpkkpatBQPan9dUM8dib")), "invalid twitter_airdrop address")
+
+let botsDailyTotalStore = ("bots_daily_limit_" + toString(fraction(HEIGHT, 1, 1440)))
+
+let botsDailyLimit = valueOrElse(getInteger(this, "bots_daily_limit"), 1000000000)
+
+@Callable(i)
+func stakeFor (address) = {
+    let a = allowed("stakeFor")
+    if ((a == a))
+        then if (!(contains(mainAddresses, toString(i.caller))))
+            then throw("stakeFor denied")
+            else stakeForInt(address, i.payments[0])
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func exitFor (address) = {
+    let a = allowed("exit")
+    if ((a == a))
+        then if (!(contains(mainAddresses, toString(i.caller))))
+            then throw("denied")
+            else {
+                let $t082878357 = exitUnstakeInt(address)
+                let cmd = $t082878357._1
+                let amount = $t082878357._2
+                let botCmd = if (isDefined(getInteger(bots, (address + "_claimed"))))
+                    then {
+                        let limit = valueOrElse(getInteger(botsDailyTotalStore), botsDailyLimit)
+                        let newLimit = (limit - amount)
+                        if ((0 > newLimit))
+                            then throw("not found")
+                            else [IntegerEntry(botsDailyTotalStore, newLimit)]
+                        }
+                    else nil
+                let legacyUnlock = legacyUnlockHeight(address)
+                let motherKpiLock = valueOrElse(getInteger(motherVotingContract, ("user_kpi_lock_" + address)), 0)
+                let kpiLockHeight = if ((motherKpiLock > 0))
+                    then (motherKpiLock + kpiSafetyWindow)
+                    else 0
+                let withdrawHeight = max([(HEIGHT + exitCooldown), legacyUnlock, kpiLockHeight])
+                let ensure = ensurePwrBalance(amount)
+                if ((ensure == ensure))
+                    then {
+                        let park = invoke(withdrawalContract, "parkFor", [toString(this), address, withdrawHeight], [AttachedPayment(pwrAssetId, amount)])
+                        if ((park == park))
+                            then $Tuple2((cmd ++ botCmd), amount)
+                            else throw("Strict value is not equal to itself.")
+                        }
+                    else throw("Strict value is not equal to itself.")
+                }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func unstakeFrom (address,pwrAmount) = {
+    let a = allowed("unstakeFrom")
+    if ((a == a))
+        then {
+            let payoutAdr = toString(i.caller)
+            if (!(contains(mainAddresses, payoutAdr)))
+                then throw("denied")
+                else unstakeFromInt(address, payoutAdr, pwrAmount)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func userShares (address) = $Tuple2(nil, shares(address))
+
+
+
+@Callable(i)
+func userPower (address) = $Tuple2(nil, staked(address))
+
+
+
+@Callable(i)
+func totalPower () = $Tuple2(nil, currentStaked)
+
+
+
+@Callable(i)
+func totalShares () = $Tuple2(nil, valueOrElse(getInteger(totalSharesStore), 0))
+
+
+
+@Callable(i)
+func init (conf) = [writeConstString(configAddressStore, conf)]
+
+
+@Verifier(tx)
+func verify () = {
+    let byVoting = {
+        func opAllowedStore (op) =         (("op_" + op) + "_allowed")
+
+        let enabled = valueOrElse(getBoolean(configAddress, opAllowedStore("governance_apply_tx")), true)
+        if (!(enabled))
+            then throw("tx application throw governance not enabled")
+            else {
+                let id = toBase58String(tx.id)
+                let votingResults = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "contract_voting_result"), "staking: no contract_voting_result")), "invalid contract_voting_result")
+                (HEIGHT >= getIntegerValue(votingResults, ((("proposal_allow_broadcast_" + toString(this)) + "_") + id)))
+                }
+        }
+    if (sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey))
+        then true
+        else byVoting
+    }

@@ -1,0 +1,324 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+func writeConstString (key,value) = if (!(isDefined(getString(this, key))))
+    then StringEntry(key, value)
+    else throw(("already initialized: " + key))
+
+
+func writeConstInt (key,value) = if (!(isDefined(getInteger(this, key))))
+    then IntegerEntry(key, value)
+    else throw(("already initialized: " + key))
+
+
+func writeInt (key,value) = if ((0 > value))
+    then throw(((("writing negative value " + toString(value)) + " for key ") + key))
+    else IntegerEntry(key, value)
+
+
+func changeBy (key,value) = writeInt(key, (valueOrElse(getInteger(this, key), 0) + value))
+
+
+let configStore = "config"
+
+let configAddress = addressFromStringValue(getStringValue(this, configStore))
+
+let maybeOracleAddress = match getString(configAddress, "oracle_address") {
+    case s: String => 
+        addressFromString(s)
+    case _ => 
+        unit
+}
+
+let HEIGHT = height
+
+func opAllowed (op) = match invoke(configAddress, "opAllowed", ["usdn", op], nil) {
+    case b: Boolean => 
+        if (b)
+            then true
+            else throw("not allowed")
+    case _ => 
+        throw("opAllowed: unexpected result type")
+}
+
+
+func mainOnly (i) = if (contains(getStringValue(configAddress, "main"), toString(i.caller)))
+    then true
+    else throw("only main can do")
+
+
+func throwIf (condition,error) = if (condition)
+    then throw(error)
+    else true
+
+
+let TIMEFRAME = 1440
+
+let usdc = getStringValue(this, "usdc")
+
+let usdt = getStringValue(this, "usdt")
+
+let usdn = getStringValue(this, "usdn")
+
+func addressAssetStore (address,assetId) = ((address + "_") + assetId)
+
+
+func addressAssetUSDNStore (address,assetId) = (((address + "_") + assetId) + "_usdn")
+
+
+func addressTotalUSDNStore (address) = (address + "_usdn")
+
+
+func totalAssetStore (assetId) = ("total_" + assetId)
+
+
+func vestingStartStore (address) = (address + "_vesting_start")
+
+
+func convertedToLpStore (address) = (address + "_converted_to_lp")
+
+
+func vestingClaimedStore (address) = (address + "_claimed")
+
+
+func withdrawnWithinEpochStore (epochStart,address,assetId) = (((((address + "_") + assetId) + "_") + toString(epochStart)) + "_withdrawn_within_epoch")
+
+
+let currentEpochStart = ((HEIGHT / TIMEFRAME) * TIMEFRAME)
+
+let miniMaxClaimUsdn = valueOrElse(getInteger(configAddress, "minimaxVestingUsdn"), (1000 * 1000000))
+
+let totalUSDNStore = "total_usdn"
+
+let vestingPeriod = (1440 * 365)
+
+func withdrawnTodayStore (address) = withdrawnWithinEpochStore(currentEpochStart, address, usdn)
+
+
+func withdrawnToday (address) = valueOrElse(getInteger(withdrawnTodayStore(address)), 0)
+
+
+func userVestingBalance (address) = {
+    let cUSDN = valueOrElse(getInteger(addressAssetUSDNStore(address, usdc)), 0)
+    let tUSDN = valueOrElse(getInteger(addressAssetUSDNStore(address, usdt)), 0)
+    let totalVesting = (cUSDN + tUSDN)
+    let alreadyClaimed = valueOrElse(getInteger(vestingClaimedStore(address)), 0)
+    let convertedToLP = valueOrElse(getInteger(this, convertedToLpStore(address)), 0)
+    let claimedToday = withdrawnToday(address)
+    let available = ((totalVesting - alreadyClaimed) - convertedToLP)
+    match getInteger(this, vestingStartStore(address)) {
+        case vestingStart: Int => 
+            let eligible = if ((HEIGHT > (vestingStart + vestingPeriod)))
+                then totalVesting
+                else fraction(totalVesting, (HEIGHT - vestingStart), vestingPeriod)
+            let availableToday = min([available, (eligible - alreadyClaimed), (max([miniMaxClaimUsdn, (totalVesting / 365)]) - claimedToday)])
+            $Tuple9(totalVesting, alreadyClaimed, eligible, vestingStart, (vestingStart + vestingPeriod), claimedToday, availableToday, convertedToLP, available)
+        case _ => 
+            $Tuple9(0, 0, -1, -1, -1, -1, -1, 0, 0)
+    }
+    }
+
+
+func adviseUser (address) = {
+    let $t038764018 = userVestingBalance(address)
+    let totalVesting = $t038764018._1
+    let alreadyClaimed = $t038764018._2
+    let eligible = $t038764018._3
+    let start = $t038764018._4
+    let end = $t038764018._5
+    let claimedToday = $t038764018._6
+    let availableToday = $t038764018._7
+    let convertedToLP = $t038764018._8
+    let available = $t038764018._9
+    let c = valueOrElse(getInteger(addressAssetStore(address, usdc)), 0)
+    let t = valueOrElse(getInteger(addressAssetStore(address, usdt)), 0)
+    ((((((((((((((((((((((((((((("address: " + address) + ", totalVesting: ") + toString(totalVesting)) + ", alreadyClaimed: ") + toString(alreadyClaimed)) + ", eligible: ") + toString(eligible)) + ", startHeight: ") + toString(start)) + ", endHeight: ") + toString(end)) + ", nowHeight: ") + toString(HEIGHT)) + ", usdc_migrated: ") + toString(c)) + ", usdt_migrated: ") + toString(t)) + ", usdc_assetId: ") + usdc) + ", usdt_assetId: ") + usdt) + ", dailyLimit: ") + toString(max([(totalVesting / 365), miniMaxClaimUsdn]))) + ", claimedToday: ") + toString(claimedToday)) + ", availableToday: ") + toString(availableToday)) + ", convertedToLP: ") + toString(convertedToLP))
+    }
+
+
+func withdrawVestedInternal (address,to) = {
+    let checks = opAllowed("liquidao_withdrawVested")
+    if ((checks == checks))
+        then {
+            let $t050165158 = userVestingBalance(address)
+            let totalVesting = $t050165158._1
+            let alreadyClaimed = $t050165158._2
+            let eligible = $t050165158._3
+            let start = $t050165158._4
+            let end = $t050165158._5
+            let claimedToday = $t050165158._6
+            let availableToday = $t050165158._7
+            let convertedToLP = $t050165158._8
+            let available = $t050165158._9
+            if ((0 > start))
+                then throw("no vesting enabled")
+                else if ((0 >= availableToday))
+                    then throw("nothing available")
+                    else $Tuple2([ScriptTransfer(addressFromStringValue(to), availableToday, fromBase58String(usdn)), IntegerEntry(vestingClaimedStore(address), (alreadyClaimed + availableToday)), changeBy(withdrawnTodayStore(address), availableToday)], availableToday)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func partialWithdrawVestedInternal (address,to,amt) = {
+    let checks = opAllowed("liquidao_withdrawVestedAsLP")
+    if ((checks == checks))
+        then {
+            let $t056925834 = userVestingBalance(address)
+            let totalVesting = $t056925834._1
+            let alreadyClaimed = $t056925834._2
+            let eligible = $t056925834._3
+            let start = $t056925834._4
+            let end = $t056925834._5
+            let claimedToday = $t056925834._6
+            let availableToday = $t056925834._7
+            let convertedToLP = $t056925834._8
+            let available = $t056925834._9
+            let maxWhaleLP = valueOrElse(getInteger(configAddress, "max_whale_to_lp"), (((100 * 1000) * 1000) * 1000000))
+            if (((convertedToLP + amt) > maxWhaleLP))
+                then throw(("whales can convert up to " + toString(maxWhaleLP)))
+                else if ((amt > available))
+                    then throw("too much requested")
+                    else $Tuple2([ScriptTransfer(addressFromStringValue(to), amt, fromBase58String(usdn)), changeBy(convertedToLpStore(address), amt)], amt)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func sv (address) = {
+    let checks = opAllowed("liquidao_startVesting")
+    if ((checks == checks))
+        then {
+            let userTStore = addressAssetStore(address, usdt)
+            let userCStore = addressAssetStore(address, usdc)
+            let convertedC = valueOrElse(getInteger(this, userCStore), 0)
+            let convertedT = valueOrElse(getInteger(this, userTStore), 0)
+            if (isDefined(getInteger(this, vestingStartStore(address))))
+                then nil
+                else                 match getInteger(this, addressTotalUSDNStore(address)) {
+                    case startedVesting: Int => 
+[changeBy("committedUSDN", startedVesting), writeConstInt(vestingStartStore(address), HEIGHT), changeBy(totalAssetStore(usdc), -(convertedC)), DeleteEntry(userCStore), changeBy(totalAssetStore(usdt), -(convertedT)), DeleteEntry(userTStore)]
+                    case _ => 
+                        nil
+                }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Callable(i)
+func init (conf,tId,cId,nId) = if ((i.caller != this))
+    then throw("only self can init")
+    else [writeConstString(configStore, conf), writeConstString("usdt", tId), writeConstString("usdc", cId), writeConstString("usdn", nId)]
+
+
+
+@Callable(i)
+func startVestingAll () = sv(toString(i.caller))
+
+
+
+@Callable(i)
+func startVestingAllFor (address) = {
+    let checks0 = mainOnly(i)
+    if ((checks0 == checks0))
+        then sv(address)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func withdrawVested () = {
+    let address = toString(i.caller)
+    withdrawVestedInternal(address, address)
+    }
+
+
+
+@Callable(i)
+func withdrawVestedForTo (acc,to) = {
+    let checks0 = mainOnly(i)
+    if ((checks0 == checks0))
+        then withdrawVestedInternal(acc, to)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func partialWithdrawVestedForTo (acc,to,amt) = {
+    let checks0 = mainOnly(i)
+    if ((checks0 == checks0))
+        then partialWithdrawVestedInternal(acc, to, amt)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func partialWithdrawVestedToL2 (address,to,amt) = {
+    let checks0 = mainOnly(i)
+    if ((checks0 == checks0))
+        then {
+            let $t085178594 = userVestingBalance(address)
+            let a1 = $t085178594._1
+            let a2 = $t085178594._2
+            let a3 = $t085178594._3
+            let a4 = $t085178594._4
+            let a5 = $t085178594._5
+            let a6 = $t085178594._6
+            let a7 = $t085178594._7
+            let a8 = $t085178594._8
+            let available = $t085178594._9
+            if ((amt > available))
+                then throw("too much requested")
+                else $Tuple2([ScriptTransfer(addressFromStringValue(to), amt, fromBase58String(usdn)), changeBy(convertedToLpStore(address), amt)], amt)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func adviseU (acc) = $Tuple2(nil, adviseUser(acc))
+
+
+@Verifier(tx)
+func verify () = {
+    let BASE = 1000
+    let quorumRatio = valueOrErrorMessage(getInteger(configAddress, "proposal_quorum_ratio"), "proposalQuorumRatio is not defined")
+    let passedRatio = valueOrErrorMessage(getInteger(configAddress, "proposal_passed_ratio"), "proposalThresholdRatio is not defined")
+    let gViresContract = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "dividends_contract"), "no dividends_contract")), "invalid dividends_contract")
+    let votingContract = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "voting_contract"), "no voting_contract")), "invalid voting_contract")
+    let id = toBase58String(tx.id)
+    let votesYes = valueOrElse(getInteger(votingContract, ("proposal_yes_" + id)), 0)
+    let votesNo = valueOrElse(getInteger(votingContract, ("proposal_no_" + id)), 0)
+    let proposalHeight = valueOrErrorMessage(getInteger(votingContract, ("proposal_height_" + id)), "proposal not registered")
+    let applyStart = valueOrElse(getInteger(votingContract, ("proposal_applystart_" + id)), 0)
+    let applyEnd = valueOrElse(getInteger(votingContract, ("proposal_applyend_" + id)), 0)
+    let totalGVires = valueOrElse(getInteger(votingContract, ("proposal_gvires_" + id)), 0)
+    let enabled = valueOrElse(getBoolean(configAddress, "op_governance_apply_tx_paused"), false)
+    let voteYes = votesYes
+    let voteNo = votesNo
+    let totalVotes = (voteYes + voteNo)
+    let hasQuorum = (((totalVotes * BASE) / totalGVires) >= quorumRatio)
+    let hasPassed = (((voteYes * BASE) / totalVotes) >= passedRatio)
+    let tooEarly = (applyStart >= HEIGHT)
+    let tooLate = (HEIGHT >= applyEnd)
+    let timeDebug = ((((((("proposalHeight = " + toString(proposalHeight)) + ", applyStart = ") + toString(applyStart)) + ", applyEnd = ") + toString(applyEnd)) + ", HEIGHT = ") + toString(HEIGHT))
+    let byVoting = if (!(enabled))
+        then throw("tx application throw governance not enabled")
+        else if (tooEarly)
+            then throw(("proposal can't be executed as it's too early: " + timeDebug))
+            else if (tooLate)
+                then throw(("proposal can't be executed as it's too late:" + timeDebug))
+                else if (!(hasQuorum))
+                    then throw((((((("no quorum: " + "totalVotes: ") + toString(totalVotes)) + ", totalGVires: ") + toString(totalGVires)) + ", quorumRatio: ") + toString(quorumRatio)))
+                    else if (!(hasPassed))
+                        then throw((((((("no threshold achieved: " + "voteYes: ") + toString(voteYes)) + ", voteNo: ") + toString(voteNo)) + ", passedRatio: ") + toString(passedRatio)))
+                        else true
+    if (sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey))
+        then true
+        else byVoting
+    }

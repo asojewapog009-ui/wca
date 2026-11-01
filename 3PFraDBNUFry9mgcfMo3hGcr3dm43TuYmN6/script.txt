@@ -1,0 +1,563 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+func getI (key) = getInteger(this, key)
+
+
+func getS (key) = getString(this, key)
+
+
+func getSV (key) = valueOrErrorMessage(getString(this, key), ((("no string value for key " + key) + " at address ") + toString(this)))
+
+
+func asInt2 (value) = match value {
+    case x: (Int, Int) => 
+        x
+    case t => 
+        throw("wrong type, expected: Int2")
+}
+
+
+func throwIf (condition,error) = if (condition)
+    then throw(error)
+    else true
+
+
+func writeInt (key,value) = if ((0 > value))
+    then throw(((("writing negative value " + toString(value)) + " for key ") + key))
+    else IntegerEntry(key, value)
+
+
+func asInt (value) = match value {
+    case int: Int => 
+        int
+    case _ => 
+        throw("lpl:1")
+}
+
+
+func changeBy (key,value) = writeInt(key, (valueOrElse(getI(key), 0) + value))
+
+
+func writeConstString (key,value) = if (!(isDefined(getString(this, key))))
+    then StringEntry(key, value)
+    else throw(("already initialized: " + key))
+
+
+let BlocksPerYear = 525600
+
+let factorsBase = 1000
+
+func fractionCeil (value,numerator,denominator) = {
+    let cand = fraction(value, numerator, denominator)
+    let D = 3037000499
+    let exact = ((((cand % D) * (denominator % D)) % D) == (((value % D) * (numerator % D)) % D))
+    if (exact)
+        then cand
+        else (cand + 1)
+    }
+
+
+let configStore = "config"
+
+let configAddress = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(this, configStore), "reserve: no config")), "invalid config address")
+
+let rewardReservesStr = valueOrErrorMessage(getString(configAddress, "rewardable_reserves"), "lp-locker: no rewardable_reserves in config")
+
+let zeroRewardReservesStr = valueOrElse(getString(configAddress, "zero_rewardable_reserves"), "")
+
+let rewardReserves = split_4C(rewardReservesStr, "|")
+
+func opAllowed (op,lpAssetId) = match invoke(configAddress, "opAllowed", [lpAssetId, op], nil) {
+    case b: Boolean => 
+        if (b)
+            then true
+            else throw("not allowed")
+    case _ => 
+        throw("opAllowed: unexpected result type")
+}
+
+
+func userAmountStore (address,asset) = (((address + "_") + asset) + "_amt")
+
+
+func userUnlockHeightStore (address,asset) = (((address + "_") + asset) + "_unlockHeight")
+
+
+func userWeightFactorStore (address,asset) = (((address + "_") + asset) + "_weightFactor")
+
+
+func userWeightStore (address,asset) = (((address + "_") + asset) + "_weight")
+
+
+func totalAssetLockedStore (asset) = (asset + "_totalLocked")
+
+
+func totalWeightedAssetLockedStore (asset) = (asset + "_totalWeightedLocked")
+
+
+func userAmount (address,asset) = valueOrElse(getInteger(this, userAmountStore(address, asset)), 0)
+
+
+func userUnlockHeight (address,asset) = valueOrElse(getInteger(this, userUnlockHeightStore(address, asset)), 0)
+
+
+func userWeightFactor (address,asset) = valueOrElse(getInteger(this, userWeightFactorStore(address, asset)), 0)
+
+
+func userWeight (address,asset) = valueOrElse(getInteger(this, userWeightStore(address, asset)), 0)
+
+
+func totalAssetLocked (asset) = valueOrElse(getInteger(this, totalAssetLockedStore(asset)), 0)
+
+
+func totalWeightedAssetLocked (asset) = valueOrElse(getInteger(this, totalWeightedAssetLockedStore(asset)), 0)
+
+
+let maybeOracleAddress = match getString(configAddress, "oracle_address") {
+    case s: String => 
+        addressFromString(s)
+    case _ => 
+        unit
+}
+
+func oraclePrice (assetId) = match invoke(valueOrErrorMessage(maybeOracleAddress, "no oracle"), "price", [assetId], nil) {
+    case i: Int => 
+        i
+    case _ => 
+        throw("bad oracle data")
+}
+
+
+let HEIGHT = height
+
+func mainOnly (i) = if (contains(getStringValue(configAddress, "main"), toString(i.caller)))
+    then true
+    else throw("only main can do")
+
+
+let startedKey = "started"
+
+func syncHeightStore (assetId) = (assetId + "_syncedHeight")
+
+
+func speedStore (assetId) = (assetId + "_speed")
+
+
+func rewardStore (assetId) = (assetId + "_reward")
+
+
+func userClaimedStore (assetId,user) = ((user + "_claimed_") + assetId)
+
+
+func userRewardAdjStore (assetId,user) = ((user + "_userRewardAdj_") + assetId)
+
+
+func syncHeight (asset) = valueOrElse(getInteger(this, syncHeightStore(asset)), 0)
+
+
+func pow10 (n) = if ((n == 6))
+    then 1000000
+    else if ((n == 8))
+        then 100000000
+        else throw(("bad decimals: " + toString(n)))
+
+
+let viresMinter = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "vires_minter"), "vires-distributor: no viresMinter")), "invalid viresMinter")
+
+let viresIdStr = valueOrErrorMessage(getString(viresMinter, "assetId"), "vires-distributor: no viresAssetIdStore")
+
+let viresAssetId = fromBase58String(viresIdStr)
+
+let started = isDefined(getInteger(this, startedKey))
+
+func currentReward (assetId) = {
+    let h = syncHeight(assetId)
+    let storedReward = valueOrElse(getInteger(this, rewardStore(assetId)), 0)
+    if ((h == HEIGHT))
+        then storedReward
+        else {
+            let speed = valueOrElse(getInteger(this, speedStore(assetId)), 0)
+            let accumulatedReward = ((HEIGHT - h) * speed)
+            (storedReward + accumulatedReward)
+            }
+    }
+
+
+func currentRewardsSpeed () = {
+    func fold2 (l,reserve) =     {
+        let assetId = valueOrErrorMessage(getString(addressFromStringValue(reserve), "aTokenId"), "no aTokenId")
+        ((((l + assetId) + "=") + toString(valueOrElse(getInteger(this, speedStore(assetId)), 0))) + ", ")
+        }
+
+    let $l = rewardReserves
+    let $s = size($l)
+    let $acc0 = ""
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else fold2($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 20")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18), 19), 20)
+    }
+
+
+func userRewardBalance (assetId,user) = {
+    let curTotalWeighted = totalWeightedAssetLocked(assetId)
+    let userWeighted = fraction(userAmount(user, assetId), userWeightFactor(user, assetId), factorsBase)
+    let totalReward = currentReward(assetId)
+    let userAdj = valueOrElse(getInteger(this, userRewardAdjStore(assetId, user)), 0)
+    let acc = (userAdj + (if ((curTotalWeighted == 0))
+        then 0
+        else fraction(totalReward, userWeighted, curTotalWeighted)))
+    let claimed = valueOrElse(getInteger(this, userClaimedStore(assetId, user)), 0)
+    $Tuple2(acc, claimed)
+    }
+
+
+func updateRewardData (address,assetId,userChange) = {
+    let prevTotal = totalWeightedAssetLocked(assetId)
+    let prevReward = currentReward(assetId)
+    let prevUserAdj = valueOrElse(getInteger(this, userRewardAdjStore(assetId, address)), 0)
+    let newTotal = (prevTotal + userChange)
+    let newReserveReward = if ((prevTotal == 0))
+        then prevReward
+        else fraction(prevReward, newTotal, prevTotal)
+    let newUserRewardAdj = if ((newTotal == 0))
+        then (prevUserAdj + prevReward)
+        else (prevUserAdj - fraction(newReserveReward, userChange, newTotal))
+[IntegerEntry(rewardStore(assetId), newReserveReward), IntegerEntry(userRewardAdjStore(assetId, address), newUserRewardAdj), IntegerEntry(syncHeightStore(assetId), HEIGHT)]
+    }
+
+
+func borrowedValueByIndexAndTotalBorrow () = {
+    func fold (acc,a) =     {
+        let address = valueOrErrorMessage(addressFromString(a), ("bad address " + a))
+        let assetDebtUsd = if (contains(zeroRewardReservesStr, a))
+            then 0
+            else {
+                let assetId = valueOrErrorMessage(getString(address, "assetId"), ("assetId not found in reserve " + a))
+                let assetDecimals = if ((assetId == "WAVES"))
+                    then 8
+                    else valueOrErrorMessage(getInteger(address, "aTokenDecimals"), ("aTokenDecimals not found in reserve " + a))
+                let assetDebt = asInt2(invoke(address, "storedDepositBorrow", nil, nil))._2
+                fraction(assetDebt, oraclePrice(assetId), pow10(assetDecimals))
+                }
+        let $t078397858 = acc
+        let lst = $t078397858._1
+        let agg = $t078397858._2
+        $Tuple2((lst ++ [assetDebtUsd]), (agg + assetDebtUsd))
+        }
+
+    let $l = rewardReserves
+    let $s = size($l)
+    let $acc0 = $Tuple2(nil, 0)
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else fold($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 20")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18), 19), 20)
+    }
+
+
+@Callable(i)
+func adviseUser (user,assetId) = {
+    let curTotalWeighted = totalWeightedAssetLocked(assetId)
+    let userFactor = userWeightFactor(user, assetId)
+    let userAmt = userAmount(user, assetId)
+    let userWeighted = fraction(userAmt, userFactor, factorsBase)
+    let unlockHeight = userUnlockHeight(user, assetId)
+    let totalReward = currentReward(assetId)
+    let userAdj = valueOrElse(getInteger(this, userRewardAdjStore(assetId, user)), 0)
+    let pie = if ((curTotalWeighted == 0))
+        then 0
+        else fraction(totalReward, userWeighted, curTotalWeighted)
+    let acc = (userAdj + pie)
+    let claimed = valueOrElse(getInteger(this, userClaimedStore(assetId, user)), 0)
+    let totalRewardsAccumulated = max([0, acc])
+    let rewardsAvailable = max([0, (totalRewardsAccumulated - claimed)])
+    $Tuple2(nil, ((((((((((((((((("lp_rewardsAccumulated: " + toString(totalRewardsAccumulated)) + ", lp_rewardsAvailable: ") + toString(rewardsAvailable)) + ", lp_rewardsClaimed: ") + toString(claimed)) + ", lp_userAdj: ") + toString(userAdj)) + ", lp_pie: ") + toString(pie)) + ", lp_locked: ") + toString(userAmt)) + ", lp_userFactor: ") + toString(userFactor)) + ", lp_unlockHeight: ") + toString(unlockHeight)) + ", lp_weight: ") + toString(userWeighted)))
+    }
+
+
+
+@Callable(i)
+func initialize (ca) = [writeConstString(configStore, ca)]
+
+
+
+@Callable(i)
+func start () = if ((i.caller != this))
+    then throw("only self can do")
+    else if (started)
+        then throw("already started")
+        else {
+            func fold (l,reserve) =             {
+                let assetId = valueOrErrorMessage(getString(addressFromStringValue(reserve), "aTokenId"), "lock-distr: no aTokenId")
+                (l ++ [IntegerEntry(speedStore(assetId), 0), IntegerEntry(rewardStore(assetId), 0), IntegerEntry(syncHeightStore(assetId), HEIGHT)])
+                }
+
+            let $l = rewardReserves
+            let $s = size($l)
+            let $acc0 = [IntegerEntry(startedKey, HEIGHT)]
+            func $f0_1 ($a,$i) =             if (($i >= $s))
+                then $a
+                else fold($a, $l[$i])
+
+            func $f0_2 ($a,$i) =             if (($i >= $s))
+                then $a
+                else throw("List size exceeds 20")
+
+            $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18), 19), 20)
+            }
+
+
+
+@Callable(i)
+func realloc () = if (!(started))
+    then throw("not started")
+    else if (!(opAllowed("lp_lock_realloc", viresIdStr)))
+        then throw("realloc paused")
+        else {
+            let totalSpeed = valueOrErrorMessage(getInteger(configAddress, "lp_lock_total_speed"), "no total allocation speed")
+            let totalReserves = size(rewardReserves)
+            let $t01034510422 = borrowedValueByIndexAndTotalBorrow()
+            let borrowedValueByIndex = $t01034510422._1
+            let totalBorrow = $t01034510422._2
+            func fold (l,index) =             if ((index >= totalReserves))
+                then l
+                else {
+                    let reserve = rewardReserves[index]
+                    let assetId = valueOrErrorMessage(getString(addressFromStringValue(reserve), "aTokenId"), "bad reserve in realloc")
+                    let assetSpeed = if ((totalBorrow == 0))
+                        then 0
+                        else fraction(totalSpeed, borrowedValueByIndex[index], totalBorrow)
+                    let cr = currentReward(assetId)
+                    (l ++ [IntegerEntry(speedStore(assetId), assetSpeed), IntegerEntry(rewardStore(assetId), cr), IntegerEntry(syncHeightStore(assetId), HEIGHT)])
+                    }
+
+            let $l = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+            let $s = size($l)
+            let $acc0 = nil
+            func $f0_1 ($a,$i) =             if (($i >= $s))
+                then $a
+                else fold($a, $l[$i])
+
+            func $f0_2 ($a,$i) =             if (($i >= $s))
+                then $a
+                else throw("List size exceeds 20")
+
+            $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18), 19), 20)
+            }
+
+
+
+@Callable(i)
+func lockLP (address,durationBlocks) = {
+    let addrCheck = addressFromStringValue(address)
+    if ((addrCheck == addrCheck))
+        then if (!(started))
+            then throw("not started")
+            else if ((size(i.payments) == 0))
+                then $Tuple2(nil, 0)
+                else {
+                    let assetId = toBase58String(value(i.payments[0].assetId))
+                    let checks = if (mainOnly(i))
+                        then opAllowed("lock_lp", assetId)
+                        else false
+                    if ((checks == checks))
+                        then {
+                            let amt = i.payments[0].amount
+                            let minAmount = valueOrErrorMessage(getInteger(configAddress, ("lock_min_amount_" + assetId)), ("no min_amount for" + assetId))
+                            let prevAssets = userAmount(address, assetId)
+                            if ((minAmount > (prevAssets + amt)))
+                                then throw(((("locking less than min " + toString(minAmount)) + " of ") + assetId))
+                                else {
+                                    let prevWeightFactor = userWeightFactor(address, assetId)
+                                    let prevUserWeight = userWeight(address, assetId)
+                                    let prevUnlockHeight = userUnlockHeight(address, assetId)
+                                    let weightFactor = valueOrErrorMessage(getInteger(configAddress, ("lock_weight_factor_" + toString(durationBlocks))), ("no weightFactor for durationBlocks " + toString(durationBlocks)))
+                                    if (if ((prevWeightFactor > weightFactor))
+                                        then (prevUnlockHeight > HEIGHT)
+                                        else false)
+                                        then throw("can't decrease weightFactor if not unlocked yet")
+                                        else {
+                                            let newUserWeight = fraction((prevAssets + amt), weightFactor, factorsBase)
+                                            let userWeightChange = (newUserWeight - prevUserWeight)
+                                            let tokensData = [changeBy(userAmountStore(address, assetId), amt), IntegerEntry(userUnlockHeightStore(address, assetId), (HEIGHT + durationBlocks)), IntegerEntry(userWeightFactorStore(address, assetId), weightFactor), IntegerEntry(userWeightStore(address, assetId), newUserWeight), changeBy(totalAssetLockedStore(assetId), amt), changeBy(totalWeightedAssetLockedStore(assetId), userWeightChange)]
+                                            (tokensData ++ updateRewardData(address, assetId, userWeightChange))
+                                            }
+                                    }
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func cleanUpDistributionFor (address,assetId) = {
+    let addrCheck = addressFromStringValue(address)
+    if ((addrCheck == addrCheck))
+        then if (!(started))
+            then throw("not started")
+            else {
+                let checks = opAllowed("stop_distribution_unlocked_lp", assetId)
+                if ((checks == checks))
+                    then {
+                        let unlockHeight = userUnlockHeight(address, assetId)
+                        if ((unlockHeight == 0))
+                            then nil
+                            else {
+                                let userAmountChange = -(userAmount(address, assetId))
+                                let userWeightChange = -(userWeight(address, assetId))
+                                let exceptionEarlyUnlock = contains(valueOrElse(getString(configAddress, "lp_unlock_free_atoken_ids"), ""), assetId)
+                                if (if ((HEIGHT >= unlockHeight))
+                                    then true
+                                    else exceptionEarlyUnlock)
+                                    then {
+                                        let tokensData = [DeleteEntry(userUnlockHeightStore(address, assetId)), DeleteEntry(userWeightFactorStore(address, assetId)), DeleteEntry(userWeightStore(address, assetId)), changeBy(totalWeightedAssetLockedStore(assetId), userWeightChange)]
+                                        (tokensData ++ updateRewardData(address, assetId, userWeightChange))
+                                        }
+                                    else throw("not allowed yet")
+                                }
+                        }
+                    else throw("Strict value is not equal to itself.")
+                }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func claimLpRewardFor (user,assetId,amount) = {
+    let addrCheck = addressFromStringValue(user)
+    if ((addrCheck == addrCheck))
+        then if ((amount != -1))
+            then throw("lp: claim all only")
+            else if (!(started))
+                then throw("not started")
+                else {
+                    let checks = if (mainOnly(i))
+                        then opAllowed("claim_vires_lp", assetId)
+                        else false
+                    if ((checks == checks))
+                        then {
+                            let $t01452414585 = userRewardBalance(assetId, user)
+                            let accumulated = $t01452414585._1
+                            let claimed = $t01452414585._2
+                            let available = (accumulated - claimed)
+                            if ((0 >= available))
+                                then $Tuple2(nil, 0)
+                                else {
+                                    let mint = invoke(viresMinter, "lpLockerMint", [toString(i.caller), available], nil)
+                                    if ((mint == mint))
+                                        then $Tuple2([IntegerEntry(userClaimedStore(assetId, user), (claimed + available))], available)
+                                        else throw("Strict value is not equal to itself.")
+                                    }
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func withdraw (from,assetId,to) = {
+    let addrCheck = addressFromStringValue(from)
+    if ((addrCheck == addrCheck))
+        then if (!(started))
+            then throw("not started")
+            else {
+                let checks = if (mainOnly(i))
+                    then opAllowed("withdraw_unlocked_lp", assetId)
+                    else false
+                if ((checks == checks))
+                    then if ((userUnlockHeight(from, assetId) != 0))
+                        then throw("distribution not cleaned up yet")
+                        else {
+                            let amt = userAmount(from, assetId)
+                            $Tuple2([DeleteEntry(userAmountStore(from, assetId)), changeBy(totalAssetLockedStore(assetId), -(amt)), ScriptTransfer(addressFromStringValue(to), amt, fromBase58String(assetId))], amt)
+                            }
+                    else throw("Strict value is not equal to itself.")
+                }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func withdrawSlashed (from,assetId,to) = {
+    let addrCheck = addressFromStringValue(from)
+    if ((addrCheck == addrCheck))
+        then if (!(started))
+            then throw("not started")
+            else {
+                let checks = if (mainOnly(i))
+                    then opAllowed("withdraw_slashed_lp", assetId)
+                    else false
+                if ((checks == checks))
+                    then if ((HEIGHT > userUnlockHeight(from, assetId)))
+                        then throw("already unlocked, use regular withdraw")
+                        else {
+                            let slashParam = valueOrErrorMessage(getInteger(configAddress, "early_unlock_slashing"), "slashing not configured")
+                            let amt = userAmount(from, assetId)
+                            let userWeightChange = -(userWeight(from, assetId))
+                            let wd = fraction(amt, (factorsBase - slashParam), factorsBase)
+                            let slashed = (amt - wd)
+                            let tokensData = [DeleteEntry(userUnlockHeightStore(from, assetId)), DeleteEntry(userWeightFactorStore(from, assetId)), DeleteEntry(userWeightStore(from, assetId)), DeleteEntry(userAmountStore(from, assetId)), changeBy(totalAssetLockedStore(assetId), -(amt)), changeBy(totalWeightedAssetLockedStore(assetId), userWeightChange), ScriptTransfer(addressFromStringValue(to), wd, fromBase58String(assetId)), ScriptTransfer(i.caller, slashed, fromBase58String(assetId))]
+                            $Tuple2((tokensData ++ updateRewardData(from, assetId, userWeightChange)), $Tuple2(wd, slashed))
+                            }
+                    else throw("Strict value is not equal to itself.")
+                }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Verifier(tx)
+func verify () = {
+    let BASE = 1000
+    let quorumRatio = valueOrErrorMessage(getInteger(configAddress, "proposal_quorum_ratio"), "proposalQuorumRatio is not defined")
+    let passedRatio = valueOrErrorMessage(getInteger(configAddress, "proposal_passed_ratio"), "proposalThresholdRatio is not defined")
+    let gViresContract = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "dividends_contract"), "no dividends_contract")), "invalid dividends_contract")
+    let votingContract = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "voting_contract"), "no voting_contract")), "invalid voting_contract")
+    let id = toBase58String(tx.id)
+    let votesYes = valueOrElse(getInteger(votingContract, ("proposal_yes_" + id)), 0)
+    let votesNo = valueOrElse(getInteger(votingContract, ("proposal_no_" + id)), 0)
+    let proposalHeight = valueOrErrorMessage(getInteger(votingContract, ("proposal_height_" + id)), "proposal not registered")
+    let applyStart = valueOrElse(getInteger(votingContract, ("proposal_applystart_" + id)), 0)
+    let applyEnd = valueOrElse(getInteger(votingContract, ("proposal_applyend_" + id)), 0)
+    let totalGVires = valueOrElse(getInteger(votingContract, ("proposal_gvires_" + id)), 0)
+    let enabled = valueOrElse(getBoolean(configAddress, "op_governance_apply_tx_paused"), false)
+    let voteYes = votesYes
+    let voteNo = votesNo
+    let totalVotes = (voteYes + voteNo)
+    let hasQuorum = (((totalVotes * BASE) / totalGVires) >= quorumRatio)
+    let hasPassed = (((voteYes * BASE) / totalVotes) >= passedRatio)
+    let tooEarly = (applyStart >= HEIGHT)
+    let tooLate = (HEIGHT >= applyEnd)
+    let timeDebug = ((((((("proposalHeight = " + toString(proposalHeight)) + ", applyStart = ") + toString(applyStart)) + ", applyEnd = ") + toString(applyEnd)) + ", HEIGHT = ") + toString(HEIGHT))
+    let byVoting = if (!(enabled))
+        then throw("tx application throw governance not enabled")
+        else if (tooEarly)
+            then throw(("proposal can't be executed as it's too early: " + timeDebug))
+            else if (tooLate)
+                then throw(("proposal can't be executed as it's too late:" + timeDebug))
+                else if (!(hasQuorum))
+                    then throw((((((("no quorum: " + "totalVotes: ") + toString(totalVotes)) + ", totalGVires: ") + toString(totalGVires)) + ", quorumRatio: ") + toString(quorumRatio)))
+                    else if (!(hasPassed))
+                        then throw((((((("no threshold achieved: " + "voteYes: ") + toString(voteYes)) + ", voteNo: ") + toString(voteNo)) + ", passedRatio: ") + toString(passedRatio)))
+                        else true
+    if (sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey))
+        then true
+        else byVoting
+    }

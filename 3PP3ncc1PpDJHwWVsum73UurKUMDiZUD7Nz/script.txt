@@ -1,0 +1,29 @@
+{-# STDLIB_VERSION 5 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let bridge_address = valueOrElse(getString(this, "bridge_address"), "")
+
+let bai_assetid = valueOrElse(getString(this, "bai_assetid"), "")
+
+@Callable(i)
+func setAuthorizedBridge (address) = if ((toBase58String(i.caller.bytes) == toBase58String(this.bytes)))
+    then [StringEntry("bridge_address", address)]
+    else throw("You are not allowed to change this")
+
+
+
+@Callable(i)
+func setAuthorizedAssitId (assetId) = if ((toBase58String(i.caller.bytes) == toBase58String(this.bytes)))
+    then [StringEntry("bai_assetid", assetId)]
+    else throw("You are not allowed to change this")
+
+
+
+@Callable(i)
+func withdraw (amount) = if ((toBase58String(i.caller.bytes) == bridge_address))
+    then [ScriptTransfer(i.caller, amount, fromBase58String(bai_assetid))]
+    else throw("You are not allowed to change this")
+
+
+@Verifier(tx)
+func verify () = sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)

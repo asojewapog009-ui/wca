@@ -1,0 +1,960 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+func writeConstString (key,value) = if (!(isDefined(getString(this, key))))
+    then StringEntry(key, value)
+    else throw(("already initialized: " + key))
+
+
+func writeInt (key,value) = if ((0 > value))
+    then throw(((("writing negative value " + toString(value)) + " for key ") + key))
+    else IntegerEntry(key, value)
+
+
+func writeBinary (key,value) = BinaryEntry(key, value)
+
+
+func changeBy (key,value) = writeInt(key, (valueOrElse(getInteger(this, key), 0) + value))
+
+
+func asInt (value) = match value {
+    case int: Int => 
+        int
+    case _ => 
+        throw("wrong type, expected: Int")
+}
+
+
+func assetId (str) = if ((str == ""))
+    then throw("empty asset id")
+    else if ((str == "WAVES"))
+        then unit
+        else fromBase58String(str)
+
+
+let configAddressStore = "config"
+
+let config = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(this, configAddressStore), "children: config address not found")), "invalid config address")
+
+func allowed (op) = invoke(config, "opAllowed", [op], nil)
+
+
+let HEIGHT = height
+
+let pwrAssetId = fromBase58String(valueOrErrorMessage(getString(config, "powerAssetId"), "pwr asset id not found"))
+
+let withdrawalContract = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(config, "contract_withdrawal"), "no contract_withdrawal")), "invalid contract_withdrawal")
+
+let defaultExitCooldown = valueOrElse(getInteger(config, (toString(this) + "_exit_cooldown")), 129600)
+
+let childrenVotingContract = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(config, "contract_children_voting"), "no contract_children_voting")), "invalid children voting address")
+
+let defaultKpiSafetyWindow = valueOrElse(getInteger(config, (toString(this) + "_kpi_safety_window")), 43200)
+
+let wavesDAO = valueOrElse(getString(config, "wavesDAO"), "3PEwRcYNAUtoFvKpBhKoiwajnZfdoDR6h4h")
+
+func exitCooldown (child) = valueOrElse(getInteger(addressFromStringValue(child), "exit_cooldown"), defaultExitCooldown)
+
+
+func kpiSafetyWindow (child) = valueOrElse(getInteger(addressFromStringValue(child), "kpi_safety_window"), defaultKpiSafetyWindow)
+
+
+let mainAddresses = valueOrElse(getString(config, "main_addresses"), "")
+
+let ambassadorDAO = valueOrErrorMessage(getString(config, (toString(this) + "_ambassador_dao")), "ambassador DAO address not found")
+
+let ambassadorAdminAddresses = valueOrElse(getString(addressFromStringValue(ambassadorDAO), "ambassador_admin"), valueOrElse(getString(config, (ambassadorDAO + "_ambassador_admin")), ""))
+
+func periodStore (child) = ("period_" + child)
+
+
+func period (child) = valueOrElse(getInteger(periodStore(child)), 0)
+
+
+func ownerStore (child) = ("owner_" + child)
+
+
+func treasuryStore (child) = ("treasury_" + child)
+
+
+func lockTimeStore (child) = ("lockTime_" + child)
+
+
+func skinRequiredStore (child) = ("skin_required_" + child)
+
+
+func skinMaxStore (child) = ("skin_max_" + child)
+
+
+func investmentsMaxStore (child) = ("investments_max_" + child)
+
+
+func minCommitmentStore (child) = ("min_commitment_" + child)
+
+
+func skinTotalStore (child) = ("skin_total_" + child)
+
+
+let pwrTotalStore = "pwr_total"
+
+func investmentsRequiredStore (child) = ("investments_required_" + child)
+
+
+func investmentsTotalStore (child) = ("investments_total_" + child)
+
+
+func investmentsPeriodTotalStore (child) = ((("period_" + toString(period(child))) + "_investments_total_") + child)
+
+
+func investmentsTokenStore (child) = ("investments_token_" + child)
+
+
+func commitmentsStore (child) = ("commitments_" + child)
+
+
+func attachmentsStore (child) = ("attachments_" + child)
+
+
+func attachmentsTxStore (child) = ("attachments_tx_" + child)
+
+
+func attachmentsHeightStore (child) = ("attachments_height_" + child)
+
+
+func createHeightStore (child) = ("create_height_" + child)
+
+
+func startHeightStore (child) = ("start_height_" + child)
+
+
+func cancelHeightStore (child) = ("cancel_height_" + child)
+
+
+func investmentsToken (child) = assetId(valueOrErrorMessage(getString(investmentsTokenStore(child)), "investments asset id not found"))
+
+
+func userSkinStore (child,user) = ((("skin_" + child) + "_") + user)
+
+
+func investorStore (child,investor) = ((("investor_" + child) + "_") + investor)
+
+
+func commitAfterAddressesStore (child) = ("commit_after_addresses_" + child)
+
+
+func investAfterStartStore (child) = ("can_invest_after_start_" + child)
+
+
+func pendingCommitAmountStore (address) = ("pending_commit_amount_" + address)
+
+
+func nodePoolStore (node) = ("node_pool_" + node)
+
+
+func nodeTotalRewardedStore (node) = ("node_total_rewarded_" + node)
+
+
+func isNodeSharing (node) = valueOrElse(getBoolean(addressFromStringValue(node), "sharing_enabled"), false)
+
+
+func assertOwnership (i,child) = {
+    let owner = getStringValue(ownerStore(child))
+    if ((toString(i.caller) != owner))
+        then throw("denied. not an owner")
+        else false
+    }
+
+
+func assertNotStarted (child) = if (isDefined(getInteger(startHeightStore(child))))
+    then throw("already started")
+    else false
+
+
+func assertIsStarted (child) = if ((isDefined(getInteger(startHeightStore(child))) == false))
+    then throw("not yet started")
+    else false
+
+
+func assertNotCancelled (child) = if (isDefined(getInteger(cancelHeightStore(child))))
+    then throw("already canceled")
+    else false
+
+
+func userCommitment (child,user) = getInteger(userSkinStore(child, user))
+
+
+func currentUserSkin (child,user) = valueOrElse(userCommitment(child, user), 0)
+
+
+func treasury (child) = valueOrElse(getString(treasuryStore(child)), child)
+
+
+func int (key) = toString(valueOrElse(getInteger(key), 0))
+
+
+func str (key) = valueOrElse(getString(key), "")
+
+
+func assertAmbassadorAdmin (i) = if (!(contains(ambassadorAdminAddresses, toString(i.caller))))
+    then throw("denied: not an ambassador admin")
+    else true
+
+
+func parseAmbassadorList (ambassadors) = if ((ambassadors == ""))
+    then throw("no ambassadors provided")
+    else {
+        let addresses = split(ambassadors, ",")
+        if ((size(addresses) > 30))
+            then throw("maximum 30 ambassadors allowed")
+            else addresses
+        }
+
+
+func getPaymentAmount (i) = if (if ((size(i.payments) != 1))
+    then true
+    else (i.payments[0].assetId != pwrAssetId))
+    then throw("exactly one PWR payment expected")
+    else i.payments[0].amount
+
+
+func adviseProject (child) = ((((((((((((((((((((((((((((((((((("height: " + toString(HEIGHT)) + ", project: ") + child) + ", owner: ") + str(ownerStore(child))) + ", treasury: ") + treasury(child)) + ", skin_required: ") + int(skinRequiredStore(child))) + ", skin_max: ") + int(skinMaxStore(child))) + ", min_commitment: ") + int(minCommitmentStore(child))) + ", skin_total: ") + int(skinTotalStore(child))) + ", investments_required: ") + int(investmentsRequiredStore(child))) + ", investments_max: ") + int(investmentsMaxStore(child))) + ", investments_total: ") + int(investmentsTotalStore(child))) + ", investments_token: ") + str(investmentsTokenStore(child))) + ", commitments: ") + str(commitmentsStore(child))) + ", create_height: ") + int(createHeightStore(child))) + ", start_height: ") + toString(valueOrElse(getInteger(startHeightStore(child)), -1))) + ", cancel_height: ") + toString(valueOrElse(getInteger(cancelHeightStore(child)), -1))) + ", exit_cooldown: ") + toString(exitCooldown(child))) + ", invest_after_start: ") + toString(valueOrElse(getBoolean(investAfterStartStore(child)), false)))
+
+
+func adviseUserProject (child,user) = ((((((((("height: " + toString(HEIGHT)) + ", project: ") + child) + ", skin:") + toString(currentUserSkin(child, user))) + ", power:") + toString(valueOrElse(userCommitment(child, user), 0))) + ", investments: ") + int(investorStore(child, user)))
+
+
+func commitAfterStartForInternal (i,child,address,additionalLockRounds) = {
+    let a = allowed("commitAfterStartFor")
+    if ((a == a))
+        then if (!(contains(valueOrElse(getString(commitAfterAddressesStore(child)), ""), toString(i.caller))))
+            then throw("commitAfterStartForInternal. denied")
+            else {
+                let p = i.payments[0]
+                if (if ((p.assetId != pwrAssetId))
+                    then true
+                    else (size(i.payments) != 1))
+                    then throw("invalid payments: only $PWR token expected")
+                    else {
+                        let commitment = p.amount
+[changeBy(userSkinStore(child, address), commitment), changeBy(skinTotalStore(child), commitment), changeBy(pwrTotalStore, commitment)]
+                        }
+                }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func validateSlashPermissions (i,child) = {
+    let paused = allowed("slash")
+    if ((paused == paused))
+        then if ((i.caller != this))
+            then throw("denied")
+            else if (!(isDefined(getInteger(startHeightStore(child)))))
+                then throw("not started")
+                else true
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func slashSkinInt (child,address,amount) = {
+    let currentBalance = valueOrElse(getInteger(userSkinStore(child, address)), 0)
+    let skinSlashed = min([currentBalance, amount])
+    let remainder = (amount - skinSlashed)
+    let sp = if ((remainder > 0))
+        then invoke(withdrawalContract, "slashParked", [child, address, remainder], nil)
+        else unit
+    if ((sp == sp))
+        then {
+            let action = changeBy(userSkinStore(child, address), -(skinSlashed))
+            $Tuple2(action, skinSlashed)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+let autocommitForMiners = valueOrElse(getBoolean(config, "powerdao_miners_autocommit"), false)
+
+@Callable(i)
+func projectFor (owner,skin,maxSkin,minCommitment,lockTime,investments,maxInvestments,investmentsToken,commitments,child,attachments) = {
+    let a = allowed("projectFor")
+    if ((a == a))
+        then if (!(contains(mainAddresses, toString(i.caller))))
+            then throw("denied")
+            else {
+                let t = valueOrErrorMessage(addressFromString(child), "invalid treasury address")
+                if ((t == t))
+                    then {
+                        let verified = valueOrElse(getBoolean(t, "powerdao_child_dao_verify"), false)
+                        if (!(verified))
+                            then throw("denied: treasury must verify ownership by setting powerdao_child_dao_verify = true")
+                            else {
+                                let token = assetId(investmentsToken)
+                                if ((token == token))
+                                    then if (if ((maxSkin > 0))
+                                        then (skin > maxSkin)
+                                        else false)
+                                        then throw("invalid maxSkin")
+                                        else if (if ((maxInvestments > 0))
+                                            then (investments > maxInvestments)
+                                            else false)
+                                            then throw("invalid maxInvestments")
+                                            else [writeConstString(ownerStore(child), owner), writeInt(createHeightStore(child), HEIGHT), writeInt(skinRequiredStore(child), skin), writeInt(skinMaxStore(child), maxSkin), writeInt(minCommitmentStore(child), minCommitment), writeInt(lockTimeStore(child), lockTime), writeInt(investmentsRequiredStore(child), investments), writeConstString(investmentsTokenStore(child), investmentsToken), writeConstString(commitmentsStore(child), commitments), writeConstString(treasuryStore(child), child), writeInt(investmentsMaxStore(child), maxInvestments), writeBinary(attachmentsStore(child), attachments)]
+                                    else throw("Strict value is not equal to itself.")
+                                }
+                        }
+                    else throw("Strict value is not equal to itself.")
+                }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func increraseSkin (child,skinIncrement) = {
+    let a = allowed("increraseSkin")
+    if ((a == a))
+        then {
+            let s = if (if (assertNotStarted(child))
+                then true
+                else assertNotCancelled(child))
+                then true
+                else assertOwnership(i, child)
+            if ((s == s))
+                then if ((0 >= skinIncrement))
+                    then throw("invalid argument: skinIncrement should be positive")
+                    else [changeBy(skinRequiredStore(child), skinIncrement)]
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func commit (child) = {
+    let a = allowed("commit")
+    if ((a == a))
+        then {
+            let s = assertNotCancelled(child)
+            if ((s == s))
+                then if (if ((size(i.payments) != 1))
+                    then true
+                    else (i.payments[0].assetId != pwrAssetId))
+                    then throw("exactly one PWR payment expected")
+                    else {
+                        let commitment = i.payments[0].amount
+                        let minCommitment = valueOrErrorMessage(getInteger(minCommitmentStore(child)), "Child DAO not found")
+                        if ((minCommitment > commitment))
+                            then throw(("Min. commitment is " + toString(minCommitment)))
+                            else {
+                                let skinTotalStore1 = skinTotalStore(child)
+                                let newSkinTotal = (valueOrElse(getInteger(skinTotalStore1), 0) + commitment)
+                                let skinMax = valueOrElse(getInteger(skinMaxStore(child)), 0)
+                                let skinRequired = valueOrElse(getInteger(skinRequiredStore(child)), 0)
+                                if (if (if ((skinMax > 0))
+                                    then true
+                                    else (skinRequired == 0))
+                                    then (newSkinTotal > skinMax)
+                                    else false)
+                                    then throw(("Total max. skin is reached: " + toString(skinMax)))
+                                    else [changeBy(userSkinStore(child, toString(i.caller)), commitment), IntegerEntry(skinTotalStore1, newSkinTotal), changeBy(pwrTotalStore, commitment)]
+                                }
+                        }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func commitForMiner (child,address) = {
+    let a = allowed("commitForMiner")
+    if ((a == a))
+        then if (!(contains(mainAddresses, toString(i.caller))))
+            then throw("denied")
+            else if ((child != wavesDAO))
+                then throw("commitForMiner: child must be wavesDAO")
+                else {
+                    let p = i.payments[0]
+                    if (if ((p.assetId != pwrAssetId))
+                        then true
+                        else (size(i.payments) != 1))
+                        then throw("invalid payments: only $PWR token expected")
+                        else {
+                            let commitment = p.amount
+                            let autocommit = valueOrElse(getBoolean(addressFromStringValue(address), "powerdao_autocommit"), autocommitForMiners)
+                            let sharing = isNodeSharing(address)
+                            if (sharing)
+                                then [changeBy(nodePoolStore(address), commitment), changeBy(nodeTotalRewardedStore(address), commitment)]
+                                else if (autocommit)
+                                    then [changeBy(userSkinStore(child, address), commitment), changeBy(skinTotalStore(child), commitment), changeBy(pwrTotalStore, commitment)]
+                                    else {
+                                        let existingPending = valueOrElse(getInteger(pendingCommitAmountStore(address)), 0)
+[IntegerEntry(pendingCommitAmountStore(address), (existingPending + commitment))]
+                                        }
+                            }
+                    }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func acceptCommit () = {
+    let a = allowed("acceptCommit")
+    if ((a == a))
+        then {
+            let address = toString(i.caller)
+            let pending = valueOrElse(getInteger(pendingCommitAmountStore(address)), 0)
+            if ((pending == 0))
+                then throw("no pending commit")
+                else [DeleteEntry(pendingCommitAmountStore(address)), changeBy(userSkinStore(wavesDAO, address), pending), changeBy(skinTotalStore(wavesDAO), pending), changeBy(pwrTotalStore, pending)]
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func claimLeaseRewards (node) = {
+    let a = allowed("claimLeaseRewards")
+    if ((a == a))
+        then if (!(isNodeSharing(node)))
+            then throw("sharing not enabled for this node")
+            else {
+                let child = wavesDAO
+                let user = toString(i.caller)
+                let pool = valueOrElse(getInteger(nodePoolStore(node)), 0)
+                let claimable = asInt(invoke(addressFromStringValue(node), "processClaim", [user, pool], nil))
+                if ((claimable == claimable))
+                    then {
+                        let amount = min([claimable, pool])
+                        if ((0 >= amount))
+                            then throw("nothing to claim")
+                            else [changeBy(userSkinStore(child, user), amount), changeBy(skinTotalStore(child), amount), changeBy(pwrTotalStore, amount), changeBy(nodePoolStore(node), -(amount))]
+                        }
+                    else throw("Strict value is not equal to itself.")
+                }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func claimLeaseRewardsForProtocol (node) = {
+    let a = allowed("claimLeaseRewards")
+    if ((a == a))
+        then if (!(isNodeSharing(node)))
+            then throw("sharing not enabled for this node")
+            else {
+                let nodeAddr = addressFromStringValue(node)
+                let treasuryAddress = valueOrElse(getString(config, "contract_treasury"), "3PQn4BwNW1kcX1gagVHWxSP5RyQ3V9UYPT8")
+                let pool = valueOrElse(getInteger(nodePoolStore(node)), 0)
+                let wavesDAOPayout = asInt(invoke(nodeAddr, "processClaim", [wavesDAO, pool], nil))
+                if ((wavesDAOPayout == wavesDAOPayout))
+                    then {
+                        let poolAfterWavesDAO = (pool - wavesDAOPayout)
+                        let treasuryPayout = asInt(invoke(nodeAddr, "processClaim", [treasuryAddress, poolAfterWavesDAO], nil))
+                        if ((treasuryPayout == treasuryPayout))
+                            then {
+                                let totalPayout = (wavesDAOPayout + treasuryPayout)
+                                if ((0 >= totalPayout))
+                                    then throw("nothing to claim")
+                                    else {
+                                        let wavesDAOTransfer = if ((wavesDAOPayout > 0))
+                                            then [ScriptTransfer(addressFromStringValue(wavesDAO), wavesDAOPayout, pwrAssetId)]
+                                            else nil
+                                        let treasuryTransfer = if ((treasuryPayout > 0))
+                                            then [ScriptTransfer(addressFromStringValue(treasuryAddress), treasuryPayout, pwrAssetId)]
+                                            else nil
+                                        ((wavesDAOTransfer ++ treasuryTransfer) ++ [changeBy(nodePoolStore(node), -(totalPayout))])
+                                        }
+                                }
+                            else throw("Strict value is not equal to itself.")
+                        }
+                    else throw("Strict value is not equal to itself.")
+                }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func commitAfterStartFor (child,address) = commitAfterStartForInternal(i, child, address, 0)
+
+
+
+@Callable(i)
+func commitAfterStartWithLockRoundFor (child,address,additionalLockRounds) = commitAfterStartForInternal(i, child, address, additionalLockRounds)
+
+
+
+@Callable(i)
+func invest (child) = {
+    let a = allowed("invest")
+    if ((a == a))
+        then {
+            let s = assertNotStarted(child)
+            if ((s == s))
+                then {
+                    let token = investmentsToken(child)
+                    if ((i.payments[0].assetId != token))
+                        then throw("invalid investments asset id")
+                        else {
+                            let amount = i.payments[0].amount
+                            let maximum = valueOrElse(getInteger(investmentsMaxStore(child)), 0)
+                            func datas (a) =                             [changeBy(investorStore(child, toString(i.caller)), a), changeBy(investmentsTotalStore(child), a), changeBy(investmentsPeriodTotalStore(child), a)]
+
+                            if ((maximum > 0))
+                                then {
+                                    let totalStore = investmentsTotalStore(child)
+                                    let total = valueOrElse(getInteger(totalStore), 0)
+                                    let investmens = min([amount, (maximum - total)])
+                                    if ((0 >= investmens))
+                                        then throw(("Total max. investments is reached: " + toString(maximum)))
+                                        else {
+                                            let chargeBack = (amount - investmens)
+                                            if ((chargeBack > 0))
+                                                then [ScriptTransfer(i.caller, chargeBack, token), datas(investmens)]
+                                                else datas(investmens)
+                                            }
+                                    }
+                                else datas(amount)
+                            }
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func investAfterStart (child) = {
+    let a = allowed("investAfterStart")
+    if ((a == a))
+        then if ((valueOrElse(getBoolean(investAfterStartStore(child)), false) == false))
+            then throw("denied (investAfterStart)")
+            else {
+                let s = assertIsStarted(child)
+                if ((s == s))
+                    then if ((period(child) > 0))
+                        then throw("initial round is ended")
+                        else {
+                            let token = investmentsToken(child)
+                            if ((i.payments[0].assetId != token))
+                                then throw("invalid investments asset id")
+                                else {
+                                    let amount = i.payments[0].amount
+[changeBy(investorStore(child, toString(i.caller)), amount), changeBy(investmentsTotalStore(child), amount), changeBy(investmentsPeriodTotalStore(child), amount), ScriptTransfer(addressFromStringValue(treasury(child)), amount, investmentsToken(child))]
+                                    }
+                            }
+                    else throw("Strict value is not equal to itself.")
+                }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func start (child) = {
+    let paused = allowed("start")
+    if ((paused == paused))
+        then {
+            let s = if (assertNotStarted(child))
+                then true
+                else assertNotCancelled(child)
+            if ((s == s))
+                then {
+                    let totalSkin = valueOrElse(getInteger(skinTotalStore(child)), 0)
+                    let skinRequired = valueOrErrorMessage(getInteger(skinRequiredStore(child)), "child not registered")
+                    if ((skinRequired > totalSkin))
+                        then throw("not enough skin in the game")
+                        else {
+                            let totalInvestments = valueOrElse(getInteger(investmentsTotalStore(child)), 0)
+                            if ((getIntegerValue(investmentsRequiredStore(child)) > totalInvestments))
+                                then throw("not enough investments")
+                                else [IntegerEntry(startHeightStore(child), HEIGHT), ScriptTransfer(addressFromStringValue(treasury(child)), totalInvestments, investmentsToken(child))]
+                            }
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func slashAddress (child,address,amount) = {
+    let validation = validateSlashPermissions(i, child)
+    if ((validation == validation))
+        then if ((0 >= amount))
+            then throw(("amount must be positive for address: " + address))
+            else {
+                let $t01965119719 = slashSkinInt(child, address, amount)
+                let userAction = $t01965119719._1
+                let skinSlashed = $t01965119719._2
+                if ((skinSlashed == 0))
+                    then nil
+                    else [userAction, changeBy(skinTotalStore(child), -(skinSlashed)), changeBy(pwrTotalStore, -(skinSlashed)), Burn(pwrAssetId, skinSlashed)]
+                }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func slashMany (child,addressAmounts) = {
+    let validation = validateSlashPermissions(i, child)
+    if ((validation == validation))
+        then {
+            let pairs = split(addressAmounts, ",")
+            if ((size(pairs) > 90))
+                then throw("maximum 90 addresses allowed")
+                else if ((size(pairs) == 0))
+                    then throw("no addresses provided")
+                    else {
+                        func processSlash (acc,pair) =                         {
+                            let $t02028220315 = acc
+                            let actions = $t02028220315._1
+                            let totalSlashed = $t02028220315._2
+                            let parts = split(pair, "=")
+                            if ((size(parts) != 2))
+                                then throw("invalid format: expected addr=amount")
+                                else {
+                                    let address = parts[0]
+                                    let requestedAmount = parseIntValue(parts[1])
+                                    if ((0 >= requestedAmount))
+                                        then $Tuple2(actions, totalSlashed)
+                                        else {
+                                            let $t02058820665 = slashSkinInt(child, address, requestedAmount)
+                                            let userAction = $t02058820665._1
+                                            let skinSlashed = $t02058820665._2
+                                            if ((skinSlashed == 0))
+                                                then $Tuple2(actions, totalSlashed)
+                                                else $Tuple2(userAction :: actions, (totalSlashed + skinSlashed))
+                                            }
+                                    }
+                            }
+
+                        let $t02079220864 = {
+                            let $l = pairs
+                            let $s = size($l)
+                            let $acc0 = $Tuple2(nil, 0)
+                            func $f0_1 ($a,$i) =                             if (($i >= $s))
+                                then $a
+                                else processSlash($a, $l[$i])
+
+                            func $f0_2 ($a,$i) =                             if (($i >= $s))
+                                then $a
+                                else throw("List size exceeds 90")
+
+                            $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18), 19), 20), 21), 22), 23), 24), 25), 26), 27), 28), 29), 30), 31), 32), 33), 34), 35), 36), 37), 38), 39), 40), 41), 42), 43), 44), 45), 46), 47), 48), 49), 50), 51), 52), 53), 54), 55), 56), 57), 58), 59), 60), 61), 62), 63), 64), 65), 66), 67), 68), 69), 70), 71), 72), 73), 74), 75), 76), 77), 78), 79), 80), 81), 82), 83), 84), 85), 86), 87), 88), 89), 90)
+                            }
+                        let userActions = $t02079220864._1
+                        let totalSlashed = $t02079220864._2
+                        if ((totalSlashed == 0))
+                            then nil
+                            else (userActions ++ [changeBy(skinTotalStore(child), -(totalSlashed)), changeBy(pwrTotalStore, -(totalSlashed)), Burn(pwrAssetId, totalSlashed)])
+                        }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func exitChild (child) = {
+    let a = allowed("exitChild")
+    if ((a == a))
+        then {
+            let s = assertIsStarted(child)
+            if ((s == s))
+                then {
+                    let user = toString(i.caller)
+                    let skin = currentUserSkin(child, user)
+                    if ((skin == 0))
+                        then throw("no skin in the game")
+                        else {
+                            let cooldownHeight = (HEIGHT + exitCooldown(child))
+                            let userKpiLock = valueOrElse(getInteger(childrenVotingContract, ((("user_kpi_lock_" + child) + "_") + user)), 0)
+                            let kpiLockHeight = if ((userKpiLock > 0))
+                                then (userKpiLock + kpiSafetyWindow(child))
+                                else 0
+                            let withdrawHeight = max([cooldownHeight, kpiLockHeight])
+                            let park = invoke(withdrawalContract, "parkFor", [child, user, withdrawHeight], [AttachedPayment(pwrAssetId, skin)])
+                            if ((park == park))
+                                then [DeleteEntry(userSkinStore(child, user)), changeBy(skinTotalStore(child), -(skin)), changeBy(pwrTotalStore, -(skin))]
+                                else throw("Strict value is not equal to itself.")
+                            }
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func cancel (child) = {
+    let paused = allowed("cancel")
+    if ((paused == paused))
+        then {
+            let s = if (if (assertNotStarted(child))
+                then true
+                else assertNotCancelled(child))
+                then true
+                else assertOwnership(i, child)
+            if ((s == s))
+                then [IntegerEntry(cancelHeightStore(child), HEIGHT)]
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func undoInvest (child) = {
+    let paused = allowed("undoInvest")
+    if ((paused == paused))
+        then {
+            let s = assertNotStarted(child)
+            if ((s == s))
+                then {
+                    let investmentsStore1 = investorStore(child, toString(i.caller))
+                    let investments = valueOrElse(getInteger(investmentsStore1), 0)
+                    if ((investments == 0))
+                        then throw("no investments")
+                        else [DeleteEntry(investmentsStore1), changeBy(investmentsTotalStore(child), -(investments)), changeBy(investmentsPeriodTotalStore(child), -(investments)), ScriptTransfer(i.caller, investments, investmentsToken(child))]
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func undoCommit (child) = {
+    let paused = allowed("undoCommit")
+    if ((paused == paused))
+        then {
+            let s = assertNotStarted(child)
+            if ((s == s))
+                then {
+                    let user = toString(i.caller)
+                    let userSkinStore1 = userSkinStore(child, user)
+                    let skin = valueOrElse(getInteger(userSkinStore1), 0)
+                    if ((skin == 0))
+                        then throw("no skin")
+                        else [DeleteEntry(userSkinStore1), changeBy(skinTotalStore(child), -(skin)), changeBy(pwrTotalStore, -(skin)), ScriptTransfer(i.caller, skin, pwrAssetId)]
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func userPower (child,user) = $Tuple2(nil, valueOrElse(userCommitment(child, user), 0))
+
+
+
+@Callable(i)
+func totalPower (child) = $Tuple2(nil, valueOrErrorMessage(getInteger(skinTotalStore(child)), "totalPower: child not found"))
+
+
+
+@Callable(i)
+func init (conf) = [writeConstString(configAddressStore, conf)]
+
+
+
+@Callable(i)
+func ambassadorReward (ambassadors) = {
+    let paused = allowed("ambassadorReward")
+    if ((paused == paused))
+        then {
+            let adminCheck = assertAmbassadorAdmin(i)
+            if ((adminCheck == adminCheck))
+                then {
+                    let paymentAmount = getPaymentAmount(i)
+                    let ambassadorAddresses = parseAmbassadorList(ambassadors)
+                    let rewardAmount = 100000000
+                    let totalNeeded = (rewardAmount * size(ambassadorAddresses))
+                    if ((totalNeeded > paymentAmount))
+                        then throw(((("insufficient payment: need " + toString(totalNeeded)) + " but got ") + toString(paymentAmount)))
+                        else {
+                            func fold (a,ambassador) =                             {
+                                let $t02413824166 = a
+                                let totalRewards = $t02413824166._1
+                                let cmds = $t02413824166._2
+                                let skinStore = userSkinStore(ambassadorDAO, ambassador)
+                                let userSkin = valueOrElse(getInteger(skinStore), 0)
+                                let newSkin = (userSkin + rewardAmount)
+                                let skinCmd = IntegerEntry(skinStore, newSkin)
+                                $Tuple2((totalRewards + rewardAmount), skinCmd :: cmds)
+                                }
+
+                            let $t02444724518 = {
+                                let $l = ambassadorAddresses
+                                let $s = size($l)
+                                let $acc0 = $Tuple2(0, nil)
+                                func $f0_1 ($a,$i) =                                 if (($i >= $s))
+                                    then $a
+                                    else fold($a, $l[$i])
+
+                                func $f0_2 ($a,$i) =                                 if (($i >= $s))
+                                    then $a
+                                    else throw("List size exceeds 30")
+
+                                $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18), 19), 20), 21), 22), 23), 24), 25), 26), 27), 28), 29), 30)
+                                }
+                            let totalRewards = $t02444724518._1
+                            let cmds = $t02444724518._2
+                            let change = (paymentAmount - totalNeeded)
+                            let changeTransfer = if ((change > 0))
+                                then [ScriptTransfer(i.caller, change, pwrAssetId)]
+                                else nil
+[changeBy(skinTotalStore(ambassadorDAO), totalRewards), changeBy(pwrTotalStore, totalRewards), (cmds ++ changeTransfer)]
+                            }
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func ambassadorPenalty (ambassadors) = {
+    let paused = allowed("ambassadorPenalty")
+    if ((paused == paused))
+        then {
+            let adminCheck = assertAmbassadorAdmin(i)
+            if ((adminCheck == adminCheck))
+                then {
+                    let ambassadorAddresses = parseAmbassadorList(ambassadors)
+                    let penaltyAmount = 100000000
+                    func fold (a,ambassador) =                     {
+                        let $t02514425172 = a
+                        let totalRemoved = $t02514425172._1
+                        let cmds = $t02514425172._2
+                        let skinStore = userSkinStore(ambassadorDAO, ambassador)
+                        let userSkin = valueOrElse(getInteger(skinStore), 0)
+                        let actualRemoval = min([userSkin, penaltyAmount])
+                        let newSkin = (userSkin - actualRemoval)
+                        let cmd = if ((newSkin > 0))
+                            then IntegerEntry(skinStore, newSkin)
+                            else DeleteEntry(skinStore)
+                        $Tuple2((totalRemoved + actualRemoval), cmd :: cmds)
+                        }
+
+                    let $t02555025621 = {
+                        let $l = ambassadorAddresses
+                        let $s = size($l)
+                        let $acc0 = $Tuple2(0, nil)
+                        func $f0_1 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else fold($a, $l[$i])
+
+                        func $f0_2 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else throw("List size exceeds 30")
+
+                        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18), 19), 20), 21), 22), 23), 24), 25), 26), 27), 28), 29), 30)
+                        }
+                    let totalRemoved = $t02555025621._1
+                    let cmds = $t02555025621._2
+                    let penaltyBurn = if ((totalRemoved > 0))
+                        then [Burn(pwrAssetId, totalRemoved)]
+                        else nil
+[changeBy(skinTotalStore(ambassadorDAO), -(totalRemoved)), changeBy(pwrTotalStore, -(totalRemoved)), (cmds ++ penaltyBurn)]
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func ambassadorTenPercent (ambassadors) = {
+    let paused = allowed("ambassadorTenPercent")
+    if ((paused == paused))
+        then {
+            let adminCheck = assertAmbassadorAdmin(i)
+            if ((adminCheck == adminCheck))
+                then {
+                    let paymentAmount = getPaymentAmount(i)
+                    let ambassadorAddresses = parseAmbassadorList(ambassadors)
+                    let maxReward = 50000000
+                    func fold (a,ambassador) =                     {
+                        let $t02622326251 = a
+                        let totalRewards = $t02622326251._1
+                        let cmds = $t02622326251._2
+                        let skinStore = userSkinStore(ambassadorDAO, ambassador)
+                        let userSkin = valueOrElse(getInteger(skinStore), 0)
+                        if ((userSkin == 0))
+                            then $Tuple2(totalRewards, cmds)
+                            else {
+                                let tenPercent = fraction(userSkin, 10, 100)
+                                let reward = min([tenPercent, maxReward])
+                                let newSkin = (userSkin + reward)
+                                let cmd = IntegerEntry(skinStore, newSkin)
+                                $Tuple2((totalRewards + reward), cmd :: cmds)
+                                }
+                        }
+
+                    let $t02666826739 = {
+                        let $l = ambassadorAddresses
+                        let $s = size($l)
+                        let $acc0 = $Tuple2(0, nil)
+                        func $f0_1 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else fold($a, $l[$i])
+
+                        func $f0_2 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else throw("List size exceeds 30")
+
+                        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18), 19), 20), 21), 22), 23), 24), 25), 26), 27), 28), 29), 30)
+                        }
+                    let totalRewards = $t02666826739._1
+                    let cmds = $t02666826739._2
+                    if ((totalRewards > paymentAmount))
+                        then throw(((("insufficient payment: need " + toString(totalRewards)) + " but got ") + toString(paymentAmount)))
+                        else {
+                            let change = (paymentAmount - totalRewards)
+                            let changeTransfer = if ((change > 0))
+                                then [ScriptTransfer(i.caller, change, pwrAssetId)]
+                                else nil
+[changeBy(skinTotalStore(ambassadorDAO), totalRewards), changeBy(pwrTotalStore, totalRewards), (cmds ++ changeTransfer)]
+                            }
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Verifier(tx)
+func verify () = {
+    let byVoting = {
+        func opAllowedStore (op) =         (("op_" + op) + "_allowed")
+
+        let enabled = valueOrElse(getBoolean(config, opAllowedStore("governance_apply_tx")), true)
+        if (!(enabled))
+            then throw("tx application throw governance not enabled")
+            else {
+                let id = toBase58String(tx.id)
+                let votingResults = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(config, "contract_voting_result"), "children: no contract_voting_result")), "invalid contract_voting_result")
+                (HEIGHT >= getIntegerValue(votingResults, ((("proposal_allow_broadcast_" + toString(this)) + "_") + id)))
+                }
+        }
+    if (sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey))
+        then true
+        else byVoting
+    }

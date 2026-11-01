@@ -1,0 +1,267 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let SEP = "__"
+
+let PRECISION = 1000000000000
+
+func divp (_x,_y) = fraction(_x, PRECISION, _y, HALFEVEN)
+
+
+func mulp (_x,_y) = fraction(_x, _y, PRECISION, HALFEVEN)
+
+
+func conv6to8 (_v) = (_v * 100)
+
+
+func conv8to6 (_v) = (_v / 100)
+
+
+func join (ar) = makeString(ar, SEP)
+
+
+func keyInitialized () = join(["%s", "initialized"])
+
+
+func keyCoordinatorAddress () = join(["%s", "coordinatorAddress"])
+
+
+func keyVerifierAddress () = join(["%s", "verifierAddress"])
+
+
+func keyEastAsset () = join(["%s", "eastAsset"])
+
+
+func keySigned (_address,_txId) = join(["%s%s%s", "signed", _address, _txId])
+
+
+func keyProtocolActive () = join(["%s", "protocolActive"])
+
+
+func isInitialized () = valueOrElse(getBoolean(this, keyInitialized()), false)
+
+
+func mustNotInitialized () = if (isInitialized())
+    then throw("Already initialized")
+    else unit
+
+
+func mustSelf (i) = if ((i.caller != this))
+    then throw("Only self invocation allowed.")
+    else unit
+
+
+func coordinator () = addressFromStringValue(valueOrErrorMessage(getString(keyCoordinatorAddress()), "Coordinator is not set"))
+
+
+func verifier () = match getString(keyCoordinatorAddress()) {
+    case s: String => 
+        getString(addressFromStringValue(s), keyVerifierAddress())
+    case _: Unit => 
+        unit
+    case _ => 
+        throw("Match error")
+}
+
+
+func getEastAssetStr () = valueOrErrorMessage(getString(coordinator(), keyEastAsset()), "East asset is not set")
+
+
+func getEastAsset () = fromBase58String(getEastAssetStr())
+
+
+func isActive () = valueOrElse(getBoolean(coordinator(), keyProtocolActive()), false)
+
+
+func mustActive () = if (if (!(isActive()))
+    then true
+    else !(isInitialized()))
+    then throw("Protocol is disabled. Please contact support.")
+    else unit
+
+
+func hasOnePayment (i) = (size(i.payments) == 1)
+
+
+func getAssetIdFromString (assetId) = if ((assetId == "WAVES"))
+    then unit
+    else fromBase58String(assetId)
+
+
+func isAsset (p,checkingAsset) = {
+    let assetId =     match checkingAsset {
+        case bv: ByteVector => 
+            bv
+        case s: String => 
+            getAssetIdFromString(s)
+        case _: Unit => 
+            unit
+        case _ => 
+            throw("Match error")
+    }
+    match assetId {
+        case bv: ByteVector => 
+            let name =             match assetInfo(bv) {
+                case asset: Asset => 
+                    asset.name
+                case _: Unit => 
+                    throw(("Can't find asset " + toBase58String(bv)))
+                case _ => 
+                    throw("Match error")
+            }
+            let err = throw(("Attached payment asset is not " + name))
+            match p.assetId {
+                case paymentAsset: ByteVector => 
+                    if ((paymentAsset != assetId))
+                        then err
+                        else unit
+                case _: Unit => 
+                    err
+                case _ => 
+                    throw("Match error")
+            }
+        case _: Unit => 
+            if ((p.assetId != unit))
+                then throw("Attached payment asset is not WAVES")
+                else unit
+        case _ => 
+            throw("Match error")
+    }
+    }
+
+
+func checkAddress (_address) = match addressFromString(_address) {
+    case address: Address => 
+        true
+    case _: Unit => 
+        throw("Invalid address")
+    case _ => 
+        throw("Match error")
+}
+
+
+func keyRate () = join(["%s", "rate"])
+
+
+func keyStEast () = join(["%s", "stEast"])
+
+
+func keyEastBalance () = join(["%s", "eastBalance"])
+
+
+func keyStEastBalance () = join(["%s", "stEastBalance"])
+
+
+func getStEast () = fromBase58String(getStringValue(this, keyStEast()))
+
+
+func getEastBalance () = valueOrElse(getInteger(keyEastBalance()), 0)
+
+
+func getStEastBalance () = valueOrElse(getInteger(keyStEastBalance()), 0)
+
+
+func getRate () = getIntegerValue(keyRate())
+
+
+func updateBalances (_eastAmount,_stEastAmount) = [IntegerEntry(keyEastBalance(), (getEastBalance() + _eastAmount)), IntegerEntry(keyStEastBalance(), (getStEastBalance() + _stEastAmount))]
+
+
+func updateRate (_rate) = [IntegerEntry(keyRate(), _rate)]
+
+
+func issueStEast (_amount) = {
+    let stEast = getStEast()
+[Reissue(stEast, _amount, true)]
+    }
+
+
+func burnStEast (_amount) = {
+    let stEast = getStEast()
+[Burn(stEast, _amount)]
+    }
+
+
+func sendStEast (_recipient,_amount) = {
+    let stEast = getStEast()
+[ScriptTransfer(_recipient, _amount, stEast)]
+    }
+
+
+func sendEast (_recipient,_amount) = {
+    let eastAsset = getEastAsset()
+[ScriptTransfer(_recipient, _amount, eastAsset)]
+    }
+
+
+@Callable(i)
+func initialize (_coordinatorAddress) = {
+    let checks = [mustSelf(i), mustNotInitialized(), checkAddress(_coordinatorAddress)]
+    if ((checks == checks))
+        then {
+            let stEast = Issue("stEAST", "", 0, 8, true, unit, 0)
+            let stEastId = calculateAssetId(stEast)
+[BooleanEntry(keyInitialized(), true), StringEntry(keyCoordinatorAddress(), _coordinatorAddress), StringEntry(keyStEast(), toBase58String(stEastId)), IntegerEntry(keyRate(), PRECISION), stEast]
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func stake () = {
+    let payment = i.payments[0]
+    let eastAsset = getEastAsset()
+    let checks = [mustActive(), hasOnePayment(i), isAsset(payment, eastAsset)]
+    if ((checks == checks))
+        then {
+            let rate = getRate()
+            let mainAssetAmount = conv6to8(payment.amount)
+            let toReissue = divp(mainAssetAmount, rate)
+            ((updateBalances(payment.amount, toReissue) ++ issueStEast(toReissue)) ++ sendStEast(i.caller, toReissue))
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func unstake () = {
+    let payment = i.payments[0]
+    let stEast = getStEast()
+    let checks = [mustActive(), hasOnePayment(i), isAsset(payment, stEast)]
+    if ((checks == checks))
+        then {
+            let rate = getRate()
+            let transferAmount = conv8to6(mulp(payment.amount, rate))
+            ((updateBalances(-(transferAmount), -(payment.amount)) ++ burnStEast(payment.amount)) ++ sendEast(i.caller, transferAmount))
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func addStakingRewards () = {
+    let payment = i.payments[0]
+    let eastAsset = getEastAsset()
+    let checks = [mustActive(), hasOnePayment(i), isAsset(payment, eastAsset)]
+    if ((checks == checks))
+        then {
+            let balance = getEastBalance()
+            let newEastAmount = conv6to8((balance + payment.amount))
+            let stEastBalance = getStEastBalance()
+            let newRate = divp(newEastAmount, stEastBalance)
+            (updateBalances(payment.amount, 0) ++ updateRate(newRate))
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Verifier(tx)
+func verify () = match verifier() {
+    case address: String => 
+        valueOrElse(getBoolean(addressFromStringValue(address), keySigned(toString(this), toBase58String(tx.id))), false)
+    case _ => 
+        sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)
+}

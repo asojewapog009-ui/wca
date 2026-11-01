@@ -1,0 +1,31 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let vestingDapp = Address(base58'3PCbvPVQfSvVu88ip8Fm5YjwJhjEYk1Txhk')
+
+let viresDapp = Address(base58'3PAZv9tgK1PX7dKR7b4kchq5qdpUS3G5sYT')
+
+let adminAddress = Address(base58'3P9kkY7zreqy9sqjBq95iwHdxJxTRtXMi5F')
+
+@Callable(i)
+func viresWD (whale,regular) = if ((i.caller != adminAddress))
+    then throw("only admin allowed")
+    else {
+        let call = invoke(vestingDapp, "withdrawVestedAllUSDN", [whale, regular], nil)
+        if ((call == call))
+            then nil
+            else throw("Strict value is not equal to itself.")
+        }
+
+
+
+@Callable(i)
+func panicWD (coin) = if ((i.caller != adminAddress))
+    then throw("only admin allowed")
+    else {
+        let call = invoke(viresDapp, "withdraw2", [coin, -1], nil)
+        if ((call == call))
+            then nil
+            else throw("Strict value is not equal to itself.")
+        }
+

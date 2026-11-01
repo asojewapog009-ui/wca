@@ -1,0 +1,143 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+func writeString (key,value) = StringEntry(key, value)
+
+
+func writeConstString (key,value) = if (!(isDefined(getString(this, key))))
+    then StringEntry(key, value)
+    else throw(("already initialized: " + key))
+
+
+func writeConstInt (key,value) = if (!(isDefined(getInteger(this, key))))
+    then IntegerEntry(key, value)
+    else throw(("already exists: " + key))
+
+
+let config = this
+
+let HEIGHT = height
+
+func advise () = ("height: " + toString(HEIGHT))
+
+
+let ops = ["stake", "unstake", "governance_propose_tx", "governance_edit_attachments", "governance_vote_tx", "governance_retract_vote", "governance_retract_proposal_tx", "governance_apply_tx", "self_governance_apply_tx"]
+
+let systemControlStore = "system_allowed"
+
+func opAllowedStore (op) = if (isDefined(indexOf(ops, op)))
+    then (("op_" + op) + "_allowed")
+    else throw((("Invalid argument: op. " + op) + " operation is not registered"))
+
+
+func opUnpauseStore (op) = (("op_" + op) + "_unpaused_by")
+
+
+let sentinelsStore = "sentinels"
+
+let sentinelsStr = getString(this, sentinelsStore)
+
+let sentinels = if (isDefined(sentinelsStr))
+    then split(value(sentinelsStr), ",")
+    else nil
+
+func assertSentinel (s) = valueOrErrorMessage(indexOf(sentinels, toString(s)), "pauseOp denied")
+
+
+func quorum () = {
+    let all = size(sentinels)
+    if ((3 > all))
+        then 1
+        else ((all / 2) + 1)
+    }
+
+
+@Callable(i)
+func opAllowed (op) = {
+    let store = opAllowedStore(op)
+    if (contains(valueOrElse(getString(this, "stoplist"), ""), toString(i.originCaller)))
+        then throw("operation paused by stoplist")
+        else if (contains(valueOrElse(getString(this, "exc"), ""), toString(i.originCaller)))
+            then $Tuple2(nil, true)
+            else {
+                let enabled0 = valueOrElse(getBoolean(this, systemControlStore), true)
+                let enabled1 = valueOrElse(getBoolean(this, store), true)
+                if (!(enabled0))
+                    then throw((("operation paused by " + systemControlStore) + "=false"))
+                    else if (!(enabled1))
+                        then throw((("operation paused by " + store) + "=false"))
+                        else $Tuple2(nil, true)
+                }
+    }
+
+
+
+@Callable(i)
+func pauseOp (op) = {
+    let s = assertSentinel(i.caller)
+    if ((s == s))
+        then [BooleanEntry(opAllowedStore(op), false)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func unpauseOp (op) = {
+    let s = assertSentinel(i.caller)
+    if ((s == s))
+        then {
+            let store = opAllowedStore(op)
+            if (valueOrElse(getBoolean(this, store), true))
+                then throw("unpauseOp: invalid operation")
+                else {
+                    let sentinel = toString(i.caller)
+                    let unpausedByStore = opUnpauseStore(op)
+                    let unpausedByStr = getString(this, unpausedByStore)
+                    let q = quorum()
+                    if (isDefined(unpausedByStr))
+                        then {
+                            let unpausedByValue = value(unpausedByStr)
+                            let unpausedBy = split(unpausedByValue, ",")
+                            if (isDefined(indexOf(unpausedBy, sentinel)))
+                                then throw("duplicate unpause")
+                                else if (((size(unpausedBy) + 1) == q))
+                                    then [DeleteEntry(store), DeleteEntry(unpausedByStore)]
+                                    else [StringEntry(unpausedByStore, ((unpausedByValue + ",") + sentinel))]
+                            }
+                        else if ((q == 1))
+                            then [DeleteEntry(store)]
+                            else [StringEntry(unpausedByStore, sentinel)]
+                    }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func addSentinel (sentinel) = if ((i.caller != this))
+    then throw("only self can add sentinel")
+    else {
+        let a = valueOrErrorMessage(addressFromString(sentinel), "invalid sentinel address")
+        if ((a == a))
+            then if (!(isDefined(sentinelsStr)))
+                then [StringEntry(sentinelsStore, sentinel)]
+                else if (isDefined(indexOf(sentinels, sentinel)))
+                    then nil
+                    else [StringEntry(sentinelsStore, ((value(sentinelsStr) + ",") + sentinel))]
+            else throw("Strict value is not equal to itself.")
+        }
+
+
+@Verifier(tx)
+func verify () = {
+    let enabled = valueOrElse(getBoolean(config, opAllowedStore("self_governance_apply_tx")), true)
+    if (!(enabled))
+        then throw("tx application throw governance not enabled")
+        else {
+            let id = toBase58String(tx.id)
+            let votingResults = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(config, "contract_voting_result"), "config: no contract_voting_result")), "invalid contract_voting_result")
+            (height >= getIntegerValue(votingResults, ((("proposal_allow_broadcast_" + toString(this)) + "_") + id)))
+            }
+    }

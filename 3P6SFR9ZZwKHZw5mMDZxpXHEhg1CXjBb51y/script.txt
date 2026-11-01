@@ -1,0 +1,394 @@
+{-# STDLIB_VERSION 4 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let SEP = "__"
+
+func wrapErr (msg) = makeString(["lp_staking.ride:", msg], " ")
+
+
+func throwErr (msg) = throw(wrapErr(msg))
+
+
+func getStringOrFail (key) = valueOrErrorMessage(getString(this, key), ("No data for this.key=" + key))
+
+
+func getBooleanOrFail (key) = valueOrErrorMessage(getBoolean(this, key), ("No data for this.key=" + key))
+
+
+func failExecuteGet (msg,baseAssetStr,userAddressStr,getTxIdStr) = throw(((((((msg + ": baseAssetStr=") + baseAssetStr) + " userAddressStr=") + userAddressStr) + " getTxIdStr=") + getTxIdStr))
+
+
+func keyAssetCfg (baseAssetStr) = ("%s%s%s__config__asset__" + baseAssetStr)
+
+
+func keyNextInternalAssetId () = "%s__nextInternalAssetId"
+
+
+func keyPriceLast (internalBasetAssetStr) = ("%s%s%d__price__last__" + internalBasetAssetStr)
+
+
+func keyTopUpLastHeight (internalBasetAssetStr,sender) = makeString(["%s%s%s%d%s__topup__last__height", internalBasetAssetStr, sender], SEP)
+
+
+func keyPriceHistory (internalBasetAssetStr,h,timestamp) = makeString(["%s%s%d%d%d__price__history", internalBasetAssetStr, toString(h), toString(timestamp)], SEP)
+
+
+func keyTotalLocked (internalBasetAssetStr) = ("%s%s%d__total__locked__" + internalBasetAssetStr)
+
+
+func keyTotalLockedByUser (internalBaseAssetStr,userAddressStr) = makeString(["%s%s%d%s__total__locked", internalBaseAssetStr, userAddressStr], SEP)
+
+
+func keyMappingsInternal2baseAssetId (internalBaseAsset) = ("%s%s%d__mappings__internal2baseAssetId__" + toString(internalBaseAsset))
+
+
+func keyMappingsBaseAsset2internalId (baseAssetStr) = ("%s%s%s__mappings__baseAsset2internalId__" + baseAssetStr)
+
+
+func keyMappingsShare2baseAssetId (shareAssetStr) = ("%s%s%s__mappings__share2baseAssetId__" + shareAssetStr)
+
+
+func keyMappingsBaseAsset2shareId (baseAssetStr) = ("%s%s%s__mappings__baseAsset2shareId__" + baseAssetStr)
+
+
+func keyShutdownPutOperation (internalBaseAssetStr) = ("%s%s%d__shutdown__put__" + internalBaseAssetStr)
+
+
+func keyShutdown (internalBaseAssetStr) = ("%s%d__shutdown__" + internalBaseAssetStr)
+
+
+func keyShutdownManager (internalBaseAssetStr) = ("%s%s%d__shutdown__manager__" + internalBaseAssetStr)
+
+
+let IdxCfgShareAssetId = 1
+
+let IdxCfgInternalBaseAsset = 2
+
+let IdxCfgDecimalsMultBothAssets = 3
+
+let IdxCfgDecimalsMultPrice = 4
+
+let IdxCfgGetDelayBlocks = 5
+
+func keyManagerPublicKey () = "%s__managerPublicKey"
+
+
+func keyManagerVaultAddress () = "%s__managerVaultAddress"
+
+
+func getManagerVaultAddressOrThis () = match getString(this, keyManagerVaultAddress()) {
+    case s: String => 
+        addressFromStringValue(s)
+    case _ => 
+        this
+}
+
+
+func managerPublicKeyOrUnit () = {
+    let managerVaultAddress = getManagerVaultAddressOrThis()
+    match getString(managerVaultAddress, keyManagerPublicKey()) {
+        case s: String => 
+            fromBase58String(s)
+        case _: Unit => 
+            unit
+        case _ => 
+            throw("Match error")
+    }
+    }
+
+
+let permissionDeniedError = throw("Permission denied")
+
+func mustThis (i) = if ((i.caller == this))
+    then true
+    else permissionDeniedError
+
+
+func mustManager (i) = match managerPublicKeyOrUnit() {
+    case pk: ByteVector => 
+        if ((i.callerPublicKey == pk))
+            then true
+            else permissionDeniedError
+    case _: Unit => 
+        mustThis(i)
+    case _ => 
+        throw("Match error")
+}
+
+
+let lpStakingPoolsContract = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(this, makeString(["%s", "lpStakingPoolsContract"], SEP)), wrapErr("lp_staking_pools contract address is undefined"))), wrapErr("invalid lp_staking_pools contract address"))
+
+func dataAssetCfg (shareAssetStr,internalBaseAssetStr,decimalsMultBothAssets,decimalsMultPrice,getDelayInBlocks) = makeString(["%s%d%d%d%d", shareAssetStr, internalBaseAssetStr, toString(decimalsMultBothAssets), toString(decimalsMultPrice), toString(getDelayInBlocks)], SEP)
+
+
+let IdxTotalLockedShare = 1
+
+let IdxTotalLockedBase = 2
+
+func dataTotalLocked (shareAssetAmount,baseAssetAmount) = makeString(["%d%d", toString(shareAssetAmount), toString(baseAssetAmount)], SEP)
+
+
+func readTotalLocked (key) = {
+    let totalLockedArray = split(valueOrElse(getString(this, key), dataTotalLocked(0, 0)), SEP)
+[-1, parseIntValue(totalLockedArray[IdxTotalLockedShare]), parseIntValue(totalLockedArray[IdxTotalLockedBase])]
+    }
+
+
+func keyOperation (operationType,internalBaseAssetStr,userAddress,txId) = makeString(["%s%d%s%s", operationType, internalBaseAssetStr, userAddress, txId], SEP)
+
+
+let IdxOperStatus = 1
+
+let IdxOperInAmount = 2
+
+let IdxOperPrice = 3
+
+let IdxOperOutAmount = 4
+
+let IdxOperStartHeight = 5
+
+let IdxOperStartTimestamp = 6
+
+let IdxOperEndHeight = 7
+
+let IdxOperEndTimestamp = 8
+
+func privateDataOperationAllStrings (status,inAssetAmount,price,outAssetAmount,startHeight,startTimestamp,endHeight,endTimestamp) = makeString(["%s%d%d%d%d%d%d%d", status, inAssetAmount, price, outAssetAmount, startHeight, startTimestamp, endHeight, endTimestamp], SEP)
+
+
+func dataOperation (status,inAssetAmount,price,outAssetAmount,startHeight,startTimestamp,endHeight,endTimestamp) = privateDataOperationAllStrings(status, toString(inAssetAmount), toString(price), toString(outAssetAmount), toString(startHeight), toString(startTimestamp), toString(endHeight), toString(endTimestamp))
+
+
+func dataOperationExecutionUpdate (currOperArray,newStatus,newEndTimestamp) = privateDataOperationAllStrings(newStatus, currOperArray[IdxOperInAmount], currOperArray[IdxOperPrice], currOperArray[IdxOperOutAmount], currOperArray[IdxOperStartHeight], currOperArray[IdxOperStartTimestamp], currOperArray[IdxOperEndHeight], toString(newEndTimestamp))
+
+
+func readAssetCfgOrFail (baseAssetStr) = {
+    let key = keyAssetCfg(baseAssetStr)
+    split(getStringOrFail(key), SEP)
+    }
+
+
+func incrementTotalLocked (key,shareAssetAmount,baseAssetAmount) = {
+    let dataArray = readTotalLocked(key)
+    StringEntry(key, dataTotalLocked((dataArray[IdxTotalLockedShare] + shareAssetAmount), (dataArray[IdxTotalLockedBase] + baseAssetAmount)))
+    }
+
+
+func decrementTotalLocked (key,shareAssetAmount,baseAssetAmount) = {
+    let dataArray = readTotalLocked(key)
+    StringEntry(key, dataTotalLocked((dataArray[IdxTotalLockedShare] - shareAssetAmount), (dataArray[IdxTotalLockedBase] - baseAssetAmount)))
+    }
+
+
+func genericCalcPrice (internalBaseAssetStr,baseAssetId,topUpBaseAmount,shareAssetId,decimalsMultBothAssets,decimalsMultPrice) = {
+    let totalLockedArray = readTotalLocked(keyTotalLocked(internalBaseAssetStr))
+    let totalLockedBaseAmount = totalLockedArray[IdxTotalLockedBase]
+    let baseAssetBalance = assetBalance(this, baseAssetId)
+    let baseAssetBalanceConsideringLock = ((baseAssetBalance - totalLockedBaseAmount) + topUpBaseAmount)
+    if ((0 > baseAssetBalanceConsideringLock))
+        then throw(((("baseAssetBalanceConsideringLock < 0: baseAssetBalance=" + toString(baseAssetBalance)) + " baseAssetBalanceConsideringLock=") + toString(baseAssetBalanceConsideringLock)))
+        else {
+            let shareEmission = value(assetInfo(shareAssetId)).quantity
+            let price = if ((shareEmission == 0))
+                then (1 * decimalsMultPrice)
+                else fraction(baseAssetBalanceConsideringLock, decimalsMultPrice, shareEmission)
+            $Tuple5(price, baseAssetBalance, totalLockedBaseAmount, baseAssetBalanceConsideringLock, shareEmission)
+            }
+    }
+
+
+func calcPrice (internalBaseAssetStr,baseAssetId,shareAssetId,decimalsMultBothAssets,decimalsMultPrice) = genericCalcPrice(internalBaseAssetStr, baseAssetId, 0, shareAssetId, decimalsMultBothAssets, decimalsMultPrice)
+
+
+func privateCurrentSysParamsREST (baseAssetStr) = {
+    let baseAssetId = fromBase58String(baseAssetStr)
+    let cfgArray = readAssetCfgOrFail(baseAssetStr)
+    let shareAssetStr = cfgArray[IdxCfgShareAssetId]
+    let shareAssetId = fromBase58String(shareAssetStr)
+    let decimalsMultBothAssets = parseIntValue(cfgArray[IdxCfgDecimalsMultBothAssets])
+    let decimalsMultPrice = parseIntValue(cfgArray[IdxCfgDecimalsMultPrice])
+    let internalBaseAssetStr = cfgArray[IdxCfgInternalBaseAsset]
+    let sysState = calcPrice(internalBaseAssetStr, baseAssetId, shareAssetId, decimalsMultBothAssets, decimalsMultPrice)
+    $Tuple6(IntegerEntry("price", sysState._1), IntegerEntry("decimalsMultPrice", decimalsMultPrice), IntegerEntry("baseAssetBalance", sysState._2), IntegerEntry("totalLockedBaseAmount", sysState._3), IntegerEntry("baseAssetBalanceConsideringLock", sysState._4), IntegerEntry("shareEmission", sysState._5))
+    }
+
+
+@Callable(i)
+func adminRegisterAsset (baseAssetStr,shareAssetName,shareAssetDescr,getDelayinBlocks,shutdownManagerAddress) = {
+    let baseAssetId = fromBase58String(baseAssetStr)
+    let decimals = value(assetInfo(baseAssetId)).decimals
+    let checkCaller = mustManager(i)
+    if ((checkCaller == checkCaller))
+        then if ((toString(addressFromStringValue(shutdownManagerAddress)) != shutdownManagerAddress))
+            then throw("invalid shutdownManagerAddress")
+            else if ((0 > getDelayinBlocks))
+                then throw(("invalid getDelayinBlocks=" + toString(getDelayinBlocks)))
+                else {
+                    let shareAssetIssueAction = Issue(shareAssetName, shareAssetDescr, 1, decimals, true)
+                    let shareAssetId = calculateAssetId(shareAssetIssueAction)
+                    let shareAssetStr = toBase58String(shareAssetId)
+                    let decimalsMultPrice = ((100 * 1000) * 1000)
+                    let decimalsMultBothAssets = pow(10, 0, decimals, 0, 0, DOWN)
+                    let startPrice = (1 * decimalsMultPrice)
+                    let internalBaseAssettId = valueOrElse(getInteger(this, keyNextInternalAssetId()), 0)
+                    let internalBaseAssetStr = toString(internalBaseAssettId)
+[StringEntry(keyAssetCfg(baseAssetStr), dataAssetCfg(shareAssetStr, internalBaseAssetStr, decimalsMultBothAssets, decimalsMultPrice, getDelayinBlocks)), StringEntry(keyMappingsInternal2baseAssetId(internalBaseAssettId), baseAssetStr), StringEntry(keyMappingsBaseAsset2internalId(baseAssetStr), internalBaseAssetStr), StringEntry(keyMappingsShare2baseAssetId(shareAssetStr), baseAssetStr), StringEntry(keyMappingsBaseAsset2shareId(baseAssetStr), shareAssetStr), BooleanEntry(keyShutdownPutOperation(internalBaseAssetStr), false), StringEntry(keyShutdownManager(internalBaseAssetStr), shutdownManagerAddress), IntegerEntry(keyNextInternalAssetId(), (internalBaseAssettId + 1)), IntegerEntry(keyPriceLast(internalBaseAssetStr), startPrice), IntegerEntry(keyPriceHistory(internalBaseAssetStr, height, lastBlock.timestamp), startPrice), shareAssetIssueAction, Burn(shareAssetId, 1)]
+                    }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func shutdownPut (internalBaseAssetId) = {
+    let internalBaseAssetIdStr = toString(internalBaseAssetId)
+    let baseAssetIdStr = getStringOrFail(keyMappingsInternal2baseAssetId(internalBaseAssetId))
+    let shutdownManagerAddress = getStringOrFail(keyShutdownManager(internalBaseAssetIdStr))
+    if ((1 > size(baseAssetIdStr)))
+        then throw("invalid internalBaseAssetId")
+        else if ((toString(i.caller) != shutdownManagerAddress))
+            then throw("access denied")
+            else [BooleanEntry(keyShutdownPutOperation(toString(internalBaseAssetId)), true)]
+    }
+
+
+
+@Callable(i)
+func put () = {
+    let pmt = value(i.payments[0])
+    let baseAssetId = value(pmt.assetId)
+    let baseAssetStr = toBase58String(baseAssetId)
+    let userAddressStr = toString(i.caller)
+    let cfgArray = readAssetCfgOrFail(baseAssetStr)
+    let shareAssetStr = cfgArray[IdxCfgShareAssetId]
+    let shareAssetId = fromBase58String(shareAssetStr)
+    let decimalsMultBothAssets = parseIntValue(cfgArray[IdxCfgDecimalsMultBothAssets])
+    let decimalsMultPrice = parseIntValue(cfgArray[IdxCfgDecimalsMultPrice])
+    let internalBaseAssetStr = cfgArray[IdxCfgInternalBaseAsset]
+    let isPutBlocked = getBooleanOrFail(keyShutdownPutOperation(internalBaseAssetStr))
+    let shutdown = valueOrElse(getBoolean(this, keyShutdown(internalBaseAssetStr)), false)
+    if (if (isPutBlocked)
+        then true
+        else shutdown)
+        then throw("put operation is blocked")
+        else {
+            let price = calcPrice(internalBaseAssetStr, baseAssetId, shareAssetId, decimalsMultBothAssets, decimalsMultPrice)._1
+            let shareAssetAmount = fraction(pmt.amount, decimalsMultPrice, price)
+[Reissue(shareAssetId, shareAssetAmount, true), ScriptTransfer(i.caller, shareAssetAmount, shareAssetId), StringEntry(keyOperation("P", internalBaseAssetStr, userAddressStr, toBase58String(i.transactionId)), dataOperation("FINISHED", pmt.amount, price, shareAssetAmount, height, lastBlock.timestamp, height, lastBlock.timestamp))]
+            }
+    }
+
+
+
+@Callable(i)
+func submitGetRequest () = {
+    let pmt = value(i.payments[0])
+    let shareAssetId = value(pmt.assetId)
+    let shareAssetStr = toBase58String(shareAssetId)
+    let callerPubStr = toBase58String(i.callerPublicKey)
+    let userAddress = i.caller
+    let userAddressStr = toString(userAddress)
+    let shareAssetAmount = pmt.amount
+    let baseAssetStr = getStringOrFail(keyMappingsShare2baseAssetId(shareAssetStr))
+    let baseAssetId = fromBase58String(baseAssetStr)
+    let cfgArray = readAssetCfgOrFail(baseAssetStr)
+    let decimalsMultBothAssets = parseIntValue(cfgArray[IdxCfgDecimalsMultBothAssets])
+    let decimalsMultPrice = parseIntValue(cfgArray[IdxCfgDecimalsMultPrice])
+    let getDelayBlocks = parseIntValue(cfgArray[IdxCfgGetDelayBlocks])
+    let internalBaseAssetStr = cfgArray[IdxCfgInternalBaseAsset]
+    let shutdown = valueOrElse(getBoolean(this, keyShutdown(internalBaseAssetStr)), false)
+    if (shutdown)
+        then throw("operation is blocked")
+        else {
+            let price = calcPrice(internalBaseAssetStr, baseAssetId, shareAssetId, decimalsMultBothAssets, decimalsMultPrice)._1
+            let baseAssetAmount = fraction(shareAssetAmount, price, decimalsMultPrice)
+            let operationKey = keyOperation("G", internalBaseAssetStr, userAddressStr, toBase58String(i.transactionId))
+            let operationData = dataOperation("PENDING", shareAssetAmount, price, baseAssetAmount, height, lastBlock.timestamp, (height + getDelayBlocks), 0)
+[Burn(shareAssetId, shareAssetAmount), StringEntry(operationKey, operationData), incrementTotalLocked(keyTotalLocked(internalBaseAssetStr), shareAssetAmount, baseAssetAmount), incrementTotalLocked(keyTotalLockedByUser(internalBaseAssetStr, userAddressStr), shareAssetAmount, baseAssetAmount)]
+            }
+    }
+
+
+
+@Callable(i)
+func executeGetRequest (baseAssetStr,userAddressStr,getTxIdStr) = {
+    let userAddress = addressFromStringValue(userAddressStr)
+    let assetCfgArray = readAssetCfgOrFail(baseAssetStr)
+    let shareAssetId = fromBase58String(assetCfgArray[IdxCfgShareAssetId])
+    let baseAssetId = fromBase58String(baseAssetStr)
+    let internalBaseAssetStr = assetCfgArray[IdxCfgInternalBaseAsset]
+    let shutdown = valueOrElse(getBoolean(this, keyShutdown(internalBaseAssetStr)), false)
+    if (shutdown)
+        then throw("operation is blocked")
+        else {
+            let operationKey = keyOperation("G", internalBaseAssetStr, userAddressStr, getTxIdStr)
+            let operationArray = split(getStringOrFail(operationKey), SEP)
+            let status = operationArray[IdxOperStatus]
+            let endHeight = parseIntValue(operationArray[IdxOperEndHeight])
+            let inShareAmount = parseIntValue(operationArray[IdxOperInAmount])
+            let outBaseAmount = parseIntValue(operationArray[IdxOperOutAmount])
+            if ((status != "PENDING"))
+                then failExecuteGet("Status is not PENDING", baseAssetStr, userAddressStr, getTxIdStr)
+                else if ((endHeight > height))
+                    then failExecuteGet(((("EndHeight[" + toString(endHeight)) + "] > ") + toString(height)), baseAssetStr, userAddressStr, getTxIdStr)
+                    else [ScriptTransfer(userAddress, outBaseAmount, baseAssetId), StringEntry(operationKey, dataOperationExecutionUpdate(operationArray, "FINISHED", lastBlock.timestamp)), decrementTotalLocked(keyTotalLocked(internalBaseAssetStr), inShareAmount, outBaseAmount), decrementTotalLocked(keyTotalLockedByUser(internalBaseAssetStr, userAddressStr), inShareAmount, outBaseAmount)]
+            }
+    }
+
+
+
+@Callable(i)
+func topUpBalance (baseAssetStr) = {
+    let assetCfgArray = readAssetCfgOrFail(baseAssetStr)
+    let pmt = value(i.payments[0])
+    let pmtAssetId = value(pmt.assetId)
+    let pmtAssetStr = toBase58String(pmtAssetId)
+    let shareAssetId = fromBase58String(assetCfgArray[IdxCfgShareAssetId])
+    let decimalsMultBothAssets = parseIntValue(assetCfgArray[IdxCfgDecimalsMultBothAssets])
+    let decimalsMultPrice = parseIntValue(assetCfgArray[IdxCfgDecimalsMultPrice])
+    let internalBaseAssetStr = assetCfgArray[IdxCfgInternalBaseAsset]
+    let topUpLastHeightKEY = keyTopUpLastHeight(internalBaseAssetStr, toString(i.caller))
+    let topUpLastHeight = valueOrElse(getInteger(this, topUpLastHeightKEY), 0)
+    let shutdown = valueOrElse(getBoolean(this, keyShutdown(internalBaseAssetStr)), false)
+    if (shutdown)
+        then throw("operation is blocked")
+        else if ((baseAssetStr != pmtAssetStr))
+            then throw("attached payment's asset id is NOT matched passed baseAssetStr")
+            else if ((size(i.payments) > 1))
+                then throw("only one payment can be attached")
+                else if ((100 > (height - topUpLastHeight)))
+                    then throw("1 topUp per 100 blocks from the same address is allowed")
+                    else {
+                        let price = genericCalcPrice(internalBaseAssetStr, pmtAssetId, pmt.amount, shareAssetId, decimalsMultBothAssets, decimalsMultPrice)._1
+[IntegerEntry(keyPriceLast(internalBaseAssetStr), price), IntegerEntry(keyPriceHistory(internalBaseAssetStr, height, lastBlock.timestamp), price), IntegerEntry(topUpLastHeightKEY, height)]
+                        }
+    }
+
+
+
+@Callable(i)
+func currentSysParamsREST (baseAssetStr) = {
+    let sysStateTuple = privateCurrentSysParamsREST(baseAssetStr)
+    let price = sysStateTuple._1.value
+    let decimalsMultPrice = sysStateTuple._2.value
+    let baseAssetBalance = sysStateTuple._3.value
+    let totalLockedBaseAmount = sysStateTuple._4.value
+    let baseAssetBalanceConsideringLock = sysStateTuple._5.value
+    let shareEmission = sysStateTuple._6.value
+    let restData = makeString(["startCurrentSysParamsREST", toString(price), toString(decimalsMultPrice), toString(baseAssetBalance), toString(totalLockedBaseAmount), toString(baseAssetBalanceConsideringLock), toString(shareEmission), "endCurrentSysParamsREST"], SEP)
+    throw(restData)
+    }
+
+
+@Verifier(tx)
+func verify () = {
+    let targetPublicKey =     match managerPublicKeyOrUnit() {
+        case pk: ByteVector => 
+            pk
+        case _: Unit => 
+            tx.senderPublicKey
+        case _ => 
+            throw("Match error")
+    }
+    sigVerify(tx.bodyBytes, tx.proofs[0], targetPublicKey)
+    }

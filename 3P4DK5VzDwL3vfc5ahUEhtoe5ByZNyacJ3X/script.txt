@@ -1,0 +1,1043 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let reserveFundAddress = Address(base58'3P4kBiU4wr2yV1S5gMfu3MdkVvy7kxXHsKe')
+
+let reserveFund = 20
+
+let aggregatorAddress = Address(base58'3PGFHzVGT4NTigwCKP1NcwoXkodVZwvBuuU')
+
+let shutdownWhitelist = [base58'3PBTPFGaKL7qEdj9Tz1QUqbvJUcPNu934j4', base58'3PMcMiMEs6w56NRGacksXtFG5zS7doE9fpL', base58'3PAxdDSmN758L5SHSGRC5apEtQE2aApZotG', base58'3PJKmXoHJvVeQXjSJdhtkUcFDtdiQqMbUTD', base58'3PQdNxynJy5mche2kxMVc5shXWzK8Gstq3o', base58'3PHbdpaKzz8EiAngGHaFu2hVuNCdsC67qh3', base58'3P6Ksahs71SiKQgQ4qaZuFAVhqncdi2nvJQ']
+
+func verifyLiquidatorRights (address) = !(if (if ((address != Address(base58'3PCqdm1mAoQqR46oZotFanmqb5CLUvrKEo2')))
+    then (address != Address(base58'3PMcMiMEs6w56NRGacksXtFG5zS7doE9fpL'))
+    else false)
+    then (address != Address(base58'3PHbdpaKzz8EiAngGHaFu2hVuNCdsC67qh3'))
+    else false)
+
+
+func getRateCurve (assetIdStr) = match assetIdStr {
+    case _ => 
+        if (("9wc3LXNA4TEBsXyKtoLE9mrbDD7WMHXvXrCjZvabLAsi" == $match0))
+            then $Tuple4(2000000, 25000000, 80000000, 100000000)
+            else if (("HGgabTqUS8WtVFUJzfmrTDMgEccJuZLBPhFgQFxvnsoW" == $match0))
+                then $Tuple4(2000000, 25000000, 80000000, 100000000)
+                else if (("34N9YcEETLWn93qYQ64EsP1x89tSruJU44RrEMSXXEPJ" == $match0))
+                    then $Tuple4(2000000, 25000000, 80000000, 100000000)
+                    else if (("6XtHjpXbs9RRJP2Sr9GUyVqzACcby9TkThHXnjVC5CDJ" == $match0))
+                        then $Tuple4(2000000, 25000000, 80000000, 100000000)
+                        else if (("DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p" == $match0))
+                            then $Tuple4(2000000, 25000000, 80000000, 100000000)
+                            else if (("Ajso6nTTjptu2UHLx6hfSXVtHFtRBJCkKYd5SAyj7zf5" == $match0))
+                                then $Tuple4(2000000, 40000000, 80000000, 150000000)
+                                else if (("HEB8Qaw9xrWpWs8tHsiATYGBWDBtP2S7kcPALrMu43AS" == $match0))
+                                    then $Tuple4(0, 100000000, 80000000, 400000000)
+                                    else if (("WAVES" == $match0))
+                                        then $Tuple4(2000000, 30000000, 80000000, 90000000)
+                                        else if (("Atqv59EYzjFGuitKVnMRk6H8FukjoV3ktPorbEys25on" == $match0))
+                                            then $Tuple4(0, 20000000, 80000000, 40000000)
+                                            else if (("DSbbhLsSTeDg5Lsiufk2Aneh3DjVqJuPr2M9uU1gwy5p" == $match0))
+                                                then $Tuple4(0, 20000000, 80000000, 100000000)
+                                                else if (("8t4DPWTwPzpatHA9AkTxWAB47THnYzBsDnoY7fQqbG91" == $match0))
+                                                    then $Tuple4(0, 30000000, 80000000, 40000000)
+                                                    else if (("At8D6NFFpheCbvKVnjVoeLL84Eo8NZn6ovManxfLaFWL" == $match0))
+                                                        then $Tuple4(0, 25000000, 80000000, 40000000)
+                                                        else if (("8LQW8f7P5d5PZM7GtZEBgaqRPGSzS3DfPuiXrURJ4AJS" == $match0))
+                                                            then $Tuple4(2000000, 30000000, 80000000, 50000000)
+                                                            else if (("474jTeYx2r2Va35794tCScAXWJG9hU2HcgxzMowaZUnu" == $match0))
+                                                                then $Tuple4(2000000, 30000000, 80000000, 50000000)
+                                                                else if (("5UYBPpq4WoU5n4MwpFkgJnW3Fq4B1u3ukpK33ik4QerR" == $match0))
+                                                                    then $Tuple4(2000000, 30000000, 80000000, 50000000)
+                                                                    else if (("2thsACuHmzDMuNezPM32wg9a3BwUzBWDeSKakgz3cw21" == $match0))
+                                                                        then $Tuple4(2000000, 40000000, 80000000, 100000000)
+                                                                        else if (("YiNbofFzC17jEHHCMwrRcpy9MrrjabMMLZxg8g5xmf7" == $match0))
+                                                                            then $Tuple4(2000000, 30000000, 80000000, 80000000)
+                                                                            else if (("9wc3LXNA4TEBsXyKtoLE9mrbDD7WMHXvXrCjZvabLAsi" == $match0))
+                                                                                then $Tuple4(0, 50000000, 80000000, 200000000)
+                                                                                else if (("3VuV5WTmDz47Dmdn3QpcYjzbSdipjQE4JMdNe1xZpX13" == $match0))
+                                                                                    then $Tuple4(0, 100000000, 80000000, 400000000)
+                                                                                    else $Tuple4(0, 20000000, 80000000, 80000000)
+}
+
+
+let Scale8 = 100000000
+
+let Scale10 = 10000000000
+
+let Scale16 = (Scale8 * Scale8)
+
+let dayBlocks = 1440
+
+func liIntToStr (li) = {
+    func f (accum,next) =     ((accum + toString(next)) + ",")
+
+    let $l = li
+    let $s = size($l)
+    let $acc0 = ""
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else f($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 12")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12)
+    }
+
+
+func tryGetInteger (key) = match getInteger(this, key) {
+    case b: Int => 
+        b
+    case _ => 
+        0
+}
+
+
+func tryGetBoolean (key) = match getBoolean(this, key) {
+    case b: Boolean => 
+        b
+    case _ => 
+        false
+}
+
+
+func tryGetString (key) = match getString(this, key) {
+    case b: String => 
+        b
+    case _ => 
+        ""
+}
+
+
+func tryGetBinary (key) = match getBinary(this, key) {
+    case b: ByteVector => 
+        b
+    case _ => 
+        base58''
+}
+
+
+func getAssetString (assetId) = match assetId {
+    case b: ByteVector => 
+        toBase58String(b)
+    case _ => 
+        "WAVES"
+}
+
+
+func getAssetBytes (assetIdStr) = if ((assetIdStr == "WAVES"))
+    then unit
+    else fromBase58String(assetIdStr)
+
+
+func getBalance (assetIdStr) = if ((assetIdStr == "WAVES"))
+    then wavesBalance(this).available
+    else assetBalance(this, fromBase58String(assetIdStr))
+
+
+func getMarketAssets () = split(tryGetString("setup_tokens"), ",")
+
+
+func getAssetsMaxSupply () = {
+    let s = tryGetString("setup_maxSupply")
+    if ((s == ""))
+        then [-1, -1, -1, -1, -1, -1, -1]
+        else split(s, ",")
+    }
+
+
+func getOutdatedUr (assetIdStr) = {
+    let down = fraction(tryGetInteger(("total_supplied_" + assetIdStr)), tryGetInteger((assetIdStr + "_sRate")), Scale16)
+    if ((down == 0))
+        then 0
+        else fraction(Scale8, fraction(tryGetInteger(("total_borrowed_" + assetIdStr)), tryGetInteger((assetIdStr + "_bRate")), Scale16), down)
+    }
+
+
+func getInterest (assetIdStr) = {
+    let ur = getOutdatedUr(assetIdStr)
+    let curve = getRateCurve(assetIdStr)
+    let rate = (curve._1 + (if ((curve._3 >= ur))
+        then fraction(ur, curve._2, curve._3)
+        else (curve._2 + fraction((ur - curve._3), curve._4, (100000000 - curve._3)))))
+    max([fraction(rate, Scale8, (dayBlocks * 365)), 1])
+    }
+
+
+func tokenRatesRecalc (assetIdStr) = {
+    let interest = getInterest(assetIdStr)
+    let ur = getOutdatedUr(assetIdStr)
+    let lastRecalcHeight = tryGetInteger("lastRateHeight")
+    let lastBRate = max([tryGetInteger((assetIdStr + "_bRate")), Scale16])
+    let newBRate = (lastBRate + ((height - lastRecalcHeight) * interest))
+    let lastSRate = max([tryGetInteger((assetIdStr + "_sRate")), Scale16])
+    let newSRate = (lastSRate + ((((height - lastRecalcHeight) * fraction(interest, ur, Scale8)) * (100 - reserveFund)) / 100))
+[IntegerEntry((assetIdStr + "_sRate"), newSRate), IntegerEntry((assetIdStr + "_bRate"), newBRate), IntegerEntry("lastRateHeight", height)]
+    }
+
+
+func getActualRate (assetIdStr,rateType) = {
+    func f (accum,token) =     {
+        let recalc = tokenRatesRecalc(token)
+        $Tuple2(if ((token != assetIdStr))
+            then accum._1
+            else if ((rateType == "sRate"))
+                then recalc[0].value
+                else recalc[1].value, (accum._2 ++ recalc))
+        }
+
+    let $l = getMarketAssets()
+    let $s = size($l)
+    let $acc0 = $Tuple2(0, nil)
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else f($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 12")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12)
+    }
+
+
+func getUr (assetIdStr) = {
+    let rates = tokenRatesRecalc(assetIdStr)
+    let down = fraction(tryGetInteger(("total_supplied_" + assetIdStr)), rates[0].value, Scale16)
+    fraction(Scale8, fraction(tryGetInteger(("total_borrowed_" + assetIdStr)), rates[1].value, Scale16), down)
+    }
+
+
+func ratesRecalc () = {
+    func f (accum,token) =     (accum ++ tokenRatesRecalc(token))
+
+    let $l = getMarketAssets()
+    let $s = size($l)
+    let $acc0 = nil
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else f($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 12")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12)
+    }
+
+
+func getTokenPriceWithRisk (assetIdStr,riskAversity) = if (if ((assetIdStr == "9wc3LXNA4TEBsXyKtoLE9mrbDD7WMHXvXrCjZvabLAsi"))
+    then true
+    else (assetIdStr == "HGgabTqUS8WtVFUJzfmrTDMgEccJuZLBPhFgQFxvnsoW"))
+    then $Tuple2(1000000, 1000000)
+    else {
+        let price = getIntegerValue(Address(base58'3P8d1E1BLKoD52y3bQJ1bDTd2TD1gpaLn9t'), (assetIdStr + "_twap5B"))
+        let riskLevel = getIntegerValue(Address(base58'3P8d1E1BLKoD52y3bQJ1bDTd2TD1gpaLn9t'), (assetIdStr + "_riskLevel"))
+        if ((riskAversity >= riskLevel))
+            then $Tuple2(price, price)
+            else throw((("oracle prices don't match: " + toString(price)) + " is the price, but risk is too high"))
+        }
+
+
+func getTokenPrice (assetIdStr) = getTokenPriceWithRisk(assetIdStr, 3)
+
+
+func calcAssetScale (assetIdStr) = {
+    let decimals = if ((assetIdStr == "WAVES"))
+        then 8
+        else value(assetInfo(fromBase58String(assetIdStr))).decimals
+    pow(10, 0, decimals, 0, 0, DOWN)
+    }
+
+
+func calcUserCollateral (address) = {
+    let userCollateralInvoke = invoke(this, "getUserCollateral", [false, address, true, ""], nil)
+    if ((userCollateralInvoke == userCollateralInvoke))
+        then {
+            let userCollateralValue =             match userCollateralInvoke {
+                case x: Int => 
+                    x
+                case _ => 
+                    throw("issue while doing in-dapp invocation")
+            }
+            if ((userCollateralValue == userCollateralValue))
+                then userCollateralValue
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Callable(i)
+func supply () = if (!(tryGetBoolean("setup_active")))
+    then throw("market is stopped")
+    else if (if ((size(i.payments) != 1))
+        then true
+        else (i.payments[0].amount == 0))
+        then throw("1 payment has to be attached")
+        else {
+            let assetIdStr = getAssetString(i.payments[0].assetId)
+            let assetAmount = i.payments[0].amount
+            let $t082858352 = getActualRate(assetIdStr, "sRate")
+            let sRate = $t082858352._1
+            let ratesRecalcResult = $t082858352._2
+            let amount = fraction(assetAmount, Scale16, sRate, DOWN)
+            let address = toString(i.caller)
+            let maxSupply =             match getString(("setup_maxSupply_" + assetIdStr)) {
+                case x: String => 
+                    parseIntValue(x)
+                case _ => 
+                    tryGetInteger(("setup_maxSupply_" + assetIdStr))
+            }
+            let assetPrice = getTokenPrice(assetIdStr)
+            let newAddressSupplied = (tryGetInteger(((address + "_supplied_") + assetIdStr)) + amount)
+            let newTotalSupplied = (tryGetInteger(("total_supplied_" + assetIdStr)) + amount)
+            let rate = getActualRate(assetIdStr, "sRate")._1
+            let assetScale = calcAssetScale(assetIdStr)
+            let newTotalSuppliedUsd = fraction(fraction(newTotalSupplied, rate, Scale16), assetPrice._1, assetScale)
+            if ((indexOf(tryGetString("setup_tokens"), assetIdStr) == unit))
+                then throw("this asset is not supported by the market")
+                else if (if ((maxSupply != 0))
+                    then (newTotalSuppliedUsd > maxSupply)
+                    else false)
+                    then throw("max total supply for this token reached in the pool")
+                    else if ((tryGetInteger(("setup_paused_" + assetIdStr)) > 0))
+                        then throw("this asset can't be supplied or borrowed")
+                        else ([IntegerEntry(((address + "_supplied_") + assetIdStr), newAddressSupplied), IntegerEntry(("total_supplied_" + assetIdStr), newTotalSupplied)] ++ ratesRecalcResult)
+            }
+
+
+
+@Callable(i)
+func withdraw (assetIdStr,assetAmount) = {
+    let $t098249891 = getActualRate(assetIdStr, "sRate")
+    let sRate = $t098249891._1
+    let ratesRecalcResult = $t098249891._2
+    let amount = fraction(assetAmount, Scale16, sRate, CEILING)
+    let address = toString(i.caller)
+    let assetSupplied = tryGetInteger(("total_supplied_" + assetIdStr))
+    let assetBorrowed = tryGetInteger(("total_borrowed_" + assetIdStr))
+    let userAssetSupplied = tryGetInteger(((address + "_supplied_") + assetIdStr))
+    let userAssetBorrowed = tryGetInteger(((address + "_borrowed_") + assetIdStr))
+    let collateralValueInv = invoke(this, "getUserCollateral", [false, address, true, ((assetIdStr + ",supplied,") + toString(-(amount)))], nil)
+    if ((collateralValueInv == collateralValueInv))
+        then {
+            let collateralValue =             match collateralValueInv {
+                case x: Int => 
+                    x
+                case _ => 
+                    throw("can't get user collateral value")
+            }
+            if (!(tryGetBoolean("setup_active")))
+                then throw("market is stopped")
+                else if ((0 > collateralValue))
+                    then throw("you dont have enough collateral for this operation")
+                    else if ((amount > (assetSupplied - assetBorrowed)))
+                        then throw("this amount is not available on the market")
+                        else if ((amount > (userAssetSupplied - userAssetBorrowed)))
+                            then throw("this amount is not available for this user")
+                            else ([IntegerEntry(((address + "_supplied_") + assetIdStr), (tryGetInteger(((address + "_supplied_") + assetIdStr)) - amount)), IntegerEntry(("total_supplied_" + assetIdStr), (tryGetInteger(("total_supplied_" + assetIdStr)) - amount)), ScriptTransfer(i.caller, assetAmount, getAssetBytes(assetIdStr))] ++ ratesRecalcResult)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func borrow (assetIdStr,assetAmount) = {
+    let address = toString(i.caller)
+    let $t01146311530 = getActualRate(assetIdStr, "bRate")
+    let bRate = $t01146311530._1
+    let ratesRecalcResult = $t01146311530._2
+    let amount = fraction(assetAmount, Scale16, bRate, CEILING)
+    let collateralValueInv = invoke(this, "getUserCollateral", [false, address, true, ((assetIdStr + ",borrowed,") + toString(amount))], nil)
+    if ((collateralValueInv == collateralValueInv))
+        then {
+            let collateralValue =             match collateralValueInv {
+                case x: Int => 
+                    x
+                case _ => 
+                    throw("can't get user collateral value")
+            }
+            if (!(tryGetBoolean("setup_active")))
+                then throw("market is stopped")
+                else if ((0 > collateralValue))
+                    then throw("you have to supply more to borrow")
+                    else if ((tryGetInteger(("setup_paused_" + assetIdStr)) > 0))
+                        then throw("this asset can't be supplied or borrowed")
+                        else {
+                            let assetSupplied = tryGetInteger(("total_supplied_" + assetIdStr))
+                            let assetBorrowed = tryGetInteger(("total_borrowed_" + assetIdStr))
+                            let userAssetBorrowed = tryGetInteger(((address + "_borrowed_") + assetIdStr))
+                            if ((amount > (assetSupplied - assetBorrowed)))
+                                then throw("this amount is not available")
+                                else ([IntegerEntry(((address + "_borrowed_") + assetIdStr), (userAssetBorrowed + amount)), IntegerEntry(("total_borrowed_" + assetIdStr), (assetBorrowed + amount)), ScriptTransfer(i.caller, assetAmount, getAssetBytes(assetIdStr))] ++ ratesRecalcResult)
+                            }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func repay () = if (!(tryGetBoolean("setup_active")))
+    then throw("market is stopped")
+    else if (if ((size(i.payments) != 1))
+        then true
+        else (i.payments[0].amount == 0))
+        then throw("1 payment has to be attached")
+        else {
+            let assetIdStr = getAssetString(i.payments[0].assetId)
+            let assetAmount = i.payments[0].amount
+            let $t01321813285 = getActualRate(assetIdStr, "bRate")
+            let bRate = $t01321813285._1
+            let ratesRecalcResult = $t01321813285._2
+            let amount = fraction(assetAmount, Scale16, bRate, CEILING)
+            let address = toString(i.caller)
+            let assetSupplied = tryGetInteger(("total_supplied_" + assetIdStr))
+            let assetBorrowed = tryGetInteger(("total_borrowed_" + assetIdStr))
+            let userAssetBorrowed = tryGetInteger(((address + "_borrowed_") + assetIdStr))
+            let amountLeft = (userAssetBorrowed - amount)
+            let repayAmount = if ((amountLeft >= 0))
+                then amount
+                else userAssetBorrowed
+            if ((indexOf(tryGetString("setup_tokens"), assetIdStr) == unit))
+                then throw("this asset is not supported by the market")
+                else (([IntegerEntry(((address + "_borrowed_") + assetIdStr), (userAssetBorrowed - repayAmount)), IntegerEntry(("total_borrowed_" + assetIdStr), (assetBorrowed - repayAmount))] ++ ratesRecalcResult) ++ (if ((amountLeft >= 0))
+                    then nil
+                    else [ScriptTransfer(i.caller, -(amountLeft), i.payments[0].assetId)]))
+            }
+
+
+
+@Callable(i)
+func repayFor (address) = if (!(tryGetBoolean("setup_active")))
+    then throw("market is stopped")
+    else if ((i.caller != Address(base58'3P4kBiU4wr2yV1S5gMfu3MdkVvy7kxXHsKe')))
+        then throw("available only for reserve fund address")
+        else if ((address == "global"))
+            then throw("you can't repay for everyone :_)")
+            else if (if ((size(i.payments) != 1))
+                then true
+                else (i.payments[0].amount == 0))
+                then throw("1 payment has to be attached")
+                else {
+                    let assetIdStr = getAssetString(i.payments[0].assetId)
+                    let assetAmount = i.payments[0].amount
+                    let $t01488214949 = getActualRate(assetIdStr, "bRate")
+                    let bRate = $t01488214949._1
+                    let ratesRecalcResult = $t01488214949._2
+                    let amount = fraction(assetAmount, Scale16, bRate, CEILING)
+                    let assetSupplied = tryGetInteger(("total_supplied_" + assetIdStr))
+                    let assetBorrowed = tryGetInteger(("total_borrowed_" + assetIdStr))
+                    let userAssetBorrowed = tryGetInteger(((address + "_borrowed_") + assetIdStr))
+                    let amountLeft = (userAssetBorrowed - amount)
+                    let repayAmount = if ((amountLeft >= 0))
+                        then amount
+                        else userAssetBorrowed
+                    if ((indexOf(tryGetString("setup_tokens"), assetIdStr) == unit))
+                        then throw("this asset is not supported by the market")
+                        else (([IntegerEntry(((address + "_borrowed_") + assetIdStr), (userAssetBorrowed - repayAmount)), IntegerEntry(("total_borrowed_" + assetIdStr), (assetBorrowed - repayAmount))] ++ ratesRecalcResult) ++ (if ((amountLeft >= 0))
+                            then nil
+                            else [ScriptTransfer(i.caller, -(amountLeft), i.payments[0].assetId)]))
+                    }
+
+
+
+@Callable(i)
+func stakeTokenAll (assetIdStr) = if ((i.caller != this))
+    then throw("only for internal smart contract invocations")
+    else {
+        let amount = getBalance(assetIdStr)
+        let inv = invoke(this, "stakeToken", [assetIdStr, amount], nil)
+        if ((inv == inv))
+            then nil
+            else throw("Strict value is not equal to itself.")
+        }
+
+
+
+@Callable(i)
+func stakeToken (assetIdStr,amount) = if ((i.caller != this))
+    then throw("only for internal smart contract invocations")
+    else if ((assetIdStr == "DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p"))
+        then {
+            let amountStaked = tryGetInteger("autostake_amount_DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p")
+            let inv = invoke(Address(base58'3PNikM6yp4NqcSU8guxQtmR5onr2D4e8yTJ'), "stake", nil, [AttachedPayment(base58'DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p', amount)])
+            if ((inv == inv))
+                then [IntegerEntry("autostake_amount_DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p", (amountStaked + amount))]
+                else throw("Strict value is not equal to itself.")
+            }
+        else if ((assetIdStr == "8t4DPWTwPzpatHA9AkTxWAB47THnYzBsDnoY7fQqbG91"))
+            then {
+                let amountStaked = tryGetInteger("autostake_amount_8t4DPWTwPzpatHA9AkTxWAB47THnYzBsDnoY7fQqbG91")
+                let inv = invoke(Address(base58'3PQTM38wDmAY9vWonK6ha7QL3PAycLz5oPP'), "stake", nil, [AttachedPayment(base58'8t4DPWTwPzpatHA9AkTxWAB47THnYzBsDnoY7fQqbG91', amount)])
+                if ((inv == inv))
+                    then [IntegerEntry("autostake_amount_8t4DPWTwPzpatHA9AkTxWAB47THnYzBsDnoY7fQqbG91", (amountStaked + amount))]
+                    else throw("Strict value is not equal to itself.")
+                }
+            else if ((assetIdStr == "At8D6NFFpheCbvKVnjVoeLL84Eo8NZn6ovManxfLaFWL"))
+                then {
+                    let amountStaked = tryGetInteger("autostake_amount_At8D6NFFpheCbvKVnjVoeLL84Eo8NZn6ovManxfLaFWL")
+                    let inv = invoke(Address(base58'3PBiotFpqjRMkkeFBccnQNUXUopy7KFez5C'), "stake", nil, [AttachedPayment(base58'At8D6NFFpheCbvKVnjVoeLL84Eo8NZn6ovManxfLaFWL', amount)])
+                    if ((inv == inv))
+                        then [IntegerEntry("autostake_amount_At8D6NFFpheCbvKVnjVoeLL84Eo8NZn6ovManxfLaFWL", (amountStaked + amount))]
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else nil
+
+
+
+@Callable(i)
+func unstakeToken (assetIdStr,amount) = if ((i.caller != this))
+    then throw("only for internal smart contract invocations")
+    else if ((assetIdStr == "8t4DPWTwPzpatHA9AkTxWAB47THnYzBsDnoY7fQqbG91"))
+        then {
+            let amountStaked = tryGetInteger("autostake_amount_8t4DPWTwPzpatHA9AkTxWAB47THnYzBsDnoY7fQqbG91")
+            let inv = invoke(Address(base58'3PQTM38wDmAY9vWonK6ha7QL3PAycLz5oPP'), "unStake", [amount], nil)
+            if ((inv == inv))
+                then [IntegerEntry("autostake_amount_8t4DPWTwPzpatHA9AkTxWAB47THnYzBsDnoY7fQqbG91", (amountStaked - amount))]
+                else throw("Strict value is not equal to itself.")
+            }
+        else if ((assetIdStr == "At8D6NFFpheCbvKVnjVoeLL84Eo8NZn6ovManxfLaFWL"))
+            then {
+                let amountStaked = tryGetInteger("autostake_amount_At8D6NFFpheCbvKVnjVoeLL84Eo8NZn6ovManxfLaFWL")
+                let inv = invoke(Address(base58'3PBiotFpqjRMkkeFBccnQNUXUopy7KFez5C'), "unstake", [amount], nil)
+                if ((inv == inv))
+                    then {
+                        let bal0 = getBalance("At8D6NFFpheCbvKVnjVoeLL84Eo8NZn6ovManxfLaFWL")
+                        if ((bal0 == bal0))
+                            then {
+                                let inv2 = invoke(Address(base58'3PQrVbTVpqXHqpVKftkNdjy3zZAh4dsRzN6'), "gnsbtRewardsSYSREADONLY", [toString(this)], nil)
+                                if ((inv2 == inv2))
+                                    then {
+                                        let topupRewards =                                         match inv2 {
+                                            case x: List[Any] => 
+                                                let secondEl = x[1]
+                                                match secondEl {
+                                                    case secondEl: String => 
+                                                        let usdnValue = parseIntValue(split(split(secondEl, "_")[1], ":")[1])
+                                                        let wavesValue = parseIntValue(split(split(secondEl, "_")[0], ":")[1])
+                                                        if (if ((usdnValue != 0))
+                                                            then true
+                                                            else (wavesValue != 0))
+                                                            then {
+                                                                let usdnBal0 = getBalance("DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p")
+                                                                if ((usdnBal0 == usdnBal0))
+                                                                    then {
+                                                                        let wavesBal0 = getBalance("WAVES")
+                                                                        if ((wavesBal0 == wavesBal0))
+                                                                            then {
+                                                                                let inv3 = invoke(Address(base58'3PBiotFpqjRMkkeFBccnQNUXUopy7KFez5C'), "claimRewards", nil, nil)
+                                                                                if ((inv3 == inv3))
+                                                                                    then {
+                                                                                        let wavesBal1 = getBalance("WAVES")
+                                                                                        if ((wavesBal1 == wavesBal1))
+                                                                                            then {
+                                                                                                let inv4 = invoke(Address(base58'3PLiXyywNThdvf3vVEUxwc7TJTucjZvuegh'), "swap", ["DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p", 0], [AttachedPayment(unit, (wavesBal1 - wavesBal0))])
+                                                                                                if ((inv4 == inv4))
+                                                                                                    then {
+                                                                                                        let usdnBal1 = getBalance("DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p")
+                                                                                                        if ((usdnBal1 == usdnBal1))
+                                                                                                            then {
+                                                                                                                let inv5 = invoke(Address(base58'3P7r93vXHuusageNJVGwzqaz3WMotAu49Yz'), "swap", ["At8D6NFFpheCbvKVnjVoeLL84Eo8NZn6ovManxfLaFWL", 0], [AttachedPayment(base58'DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p', (usdnBal1 - usdnBal0))])
+                                                                                                                if ((inv5 == inv5))
+                                                                                                                    then {
+                                                                                                                        let inv6 = invoke(this, "addInterest", ["At8D6NFFpheCbvKVnjVoeLL84Eo8NZn6ovManxfLaFWL", (getBalance("At8D6NFFpheCbvKVnjVoeLL84Eo8NZn6ovManxfLaFWL") - bal0)], nil)
+                                                                                                                        if ((inv6 == inv6))
+                                                                                                                            then 2
+                                                                                                                            else throw("Strict value is not equal to itself.")
+                                                                                                                        }
+                                                                                                                    else throw("Strict value is not equal to itself.")
+                                                                                                                }
+                                                                                                            else throw("Strict value is not equal to itself.")
+                                                                                                        }
+                                                                                                    else throw("Strict value is not equal to itself.")
+                                                                                                }
+                                                                                            else throw("Strict value is not equal to itself.")
+                                                                                        }
+                                                                                    else throw("Strict value is not equal to itself.")
+                                                                                }
+                                                                            else throw("Strict value is not equal to itself.")
+                                                                        }
+                                                                    else throw("Strict value is not equal to itself.")
+                                                                }
+                                                            else 1
+                                                    case _ => 
+                                                        1
+                                                }
+                                            case _ => 
+                                                0
+                                        }
+                                        if ((topupRewards == topupRewards))
+                                            then [IntegerEntry("autostake_amount_At8D6NFFpheCbvKVnjVoeLL84Eo8NZn6ovManxfLaFWL", (amountStaked - amount))]
+                                            else throw("Strict value is not equal to itself.")
+                                        }
+                                    else throw("Strict value is not equal to itself.")
+                                }
+                            else throw("Strict value is not equal to itself.")
+                        }
+                    else throw("Strict value is not equal to itself.")
+                }
+            else nil
+
+
+
+@Callable(i)
+func addInterest (assetIdStr,amount) = if ((i.caller != this))
+    then throw("only for self invocation")
+    else {
+        let earned = tryGetInteger(("autostake_lastEarned_" + assetIdStr))
+        let lastHeight = tryGetInteger(("autostake_lastBlock_" + assetIdStr))
+        let cleanAmount = fraction(amount, 80, 100)
+        let stateChanges = if (if ((lastHeight == height))
+            then true
+            else (amount == 0))
+            then nil
+            else [IntegerEntry(("autostake_preLastEarned_" + assetIdStr), earned), IntegerEntry(("autostake_preLastBlock_" + assetIdStr), lastHeight), IntegerEntry(("autostake_lastEarned_" + assetIdStr), (earned + cleanAmount)), IntegerEntry(("autostake_lastBlock_" + assetIdStr), height)]
+        (stateChanges ++ [IntegerEntry((assetIdStr + "_sRate"), (tryGetInteger((assetIdStr + "_sRate")) + fraction(Scale16, cleanAmount, tryGetInteger(("total_supplied_" + assetIdStr)))))])
+        }
+
+
+
+@Callable(i)
+func addInterestEXTERNAL () = {
+    let amount = fraction(i.payments[0].amount, 80, 100)
+    let assetId = i.payments[0].assetId
+    let assetIdStr = getAssetString(assetId)
+    let earned = tryGetInteger(("autostake_lastEarned_" + assetIdStr))
+    let lastHeight = tryGetInteger(("autostake_lastBlock_" + assetIdStr))
+    let stateChanges = if (if ((lastHeight == height))
+        then true
+        else (amount == 0))
+        then nil
+        else [IntegerEntry(("autostake_preLastEarned_" + assetIdStr), earned), IntegerEntry(("autostake_preLastBlock_" + assetIdStr), lastHeight), IntegerEntry(("autostake_lastEarned_" + assetIdStr), (earned + amount)), IntegerEntry(("autostake_lastBlock_" + assetIdStr), height)]
+    (stateChanges ++ [IntegerEntry((assetIdStr + "_sRate"), (tryGetInteger((assetIdStr + "_sRate")) + fraction(Scale16, amount, tryGetInteger(("total_supplied_" + assetIdStr)))))])
+    }
+
+
+
+@Callable(i)
+func preInit (tokens,ltvs,lts,penalties) = {
+    func f (accum,token) =     (accum ++ [IntegerEntry((token + "_bRate"), Scale16), IntegerEntry((token + "_sRate"), Scale16)])
+
+    if ((i.caller != this))
+        then throw("admin only")
+        else {
+            let rates = {
+                let $l = split(tokens, ",")
+                let $s = size($l)
+                let $acc0 = nil
+                func $f0_1 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else f($a, $l[$i])
+
+                func $f0_2 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else throw("List size exceeds 12")
+
+                $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12)
+                }
+            ([StringEntry("setup_tokens", tokens), StringEntry("setup_ltvs", ltvs), StringEntry("setup_lts", lts), StringEntry("setup_penalties", penalties), BooleanEntry("setup_active", true)] ++ rates)
+            }
+    }
+
+
+
+@Callable(i)
+func initNewToken (token,ltv,lt,penalty) = if ((i.caller != this))
+    then throw("admin only")
+    else [StringEntry("setup_tokens", ((tryGetString("setup_tokens") + ",") + token)), StringEntry("setup_ltvs", ((tryGetString("setup_ltvs") + ",") + ltv)), StringEntry("setup_lts", ((tryGetString("setup_lts") + ",") + lt)), StringEntry("setup_penalties", ((tryGetString("setup_penalties") + ",") + penalty)), IntegerEntry((token + "_bRate"), Scale16), IntegerEntry((token + "_sRate"), Scale16)]
+
+
+
+@Callable(i)
+func updateParameter (key,val) = if (if ((i.caller != this))
+    then (i.caller != Address(base58'3P3o9cLTV2u9N4nYNKRYL6gy6cUEU9DwXW8'))
+    else false)
+    then throw("admin only")
+    else [IntegerEntry(key, parseIntValue(val))]
+
+
+
+@Callable(i)
+func updateString (key,val) = if (if ((i.caller != this))
+    then (i.caller != Address(base58'3P3o9cLTV2u9N4nYNKRYL6gy6cUEU9DwXW8'))
+    else false)
+    then throw("admin only")
+    else [StringEntry(key, val)]
+
+
+
+@Callable(i)
+func claimToReserveFund (debug) = {
+    let assets = getMarketAssets()
+    let rates = getActualRate(assets[0], "sRate")._2
+    let li = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    func f (accum,n) =     if ((n >= size(assets)))
+        then accum
+        else {
+            let assetIdStr = assets[n]
+            let autostakeAmount = tryGetString(("autostake_amount_" + assetIdStr))
+            let amount = ((((getBalance(assetIdStr) + tryGetInteger(("autostake_amount_" + assetIdStr))) + (if ((autostakeAmount != ""))
+                then parseIntValue(autostakeAmount)
+                else 0)) + fraction(tryGetInteger(("total_borrowed_" + assetIdStr)), rates[((n * 3) + 1)].value, Scale16)) - fraction(tryGetInteger(("total_supplied_" + assetIdStr)), rates[(n * 3)].value, Scale16))
+            (accum ++ [amount])
+            }
+
+    let parameter = {
+        let $l = li
+        let $s = size($l)
+        let $acc0 = nil
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else f($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 12")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12)
+        }
+    func f2 (accum,n) =     if ((n >= size(assets)))
+        then accum
+        else {
+            let assetIdStr = assets[n]
+            (accum ++ [ScriptTransfer(reserveFundAddress, max([parameter[n], 0]), getAssetBytes(assetIdStr))])
+            }
+
+    if (debug)
+        then throw(liIntToStr(parameter))
+        else $Tuple2({
+            let $l = li
+            let $s = size($l)
+            let $acc0 = nil
+            func $f1_1 ($a,$i) =             if (($i >= $s))
+                then $a
+                else f2($a, $l[$i])
+
+            func $f1_2 ($a,$i) =             if (($i >= $s))
+                then $a
+                else throw("List size exceeds 12")
+
+            $f1_2($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12)
+            }, parameter)
+    }
+
+
+
+@Callable(i)
+func reSetup (assetIdStr) = {
+    let lastResetup = tryGetInteger("resetup_lastUpdate")
+    if ((dayBlocks > (height - lastResetup)))
+        then throw("can be updated only once per day")
+        else {
+            let lts = split(tryGetString("setup_lts"), ",")
+            let assets = getMarketAssets()
+            let ur = getUr(assetIdStr)
+            let tempLT = tryGetInteger((("setup_" + assetIdStr) + "_tempLT"))
+            let lt = parseIntValue(assets[value(indexOf(assets, assetIdStr))])
+            if ((ur > 90000000))
+                then [IntegerEntry((("setup_" + assetIdStr) + "_tempLT"), fraction(tempLT, 9975, 10000))]
+                else if (if ((lt > tempLT))
+                    then (90000000 > ur)
+                    else false)
+                    then [IntegerEntry((("setup_" + assetIdStr) + "_tempLT"), fraction(tempLT, 10025, 10000))]
+                    else nil
+            }
+    }
+
+
+
+@Callable(i)
+func shutdown (shutdown) = if ((indexOf(shutdownWhitelist, i.caller.bytes) == unit))
+    then throw("user not in a whitelist")
+    else [BooleanEntry("setup_active", !(shutdown))]
+
+
+
+@Callable(i)
+func liquidate (debug,address,assetAmount,sAssetIdStr,bAssetIdStr,routeStr) = if (!(verifyLiquidatorRights(i.caller)))
+    then throw("temporarily available for whitelist only")
+    else if (!(tryGetBoolean("setup_active")))
+        then throw("market is stopped")
+        else {
+            let userCollateral = calcUserCollateral(address)
+            if ((userCollateral == userCollateral))
+                then {
+                    let $t02844528507 = getActualRate(sAssetIdStr, "sRate")
+                    let sRate = $t02844528507._1
+                    let ratesResult = $t02844528507._2
+                    let $t02851228581 = getActualRate(bAssetIdStr, "bRate")
+                    let bRate = $t02851228581._1
+                    let ratesRecalcResult2 = $t02851228581._2
+                    let sAssetAmount = fraction(assetAmount, Scale16, sRate)
+                    let currentSPosition = tryGetInteger(((address + "_supplied_") + sAssetIdStr))
+                    let currentBPositionVal = tryGetInteger(((address + "_borrowed_") + bAssetIdStr))
+                    let currentBPosition = if ((currentBPositionVal > 0))
+                        then currentBPositionVal
+                        else throw("user has no borrow in this token")
+                    if ((userCollateral > 0))
+                        then throw("user can't be liquidated")
+                        else if ((sAssetAmount > currentSPosition))
+                            then throw("position to liquidate is bigger than user's supply")
+                            else {
+                                let balance0Before = getBalance(sAssetIdStr)
+                                if ((balance0Before == balance0Before))
+                                    then {
+                                        let balance1Before = getBalance(bAssetIdStr)
+                                        if ((balance1Before == balance1Before))
+                                            then {
+                                                let exchangeInvoke = invoke(aggregatorAddress, "swap", [routeStr, 0], [AttachedPayment(getAssetBytes(sAssetIdStr), assetAmount)])
+                                                if ((exchangeInvoke == exchangeInvoke))
+                                                    then {
+                                                        let asset0Sold = (balance0Before - getBalance(sAssetIdStr))
+                                                        if ((asset0Sold == asset0Sold))
+                                                            then {
+                                                                let asset1Bought = (getBalance(bAssetIdStr) - balance1Before)
+                                                                if ((asset1Bought == asset1Bought))
+                                                                    then {
+                                                                        let asset0Price = getTokenPrice(sAssetIdStr)._1
+                                                                        let asset0Scale = calcAssetScale(sAssetIdStr)
+                                                                        let asset0Usd = fraction(asset0Sold, asset0Price, asset0Scale)
+                                                                        let asset1Price = getTokenPrice(bAssetIdStr)._2
+                                                                        let asset1Scale = calcAssetScale(bAssetIdStr)
+                                                                        let asset1Usd = fraction(asset1Bought, asset1Price, asset1Scale)
+                                                                        let penalty = parseIntValue(split(tryGetString("setup_penalties"), ",")[value(indexOf(getMarketAssets(), bAssetIdStr))])
+                                                                        let liquidationProfit = (asset1Usd - fraction(asset0Usd, (Scale8 - penalty), Scale8))
+                                                                        let sAssetChange = fraction(asset0Sold, Scale16, sRate)
+                                                                        let bAssetChange = fraction(fraction(asset1Bought, Scale16, bRate), (Scale8 - fraction(liquidationProfit, Scale8, asset1Usd)), Scale8)
+                                                                        if ((asset0Sold > assetAmount))
+                                                                            then throw("more assets exchanged than expected")
+                                                                            else if ((0 > liquidationProfit))
+                                                                                then throw("price impact is bigger than liquidation penalty")
+                                                                                else [IntegerEntry(((address + "_supplied_") + sAssetIdStr), (currentSPosition - sAssetChange)), IntegerEntry(((address + "_borrowed_") + bAssetIdStr), (currentBPosition - bAssetChange)), IntegerEntry(("total_supplied_" + sAssetIdStr), (tryGetInteger(("total_supplied_" + sAssetIdStr)) - sAssetChange)), IntegerEntry(("total_borrowed_" + bAssetIdStr), (tryGetInteger(("total_borrowed_" + bAssetIdStr)) - bAssetChange))]
+                                                                        }
+                                                                    else throw("Strict value is not equal to itself.")
+                                                                }
+                                                            else throw("Strict value is not equal to itself.")
+                                                        }
+                                                    else throw("Strict value is not equal to itself.")
+                                                }
+                                            else throw("Strict value is not equal to itself.")
+                                        }
+                                    else throw("Strict value is not equal to itself.")
+                                }
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+
+
+
+@Callable(i)
+func liquidateV2 (debug,address,sAssetIdStr) = if (!(verifyLiquidatorRights(i.caller)))
+    then throw("temporarily available for whitelist only")
+    else if (!(tryGetBoolean("setup_active")))
+        then throw("market is stopped")
+        else {
+            let bAssetId = i.payments[0].assetId
+            let bAssetIdStr = getAssetString(bAssetId)
+            let bAssetAmount = i.payments[0].amount
+            let userCollateral = calcUserCollateral(address)
+            if ((userCollateral == userCollateral))
+                then if ((userCollateral > 0))
+                    then throw("user can't be liquidated")
+                    else {
+                        let marketAssets = getMarketAssets()
+                        let asset1Num = value(indexOf(marketAssets, bAssetIdStr))
+                        let asset0Num = value(indexOf(marketAssets, sAssetIdStr))
+                        let $t03173631798 = getActualRate(bAssetIdStr, "bRate")
+                        let bRate = $t03173631798._1
+                        let ratesResult = $t03173631798._2
+                        let asset1Price = getTokenPrice(bAssetIdStr)._2
+                        let asset1Scale = calcAssetScale(bAssetIdStr)
+                        let bAmountUsd = fraction(bAssetAmount, asset1Price, asset1Scale)
+                        let penalty = parseIntValue(value(split(tryGetString("setup_penalties"), ",")[asset1Num]))
+                        let asset0Price = getTokenPrice(sAssetIdStr)._1
+                        let asset0Scale = calcAssetScale(sAssetIdStr)
+                        let sAmountUsd = fraction(bAmountUsd, (Scale8 + penalty), Scale8)
+                        let sAssetAmount = fraction(sAmountUsd, asset0Scale, asset0Price)
+                        let bAmount = fraction(bAssetAmount, Scale16, bRate)
+                        let sAmount = fraction(sAssetAmount, Scale16, ratesResult[(asset0Num * 3)].value)
+                        let currentSPosition = tryGetInteger(((address + "_supplied_") + sAssetIdStr))
+                        let currentBPositionVal = tryGetInteger(((address + "_borrowed_") + bAssetIdStr))
+                        let currentBPosition = if ((currentBPositionVal > 0))
+                            then currentBPositionVal
+                            else throw("user has no borrow in this token")
+                        if ((sAmount > currentSPosition))
+                            then throw("position to liquidate is bigger than user's supply")
+                            else if (debug)
+                                then throw("liquidation will pass")
+                                else ([ScriptTransfer(i.caller, sAssetAmount, getAssetBytes(sAssetIdStr)), IntegerEntry(((address + "_supplied_") + sAssetIdStr), (currentSPosition - sAmount)), IntegerEntry(((address + "_borrowed_") + bAssetIdStr), (currentBPosition - bAmount)), IntegerEntry(("total_supplied_" + sAssetIdStr), (tryGetInteger(("total_supplied_" + sAssetIdStr)) - sAmount)), IntegerEntry(("total_borrowed_" + bAssetIdStr), (tryGetInteger(("total_borrowed_" + bAssetIdStr)) - bAmount))] ++ ratesResult)
+                        }
+                else throw("Strict value is not equal to itself.")
+            }
+
+
+
+@Callable(i)
+func getUserCollateral (debug,address,minusBorrowed,afterChange) = {
+    let assets = getMarketAssets()
+    let ltvs = split(tryGetString("setup_ltvs"), ",")
+    let lts = split(tryGetString("setup_lts"), ",")
+    let rates = getActualRate(assets[0], "sRate")._2
+    let changeHandler = split(afterChange, ",")
+    func f (accum,next) =     if ((next >= size(assets)))
+        then accum
+        else {
+            let userSupplied = tryGetInteger(((address + "_supplied_") + assets[next]))
+            let userBorrowed = tryGetInteger(((address + "_borrowed_") + assets[next]))
+            let needTokenAccounting = if ((afterChange == ""))
+                then if (if ((userBorrowed != 0))
+                    then true
+                    else (userSupplied != 0))
+                    then true
+                    else false
+                else true
+            if (needTokenAccounting)
+                then {
+                    let assetScale = calcAssetScale(assets[next])
+                    let assetPrice = getTokenPrice(assets[next])
+                    ((accum + fraction(fraction(fraction((userSupplied + (if (if (if ((afterChange != ""))
+                        then (changeHandler[0] == assets[next])
+                        else false)
+                        then (changeHandler[1] == "supplied")
+                        else false)
+                        then parseIntValue(changeHandler[2])
+                        else 0)), rates[(next * 3)].value, Scale16), parseIntValue(ltvs[next]), Scale8), assetPrice._1, assetScale)) - (if (minusBorrowed)
+                        then fraction(fraction(fraction((userBorrowed + (if (if (if ((afterChange != ""))
+                            then (changeHandler[0] == assets[next])
+                            else false)
+                            then (changeHandler[1] == "borrowed")
+                            else false)
+                            then parseIntValue(changeHandler[2])
+                            else 0)), rates[((next * 3) + 1)].value, Scale16), Scale8, parseIntValue(lts[next])), assetPrice._2, assetScale)
+                        else 0))
+                    }
+                else accum
+            }
+
+    let result = {
+        let $l = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        let $s = size($l)
+        let $acc0 = 0
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else f($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 12")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12)
+        }
+    if (debug)
+        then throw(toString(result))
+        else $Tuple2(rates, result)
+    }
+
+
+
+@Callable(i)
+func getPrices (debug) = {
+    let assets = getMarketAssets()
+    func f (accum,next) =     if ((next >= size(assets)))
+        then accum
+        else {
+            let assetPrice = getTokenPriceWithRisk(assets[next], 3)
+            ((((accum + toString(assetPrice._1)) + ",") + toString(assetPrice._2)) + "|")
+            }
+
+    let result = {
+        let $l = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        let $s = size($l)
+        let $acc0 = ""
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else f($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 12")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12)
+        }
+    if (debug)
+        then throw(result)
+        else $Tuple2(nil, result)
+    }
+
+
+
+@Callable(i)
+func calculateUtilizationRatio (assetIdStr,debug) = if (debug)
+    then throw(toString(getUr(assetIdStr)))
+    else $Tuple2(nil, getUr(assetIdStr))
+
+
+
+@Callable(i)
+func calculateOutdatedUR (assetIdStr,debug) = if (debug)
+    then throw(toString(getOutdatedUr(assetIdStr)))
+    else $Tuple2(nil, getOutdatedUr(assetIdStr))
+
+
+
+@Callable(i)
+func calculateTokenRates (debug) = {
+    func f (accum,assetIdStr) =     {
+        let rates = tokenRatesRecalc(assetIdStr)
+        $Tuple2(((((accum._1 + toString(rates[1].value)) + "|") + toString(rates[0].value)) + ","), (accum._2 ++ rates))
+        }
+
+    let parameter = {
+        let $l = getMarketAssets()
+        let $s = size($l)
+        let $acc0 = $Tuple2("", nil)
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else f($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 12")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12)
+        }
+    if (debug)
+        then throw(parameter._1)
+        else $Tuple2(parameter._2, parameter._1)
+    }
+
+
+
+@Callable(i)
+func calculateTokensInterest (debug) = {
+    func f (accum,assetIdStr) =     {
+        let rate = fraction(getInterest(assetIdStr), dayBlocks, Scale8)
+        ((accum + toString(rate)) + ",")
+        }
+
+    let parameter = {
+        let $l = getMarketAssets()
+        let $s = size($l)
+        let $acc0 = ""
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else f($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 12")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12)
+        }
+    if (debug)
+        then throw(parameter)
+        else $Tuple2(nil, parameter)
+    }
+
+
+@Verifier(tx)
+func verify () = sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)

@@ -1,0 +1,427 @@
+{-# STDLIB_VERSION 5 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let keyAssetAddress = "_aa"
+
+let keyAssetType = "_at"
+
+let keyAssetPrecision = "_ap"
+
+let keyAssetMinFee = "_amf"
+
+let keyAssetIsActive = "_aia"
+
+let keyBaseFeeRateBP = "_bfr"
+
+let keyValidator = "_v"
+
+let keyFeeCollector = "_fc"
+
+let keyUnlockSigner = "_us"
+
+let keyIsActive = "_ia"
+
+let keyManager = "_m"
+
+let BRIDGE_MANAGER = "BRIDGE_MANAGER"
+
+let ASSET_MANAGER = "ASSET_MANAGER"
+
+let STOP_MANAGER = "STOP_MANAGER"
+
+let baseAssetSourceAndAddress = base58'fRpRFUxiLXbzAaAT3sfi1oTFa8n4X8b9FUaQHyT5MkdXYpGZV'
+
+let baseAssetId = base58'6scFjhFGDfpmYySMKQ9vDbZuH8aMRWsUQJAHXzm1FsJo'
+
+let chainWaves = base58'3EMsPJ'
+
+let BP = 10000
+
+let systemPrecision = 9
+
+let errUnauthorized = "unauthorized"
+
+let errUninitialized = "uninitialized"
+
+let errInitialized = "initialized"
+
+let errAlreadyExists = "exists"
+
+let errNotExists = "not exists"
+
+let errInvalidValues = "invalid values"
+
+let errNotOnePayment = "not one payment"
+
+let errAssetNotFound = "asset not found"
+
+let errNotEnoughBalance = "not enough balance"
+
+let errBigPowValue = "pow value too big"
+
+let errBridgeDisabled = "bridge is disabled"
+
+let errAssetDisabled = "asset is disabled"
+
+let errWrongDestinationChain = "wrong destination chain"
+
+let typeBase = 0
+
+let typeNative = 1
+
+let typeWrapped = 2
+
+func assertCallerIsManager (i,managerType) = match getBinary((managerType + keyManager)) {
+    case authority: ByteVector => 
+        if ((authority != i.caller.bytes))
+            then throw(errUnauthorized)
+            else unit
+    case _ => 
+        throw(errUninitialized)
+}
+
+
+func assertCallerIsContract (i) = if ((this.bytes != i.caller.bytes))
+    then throw(errUnauthorized)
+    else unit
+
+
+func assertBridgeIsActive () = if (!(valueOrElse(getBoolean(keyIsActive), false)))
+    then throw(errBridgeDisabled)
+    else unit
+
+
+func assertAssetIsActive (assetIdStr) = match getBoolean((assetIdStr + keyAssetIsActive)) {
+    case isActive: Boolean => 
+        if (isActive)
+            then unit
+            else throw(errAssetDisabled)
+    case _ => 
+        throw(errAssetNotFound)
+}
+
+
+func getFee (amount,assetIdStr) = {
+    let baseFeeRateBP = valueOrErrorMessage(getInteger(keyBaseFeeRateBP), errUninitialized)
+    let minFee = valueOrErrorMessage(getInteger((assetIdStr + keyAssetMinFee)), errAssetNotFound)
+    let fee = fraction(amount, baseFeeRateBP, BP)
+    if ((minFee > fee))
+        then minFee
+        else fee
+    }
+
+
+func pow10 (value,power) = {
+    let absPow = if ((0 > power))
+        then -(power)
+        else power
+    let powerValue = if ((absPow == 0))
+        then 1
+        else if ((absPow == 1))
+            then 10
+            else if ((absPow == 2))
+                then 100
+                else if ((absPow == 3))
+                    then 1000
+                    else if ((absPow == 4))
+                        then 10000
+                        else if ((absPow == 5))
+                            then 100000
+                            else if ((absPow == 6))
+                                then 1000000
+                                else if ((absPow == 7))
+                                    then 10000000
+                                    else if ((absPow == 8))
+                                        then 100000000
+                                        else if ((absPow == 9))
+                                            then 1000000000
+                                            else throw(errBigPowValue)
+    if ((0 > power))
+        then (value / powerValue)
+        else (value * powerValue)
+    }
+
+
+func toSystemPrecision (amount,precision) = pow10(amount, (systemPrecision - precision))
+
+
+func fromSystemPrecision (amount,precision) = pow10(amount, (precision - systemPrecision))
+
+
+@Callable(i)
+func init (admin,validatorAddress,feeCollector,unlockSigner,baseFeeRateBP) = {
+    let callerCheck = assertCallerIsContract(i)
+    if ((callerCheck == callerCheck))
+        then if (isDefined(getBinary((BRIDGE_MANAGER + keyManager))))
+            then throw(errInitialized)
+            else [BinaryEntry((BRIDGE_MANAGER + keyManager), addressFromStringValue(admin).bytes), BinaryEntry(keyValidator, addressFromStringValue(validatorAddress).bytes), BinaryEntry(keyFeeCollector, addressFromStringValue(feeCollector).bytes), BinaryEntry(keyUnlockSigner, addressFromStringValue(unlockSigner).bytes), IntegerEntry(keyBaseFeeRateBP, baseFeeRateBP), BooleanEntry(keyIsActive, true)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func addAsset (assetSourceAndAddress,assetId,minFee) = {
+    let callerCheck = assertCallerIsManager(i, ASSET_MANAGER)
+    if ((callerCheck == callerCheck))
+        then {
+            let $t044734873 = if ((assetId == baseAssetId))
+                then if ((assetSourceAndAddress != baseAssetSourceAndAddress))
+                    then throw(errInvalidValues)
+                    else $Tuple2(typeBase, 8)
+                else {
+                    let asset = valueOrErrorMessage(assetInfo(assetId), errAssetNotFound)
+                    let type = if ((asset.issuer == this))
+                        then typeWrapped
+                        else typeNative
+                    $Tuple2(type, asset.decimals)
+                    }
+            let type = $t044734873._1
+            let precision = $t044734873._2
+            let assetIdStr = toBase64String(assetId)
+            let keySourceAddress = (toBase64String(assetSourceAndAddress) + keyAssetAddress)
+            let keyNativeAddress = (assetIdStr + keyAssetAddress)
+            if (if (isDefined(getBinary(keySourceAddress)))
+                then true
+                else isDefined(getBinary(keyNativeAddress)))
+                then throw(errAlreadyExists)
+                else [BinaryEntry(keySourceAddress, assetId), BinaryEntry(keyNativeAddress, assetSourceAndAddress), IntegerEntry((assetIdStr + keyAssetType), type), IntegerEntry((assetIdStr + keyAssetPrecision), precision), IntegerEntry((assetIdStr + keyAssetMinFee), minFee), BooleanEntry((assetIdStr + keyAssetIsActive), true)]
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func issue (name,description,precision) = {
+    let callerCheck = assertCallerIsManager(i, ASSET_MANAGER)
+    if ((callerCheck == callerCheck))
+        then [Issue(name, description, 0, precision, true)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func removeAsset (assetSourceAndAddress,newAuthority) = {
+    let callerCheck = assertCallerIsManager(i, ASSET_MANAGER)
+    if ((callerCheck == callerCheck))
+        then {
+            let keySourceAddress = (toBase64String(assetSourceAndAddress) + keyAssetAddress)
+            let assetId = valueOrErrorMessage(getBinary(keySourceAddress), errNotExists)
+            let assetIdStr = toBase64String(assetId)
+            let type = valueOrErrorMessage(getInteger((assetIdStr + keyAssetType)), errNotExists)
+            let actions = if ((type == typeBase))
+                then {
+                    let balance = wavesBalance(this)
+                    if ((balance.available > 0))
+                        then [ScriptTransfer(addressFromStringValue(newAuthority), balance.available, unit)]
+                        else nil
+                    }
+                else if ((type == typeNative))
+                    then {
+                        let balance = assetBalance(this, assetId)
+                        if ((balance > 0))
+                            then [ScriptTransfer(addressFromStringValue(newAuthority), balance, assetId)]
+                            else nil
+                        }
+                    else if ((type == typeWrapped))
+                        then nil
+                        else throw(errInvalidValues)
+            (actions ++ [DeleteEntry(keySourceAddress), DeleteEntry((assetIdStr + keyAssetAddress)), DeleteEntry((assetIdStr + keyAssetType)), DeleteEntry((assetIdStr + keyAssetPrecision)), DeleteEntry((assetIdStr + keyAssetMinFee)), DeleteEntry((assetIdStr + keyAssetIsActive))])
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func lock (lockId,recipient,destination) = {
+    let birdgeCheck = assertBridgeIsActive()
+    if ((birdgeCheck == birdgeCheck))
+        then if ((destination == chainWaves))
+            then throw(errWrongDestinationChain)
+            else if ((size(i.payments) != 1))
+                then throw(errNotOnePayment)
+                else {
+                    let assetId = valueOrElse(i.payments[0].assetId, baseAssetId)
+                    let assetIdStr = toBase64String(assetId)
+                    let assetCheck = assertAssetIsActive(assetIdStr)
+                    if ((assetCheck == assetCheck))
+                        then {
+                            let amount = i.payments[0].amount
+                            let validatorAddress = valueOrErrorMessage(getBinary(keyValidator), errUninitialized)
+                            let fee = getFee(amount, assetIdStr)
+                            let amountWithoutFee = (amount - fee)
+                            if ((0 >= amountWithoutFee))
+                                then throw(errNotEnoughBalance)
+                                else {
+                                    let assetSourceAndAddress = valueOrErrorMessage(getBinary((assetIdStr + keyAssetAddress)), errAssetNotFound)
+                                    let type = valueOrErrorMessage(getInteger((assetIdStr + keyAssetType)), errAssetNotFound)
+                                    let precision = valueOrErrorMessage(getInteger((assetIdStr + keyAssetPrecision)), errAssetNotFound)
+                                    let feeCollector = valueOrErrorMessage(getBinary(keyFeeCollector), errUninitialized)
+                                    let createLock = invoke(Address(validatorAddress), "createLock", [lockId, recipient, toSystemPrecision(amountWithoutFee, precision), destination, assetSourceAndAddress], nil)
+                                    if ((createLock == createLock))
+                                        then if ((type == typeBase))
+                                            then [ScriptTransfer(Address(feeCollector), fee, unit)]
+                                            else if ((type == typeNative))
+                                                then [ScriptTransfer(Address(feeCollector), fee, assetId)]
+                                                else if ((type == typeWrapped))
+                                                    then [Burn(assetId, amountWithoutFee), ScriptTransfer(Address(feeCollector), fee, assetId)]
+                                                    else throw(errInvalidValues)
+                                        else throw("Strict value is not equal to itself.")
+                                    }
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func unlock (lockId,recipient,amount,lockSource,assetSourceAndAddress,signature) = {
+    let birdgeCheck = assertBridgeIsActive()
+    if ((birdgeCheck == birdgeCheck))
+        then {
+            let assetId = valueOrErrorMessage(getBinary((toBase64String(assetSourceAndAddress) + keyAssetAddress)), errAssetNotFound)
+            let assetIdStr = toBase64String(assetId)
+            let type = valueOrErrorMessage(getInteger((assetIdStr + keyAssetType)), errAssetNotFound)
+            let precision = valueOrErrorMessage(getInteger((assetIdStr + keyAssetPrecision)), errAssetNotFound)
+            let validatorAddress = valueOrErrorMessage(getBinary(keyValidator), errUninitialized)
+            let unlockSigner = valueOrErrorMessage(getBinary(keyUnlockSigner), errUninitialized)
+            let feeCollector = valueOrErrorMessage(getBinary(keyFeeCollector), errUninitialized)
+            let createUnlock = invoke(Address(validatorAddress), "createUnlock", [lockId, addressFromStringValue(recipient).bytes, amount, lockSource, assetSourceAndAddress, signature], nil)
+            if ((createUnlock == createUnlock))
+                then {
+                    let isValid =                     match createUnlock {
+                        case v: Boolean => 
+                            v
+                        case _ => 
+                            false
+                    }
+                    if (!(isValid))
+                        then throw(errInvalidValues)
+                        else {
+                            let fee = if ((unlockSigner == i.caller.bytes))
+                                then valueOrErrorMessage(getInteger((assetIdStr + keyAssetMinFee)), errAssetNotFound)
+                                else 0
+                            let amountToSend = fromSystemPrecision(amount, precision)
+                            let amountToSendWithoutFee = (amountToSend - fee)
+                            if ((0 >= amountToSendWithoutFee))
+                                then throw(errNotEnoughBalance)
+                                else if ((type == typeBase))
+                                    then ([ScriptTransfer(addressFromStringValue(recipient), amountToSendWithoutFee, unit)] ++ (if ((fee > 0))
+                                        then [ScriptTransfer(Address(feeCollector), fee, unit)]
+                                        else nil))
+                                    else if ((type == typeNative))
+                                        then ([ScriptTransfer(addressFromStringValue(recipient), amountToSendWithoutFee, assetId)] ++ (if ((fee > 0))
+                                            then [ScriptTransfer(Address(feeCollector), fee, assetId)]
+                                            else nil))
+                                        else if ((type == typeWrapped))
+                                            then ([Reissue(assetId, amountToSend, true), ScriptTransfer(addressFromStringValue(recipient), amountToSendWithoutFee, assetId)] ++ (if ((fee > 0))
+                                                then [ScriptTransfer(Address(feeCollector), fee, assetId)]
+                                                else nil))
+                                            else throw(errInvalidValues)
+                            }
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setManager (managerType,manager) = {
+    let callerCheck = assertCallerIsManager(i, BRIDGE_MANAGER)
+    if ((callerCheck == callerCheck))
+        then [BinaryEntry((managerType + keyManager), addressFromStringValue(manager).bytes)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setFeeCollector (feeCollector) = {
+    let callerCheck = assertCallerIsManager(i, BRIDGE_MANAGER)
+    if ((callerCheck == callerCheck))
+        then [BinaryEntry(keyFeeCollector, addressFromStringValue(feeCollector).bytes)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setValidator (validator) = {
+    let callerCheck = assertCallerIsManager(i, BRIDGE_MANAGER)
+    if ((callerCheck == callerCheck))
+        then [BinaryEntry(keyValidator, addressFromStringValue(validator).bytes)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setUnlockSigner (unlockSigner) = {
+    let callerCheck = assertCallerIsManager(i, BRIDGE_MANAGER)
+    if ((callerCheck == callerCheck))
+        then [BinaryEntry(keyUnlockSigner, addressFromStringValue(unlockSigner).bytes)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func startBridge () = {
+    let callerCheck = assertCallerIsManager(i, BRIDGE_MANAGER)
+    if ((callerCheck == callerCheck))
+        then [BooleanEntry(keyIsActive, true)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func stopBridge () = {
+    let callerCheck = assertCallerIsManager(i, STOP_MANAGER)
+    if ((callerCheck == callerCheck))
+        then [BooleanEntry(keyIsActive, false)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setMinFee (assetId,minFee) = {
+    let callerCheck = assertCallerIsManager(i, ASSET_MANAGER)
+    if ((callerCheck == callerCheck))
+        then {
+            let assetIdStr = toBase64String(assetId)
+[IntegerEntry((assetIdStr + keyAssetMinFee), minFee)]
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setBaseFeeRate (baseFeeRateBP) = {
+    let callerCheck = assertCallerIsManager(i, ASSET_MANAGER)
+    if ((callerCheck == callerCheck))
+        then [IntegerEntry(keyBaseFeeRateBP, baseFeeRateBP)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setAssetState (assetId,state) = {
+    let callerCheck = assertCallerIsManager(i, ASSET_MANAGER)
+    if ((callerCheck == callerCheck))
+        then {
+            let assetIdStr = toBase64String(assetId)
+[BooleanEntry((assetIdStr + keyAssetIsActive), state)]
+            }
+        else throw("Strict value is not equal to itself.")
+    }

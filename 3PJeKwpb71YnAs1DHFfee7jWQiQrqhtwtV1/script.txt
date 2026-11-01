@@ -1,0 +1,181 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let SEP = "__"
+
+func keyManagerVaultAddress () = "%s__managerVaultAddress"
+
+
+func keyManagerPublicKey () = "%s__managerPublicKey"
+
+
+let IdxCfgClaimStartBlock = 1
+
+let IdxCfgClaimVestingPeriod = 2
+
+let IdxCfgClaimAssetId = 3
+
+let IdxCfgClaimAssetMult = 4
+
+let IdxCfgClaimAssetOwner = 5
+
+let IdxCfgClaimAssetTotalAmount = 6
+
+let IdxTotalsTotalClaimedAmount = 1
+
+let IdxTotalsRemainingAmount = 2
+
+let IdxTotalsLastClaimedHeight = 3
+
+func getStringOrFail (key) = valueOrErrorMessage(getString(key), (("mandatory this." + key) + " is not defined"))
+
+
+func formatConfigString (claimStartBlock,vestingPeriod,assetIdBase58,assetMult,assetOwner,assetTotalAmt) = makeString(["%d%d%s%d%s%d%", claimStartBlock, vestingPeriod, assetIdBase58, assetMult, assetOwner, assetTotalAmt], SEP)
+
+
+func formatConfig (claimStartBlock,vestingPeriod,assetIdBase58,assetMult,claimAssetOwner,claimAssetTotalAmount) = formatConfigString(toString(claimStartBlock), toString(vestingPeriod), assetIdBase58, toString(assetMult), claimAssetOwner, toString(claimAssetTotalAmount))
+
+
+func formatTotalsString (totalClaimedAmount,remainingAmountForClaim,lastClaimedHeight) = makeString(["%d%d%d", totalClaimedAmount, remainingAmountForClaim, lastClaimedHeight], SEP)
+
+
+func formatHistoryRecord (claimedAssetAmount,claimingBlocks,firstCalulationBlock,lastCalulationBlock) = makeString(["%d%d%d%d%d%d", toString(height), toString(lastBlock.timestamp), toString(claimedAssetAmount), toString(claimingBlocks), toString(firstCalulationBlock), toString(lastCalulationBlock)], SEP)
+
+
+func keyConfig () = "%s__config"
+
+
+func keyTotals () = "%s__totals"
+
+
+func keyOperationHistoryRecord (type,userAddress,txId58) = makeString(["%s%s%s%s__history", type, userAddress, txId58], SEP)
+
+
+func readConfigArray () = split(getStringOrFail(keyConfig()), SEP)
+
+
+func readTotalsArray () = split(getStringOrFail(keyTotals()), SEP)
+
+
+func TotalsEntry (key,origArray,claimedAmt,newLastClaimedHeight) = {
+    let totalClaimedAmount = parseIntValue(origArray[IdxTotalsTotalClaimedAmount])
+    let remainingAmount = parseIntValue(origArray[IdxTotalsRemainingAmount])
+    let lastClaimedHeight = parseIntValue(origArray[IdxTotalsLastClaimedHeight])
+    let newTotalClaimedAmount = (totalClaimedAmount + claimedAmt)
+    let newRemainingAmount = (remainingAmount - claimedAmt)
+    if ((0 > newRemainingAmount))
+        then throw("invalid math")
+        else StringEntry(key, formatTotalsString(toString(newTotalClaimedAmount), toString(newRemainingAmount), toString(newLastClaimedHeight)))
+    }
+
+
+func ClaimOperationHistoryEntry (userAddress,claimedAssetAmount,claimingBlocks,firstCalculationBlock,lastCalculationBlock,txId) = StringEntry(keyOperationHistoryRecord("claim", userAddress, toBase58String(txId)), formatHistoryRecord(claimedAssetAmount, claimingBlocks, firstCalculationBlock, lastCalculationBlock))
+
+
+func getManagerVaultAddressOrThis () = match getString(keyManagerVaultAddress()) {
+    case s: String => 
+        addressFromStringValue(s)
+    case _ => 
+        this
+}
+
+
+func managerPublicKeyOrUnit () = {
+    let managerVaultAddress = getManagerVaultAddressOrThis()
+    match getString(managerVaultAddress, keyManagerPublicKey()) {
+        case s: String => 
+            fromBase58String(s)
+        case _: Unit => 
+            unit
+        case _ => 
+            throw("Match error")
+    }
+    }
+
+
+func isManager (i) = match managerPublicKeyOrUnit() {
+    case pk: ByteVector => 
+        (i.callerPublicKey == pk)
+    case _: Unit => 
+        (i.caller == this)
+    case _ => 
+        throw("Match error")
+}
+
+
+func mustManager (i) = if (isManager(i))
+    then true
+    else throw("permission denied")
+
+
+@Callable(i)
+func constructor (claimStartBlock,vestingPeriodBlocks,beneficiaryAddress) = {
+    let checkCaller = mustManager(i)
+    if ((checkCaller == checkCaller))
+        then {
+            let vestingEnd = (claimStartBlock + vestingPeriodBlocks)
+            if (isDefined(getString(keyConfig())))
+                then throw("already initialized")
+                else if ((size(i.payments) != 1))
+                    then throw("exactly 1 payment must be attached")
+                    else {
+                        let beneficiaryAddressParsed = valueOrErrorMessage(addressFromString(beneficiaryAddress), "Invalid beneficiarAddress passed")
+                        let pmt = value(i.payments[0])
+                        let claimAssetId = value(pmt.assetId)
+                        let claimAssetInfo = valueOrErrorMessage(assetInfo(claimAssetId), "fail to load ido asset info")
+                        let claimAssetId58 = toBase58String(claimAssetId)
+                        let claimAssetMult = pow(10, 0, claimAssetInfo.decimals, 0, 0, DOWN)
+                        let claimAssetAmount = pmt.amount
+[StringEntry(keyConfig(), formatConfig(claimStartBlock, vestingPeriodBlocks, claimAssetId58, claimAssetMult, toString(beneficiaryAddressParsed), claimAssetAmount)), StringEntry(keyTotals(), formatTotalsString("0", toString(claimAssetAmount), "0"))]
+                        }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func claim () = {
+    let cfgArray = readConfigArray()
+    let cfgClaimStartHeight = parseIntValue(cfgArray[IdxCfgClaimStartBlock])
+    let cfgClaimDuration = parseIntValue(cfgArray[IdxCfgClaimVestingPeriod])
+    let cfgClaimEnd = (cfgClaimStartHeight + cfgClaimDuration)
+    let cfgClaimAssetId58 = cfgArray[IdxCfgClaimAssetId]
+    let cfgClaimAssetOwner = cfgArray[IdxCfgClaimAssetOwner]
+    let cfgClaimAssetTotalAmount = parseIntValue(cfgArray[IdxCfgClaimAssetTotalAmount])
+    let userAddress = i.caller
+    let userAddress58 = toString(userAddress)
+    let origTotalsArray = readTotalsArray()
+    let totalClaimedAmount = parseIntValue(origTotalsArray[IdxTotalsTotalClaimedAmount])
+    let totalRemainingAmount = parseIntValue(origTotalsArray[IdxTotalsRemainingAmount])
+    let lastClaimedHeight = parseIntValue(origTotalsArray[IdxTotalsLastClaimedHeight])
+    if ((userAddress58 != cfgClaimAssetOwner))
+        then throw("permissions denied")
+        else if ((cfgClaimStartHeight > height))
+            then throw(("Wait claim start block: " + toString(cfgClaimStartHeight)))
+            else {
+                let lastCalulationBlock = if ((height > cfgClaimEnd))
+                    then cfgClaimEnd
+                    else height
+                let firstCalulationBlock = if ((lastClaimedHeight == 0))
+                    then cfgClaimStartHeight
+                    else lastClaimedHeight
+                let claimingBlocks = (lastCalulationBlock - firstCalulationBlock)
+                let claimingAssetAmount = fraction(cfgClaimAssetTotalAmount, claimingBlocks, cfgClaimDuration)
+[ScriptTransfer(userAddress, claimingAssetAmount, fromBase58String(cfgClaimAssetId58)), TotalsEntry(keyTotals(), readTotalsArray(), claimingAssetAmount, lastCalulationBlock), ClaimOperationHistoryEntry(userAddress58, claimingAssetAmount, claimingBlocks, firstCalulationBlock, lastCalulationBlock, i.transactionId)]
+                }
+    }
+
+
+@Verifier(tx)
+func verify () = {
+    let targetPublicKey =     match managerPublicKeyOrUnit() {
+        case pk: ByteVector => 
+            pk
+        case _: Unit => 
+            tx.senderPublicKey
+        case _ => 
+            throw("Match error")
+    }
+    sigVerify(tx.bodyBytes, tx.proofs[0], targetPublicKey)
+    }

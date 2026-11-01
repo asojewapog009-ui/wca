@@ -1,0 +1,286 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let contractFile = "l2mp_swap.ride"
+
+let SEP = "__"
+
+let scale8 = 100000000
+
+func wrapErr (msg) = ((contractFile + ": ") + msg)
+
+
+func throwErr (msg) = throw(wrapErr(msg))
+
+
+let keyAssetInId = makeString(["%s", "assetInId"], SEP)
+
+let keyAssetOutId = makeString(["%s", "assetOutId"], SEP)
+
+let keyAssetOutPrice = makeString(["%s", "assetOutPrice"], SEP)
+
+let keyStakingAddress = makeString(["%s", "stakingAddress"], SEP)
+
+let keyStatsTotalIn = makeString(["%s%s", "stats", "totalIn"], SEP)
+
+let keyStatsTotalOut = makeString(["%s%s", "stats", "totalOut"], SEP)
+
+let keyAllowedAddress = makeString(["%s", "allowedAddress"], SEP)
+
+func keyStatsTotalInByAddress (address) = makeString(["%s%s%s", "stats", "totalIn", toString(address)], SEP)
+
+
+func keyStatsTotalOutByAddress (address) = makeString(["%s%s%s", "stats", "totalOut", toString(address)], SEP)
+
+
+func keyHistory (address,txId) = makeString(["%s%s%s", "history", toString(address), toBase58String(txId)], SEP)
+
+
+func formatHistory (amountIn,amountOut,stake,stakingNode) = makeString(["%d%d%b%s", toString(amountIn), toString(amountOut), toString(stake), stakingNode], SEP)
+
+
+let assetInId = fromBase58String(valueOrErrorMessage(getString(this, keyAssetInId), wrapErr("invalid assetInId")))
+
+let assetInInfo = valueOrErrorMessage(assetInfo(assetInId), wrapErr("invalid assetInInfo"))
+
+let assetOutId = fromBase58String(valueOrErrorMessage(getString(this, keyAssetOutId), wrapErr("invalid assetInId")))
+
+let assetOutInfo = valueOrErrorMessage(assetInfo(assetOutId), wrapErr("invalid assetOutInfo"))
+
+let assetOutPrice = valueOrErrorMessage(getInteger(this, keyAssetOutPrice), wrapErr("invalid assetOutPrice"))
+
+let stakingAddressOption = match getString(this, keyStakingAddress) {
+    case s: String => 
+        addressFromString(s)
+    case _: Unit => 
+        unit
+    case _ => 
+        throw("Match error")
+}
+
+let stakingAddress = valueOrErrorMessage(stakingAddressOption, wrapErr("invalid stakingAddress"))
+
+let allowedAddressOption = match getString(this, keyAllowedAddress) {
+    case s: String => 
+        addressFromString(s)
+    case _: Unit => 
+        unit
+    case _ => 
+        throw("Match error")
+}
+
+let allowedAddress = valueOrErrorMessage(allowedAddressOption, wrapErr("invalid allowedAddress"))
+
+func isValidAddress (addressString) = match addressFromString(addressString) {
+    case t: Address => 
+        true
+    case _ => 
+        false
+}
+
+
+let ADMIN_LIST_SIZE = 5
+
+let QUORUM = 3
+
+let TXID_BYTES_LENGTH = 32
+
+func keyAllowedTxIdVotePrefix (txId) = makeString(["%s%s%s", "allowTxId", txId], SEP)
+
+
+func keyFullAdminVote (prefix,adminAddress) = makeString([prefix, adminAddress], SEP)
+
+
+func keyAdminAddressList () = makeString(["%s", "adminAddressList"], SEP)
+
+
+func keyAllowedTxId () = makeString(["%s", "txId"], SEP)
+
+
+func getAdminVote (prefix,admin) = {
+    let voteKey = keyFullAdminVote(prefix, admin)
+    valueOrElse(getInteger(voteKey), 0)
+    }
+
+
+func getAdminsList () = match getString(this, keyAdminAddressList()) {
+    case s: String => 
+        split(s, SEP)
+    case _ => 
+        nil
+}
+
+
+func isInAdminList (address) = containsElement(getAdminsList(), address)
+
+
+func genVotesKeysHelper (a,adminAddress) = {
+    let $t034863510 = a
+    let result = $t034863510._1
+    let prefix = $t034863510._2
+    $Tuple2((result :+ keyFullAdminVote(prefix, adminAddress)), prefix)
+    }
+
+
+func genVotesKeys (keyPrefix) = {
+    let adminList = keyAdminAddressList()
+    let $t036573741 = {
+        let $l = getAdminsList()
+        let $s = size($l)
+        let $acc0 = $Tuple2(nil, keyPrefix)
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else genVotesKeysHelper($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 5")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5)
+        }
+    let result = $t036573741._1
+    let prefix = $t036573741._2
+    result
+    }
+
+
+func countVotesHelper (result,voteKey) = (result + valueOrElse(getInteger(voteKey), 0))
+
+
+func countVotes (prefix) = {
+    let votes = genVotesKeys(prefix)
+    let $l = votes
+    let $s = size($l)
+    let $acc0 = 0
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else countVotesHelper($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 5")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5)
+    }
+
+
+func clearVotesHelper (result,key) = (result :+ DeleteEntry(key))
+
+
+func getClearVoteEntries (prefix) = {
+    let votes = genVotesKeys(prefix)
+    let $l = votes
+    let $s = size($l)
+    let $acc0 = nil
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else clearVotesHelper($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 5")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5)
+    }
+
+
+func voteINTERNAL (callerAddressString,keyPrefix,minVotes,voteResult) = {
+    let voteKey = keyFullAdminVote(keyPrefix, callerAddressString)
+    let adminCurrentVote = getAdminVote(keyPrefix, callerAddressString)
+    let err = if (!(isInAdminList(callerAddressString)))
+        then throwErr((("Address: " + callerAddressString) + " not in Admin list"))
+        else if ((adminCurrentVote == 1))
+            then throwErr((voteKey + " you already voted"))
+            else unit
+    if ((err == err))
+        then {
+            let votes = countVotes(keyPrefix)
+            if (((votes + 1) >= minVotes))
+                then {
+                    let clearVoteEntries = getClearVoteEntries(keyPrefix)
+                    (clearVoteEntries ++ voteResult)
+                    }
+                else [IntegerEntry(voteKey, 1)]
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func getSwapActions (i,stakingNode) = {
+    let userAddress = i.originCaller
+    let payment = i.payments[0]
+    let assetInAmount = payment.amount
+    let assetOutAmount = fraction(assetInAmount, scale8, assetOutPrice)
+    let checks = [if ((size(i.payments) == 1))
+        then true
+        else throwErr("invalid payments size"), if ((payment.assetId == assetInId))
+        then true
+        else throwErr("invalid payment assetId"), if ((assetOutPrice > 0))
+        then true
+        else throwErr("invalid assetOutPrice"), if ((assetOutAmount > 0))
+        then true
+        else throwErr("invalid assetOutAmount")]
+    if ((checks == checks))
+        then {
+            let stakeInvoke = invoke(stakingAddress, "leaseByAddress", [stakingNode, toString(userAddress)], [AttachedPayment(assetOutId, assetOutAmount)])
+            if ((stakeInvoke == stakeInvoke))
+                then $Tuple2([IntegerEntry(keyStatsTotalIn, (valueOrElse(getInteger(this, keyStatsTotalIn), 0) + assetInAmount)), IntegerEntry(keyStatsTotalOut, (valueOrElse(getInteger(this, keyStatsTotalOut), 0) + assetOutAmount)), IntegerEntry(keyStatsTotalInByAddress(userAddress), (valueOrElse(getInteger(this, keyStatsTotalInByAddress(userAddress)), 0) + assetInAmount)), IntegerEntry(keyStatsTotalOutByAddress(userAddress), (valueOrElse(getInteger(this, keyStatsTotalOutByAddress(userAddress)), 0) + assetOutAmount)), StringEntry(keyHistory(userAddress, i.transactionId), formatHistory(assetInAmount, assetOutAmount, true, stakingNode))], assetOutAmount)
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Callable(i)
+func swapAndStake (stakingNode) = {
+    let check = [if (isValidAddress(stakingNode))
+        then true
+        else throwErr("staking node address is no valid")]
+    if ((check == check))
+        then getSwapActions(i, stakingNode)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func claim () = {
+    let checkCaller = if ((i.caller == allowedAddress))
+        then true
+        else throwErr("permission denied")
+    if ((checkCaller == checkCaller))
+        then $Tuple2([ScriptTransfer(allowedAddress, assetBalance(this, assetInId), assetInId)], unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func voteForTxId (txId) = {
+    let callerAddressString = toBase58String(i.caller.bytes)
+    let keyPrefix = keyAllowedTxIdVotePrefix(txId)
+    let result = [StringEntry(keyAllowedTxId(), txId)]
+    let allowedTxIdOption = getString(this, keyAllowedTxId())
+    let err = [if ((size(fromBase58String(txId)) == TXID_BYTES_LENGTH))
+        then true
+        else throwErr((txId + " is not valid txId")), if (if ((allowedTxIdOption == unit))
+        then true
+        else (value(allowedTxIdOption) != txId))
+        then true
+        else throwErr((txId + " is already allowed"))]
+    if ((err == err))
+        then voteINTERNAL(callerAddressString, keyPrefix, QUORUM, result)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Verifier(tx)
+func verify () = {
+    let byAdmins = (tx.id == fromBase58String(valueOrElse(getString(this, keyAllowedTxId()), "")))
+    let byOwner = if ((size(getAdminsList()) >= QUORUM))
+        then false
+        else sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)
+    if (byAdmins)
+        then true
+        else byOwner
+    }

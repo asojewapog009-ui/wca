@@ -1,0 +1,1987 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let VERSION = "PZ-1.4.8 PROD"
+
+let CONTRACT_TYPE = "MULTIPOOL"
+
+let WAVES_RESERVE = 10000000
+
+let configStr = valueOrElse(getString(this, "configAddress"), "3PPEBRg4s2af2rQ2ZbLvdu1Hfd4Vo6QVDTo")
+
+let CONFIG_ADDRESS = if ((configStr == ""))
+    then this
+    else Address(fromBase58String(configStr))
+
+let AssetsWeightsDecimals = 4
+
+let Scale = 10000
+
+let Scale8 = 100000000
+
+let Scale16 = 10000000000000000
+
+let FeeScale = 10000
+
+let PoolTokenDecimals = 8
+
+let PoolTokenScale = pow(10, 0, PoolTokenDecimals, 0, 0, HALFUP)
+
+let GLOBAL_MIN_STEP_LIMIT = 2
+
+let MIN_STEPS_AMOUNT = max([GLOBAL_MIN_STEP_LIMIT, valueOrElse(getInteger(CONFIG_ADDRESS, "min_steps_amount"), GLOBAL_MIN_STEP_LIMIT)])
+
+let MAX_STEPS_AMOUNT = valueOrElse(getInteger(CONFIG_ADDRESS, "max_steps_amount"), 500)
+
+let MIN_STEPS_INTERVAL = valueOrElse(getInteger(CONFIG_ADDRESS, "min_steps_interval"), 1)
+
+let MAX_STEPS_INTERVAL = valueOrElse(getInteger(CONFIG_ADDRESS, "max_steps_interval"), 10000)
+
+let MIN_WEIGHT = valueOrElse(getInteger(CONFIG_ADDRESS, "min_weight"), 100)
+
+let MAX_WEIGHT = valueOrElse(getInteger(CONFIG_ADDRESS, "max_weight"), 9900)
+
+func get_version () = VERSION
+
+
+func tryGetInteger (key) = match getInteger(this, key) {
+    case b: Int => 
+        b
+    case _ => 
+        0
+}
+
+
+func tryGetBinary (key) = match getBinary(this, key) {
+    case b: ByteVector => 
+        b
+    case _ => 
+        base58''
+}
+
+
+func tryGetString (key) = match getString(this, key) {
+    case b: String => 
+        b
+    case _ => 
+        ""
+}
+
+
+func tryGetStringOrThrow (key) = match getString(this, key) {
+    case b: String => 
+        b
+    case _ => 
+        throw(("no such key in data storage: " + key))
+}
+
+
+func getAssetString (assetId) = match assetId {
+    case b: ByteVector => 
+        toBase58String(b)
+    case _ => 
+        "WAVES"
+}
+
+
+func getAssetBytes (assetIdStr) = if ((assetIdStr == "WAVES"))
+    then unit
+    else fromBase58String(assetIdStr)
+
+
+func getTokenBalance (assetId) = match assetId {
+    case t: ByteVector => 
+        assetBalance(this, t)
+    case _ => 
+        wavesBalance(this).regular
+}
+
+
+func getNodeAddress () = {
+    let nodeAddressStr = tryGetString("static_nodeAddress")
+    if ((nodeAddressStr == ""))
+        then unit
+        else addressFromString(nodeAddressStr)
+    }
+
+
+func rebalanceLeaseActions (wavesOut,nodeAddr) = {
+    let _isPositive = if ((0 > wavesOut))
+        then throw("negative amount of WAVES to lease")
+        else true
+    if ((_isPositive == _isPositive))
+        then {
+            let currentLeaseId = tryGetString("global_lastLeaseId")
+            let cancelLeaseAction = if ((currentLeaseId != ""))
+                then [LeaseCancel(fromBase58String(currentLeaseId))]
+                else nil
+            match nodeAddr {
+                case node: Address => 
+                    let newLeaseAmount = ((wavesBalance(this).regular - wavesOut) - WAVES_RESERVE)
+                    if ((newLeaseAmount > 0))
+                        then {
+                            let leaseAction = Lease(node, newLeaseAmount)
+                            let newLeaseId = toBase58String(calculateLeaseId(leaseAction))
+                            if ((newLeaseId == currentLeaseId))
+                                then nil
+                                else (cancelLeaseAction ++ [leaseAction, StringEntry("global_lastLeaseId", newLeaseId), IntegerEntry("global_lastLeaseAmount", newLeaseAmount)])
+                            }
+                        else (cancelLeaseAction ++ (if ((currentLeaseId != ""))
+                            then [DeleteEntry("global_lastLeaseId"), DeleteEntry("global_lastLeaseAmount")]
+                            else nil))
+                case _ => 
+                    (cancelLeaseAction ++ (if ((currentLeaseId != ""))
+                        then [DeleteEntry("global_lastLeaseId"), DeleteEntry("global_lastLeaseAmount")]
+                        else nil))
+            }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func addAssetBytesToList (accum,item) = (accum ++ [getAssetBytes(item)])
+
+
+func addAssetWeightToList (accum,item) = (accum ++ [tryGetInteger((("static_" + getAssetString(item)) + "_weight"))])
+
+
+func addAssetWeightToStrList (accum,item) = (accum ++ [toString(tryGetInteger((("static_" + item) + "_weight")))])
+
+
+func addAssetDecimalsToList (accum,item) = (accum ++ [tryGetInteger((("static_" + getAssetString(item)) + "_decimals"))])
+
+
+func addAssetScaleToList (accum,item) = (accum ++ [tryGetInteger((("static_" + getAssetString(item)) + "_scale"))])
+
+
+func addIntToList (accum,item) = (accum ++ [parseIntValue(item)])
+
+
+let usdnAssetIdStr = valueOrElse(getString(CONFIG_ADDRESS, "usdnAssetIdStr"), "DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p")
+
+let puzzleAssetIdStr = valueOrElse(getString(CONFIG_ADDRESS, "puzzleAssetIdStr"), "HEB8Qaw9xrWpWs8tHsiATYGBWDBtP2S7kcPALrMu43AS")
+
+let usdtAssetIdStr = valueOrElse(getString(CONFIG_ADDRESS, "usdtAssetIdStr"), "34N9YcEETLWn93qYQ64EsP1x89tSruJU44RrEMSXXEPJ")
+
+let usdtPptAssetIdStr = valueOrElse(getString(CONFIG_ADDRESS, "usdtPptAssetIdStr"), "9wc3LXNA4TEBsXyKtoLE9mrbDD7WMHXvXrCjZvabLAsi")
+
+let romeAssetIdStr = valueOrElse(getString(CONFIG_ADDRESS, "romeAssetIdStr"), "AP4Cb5xLYGH6ZigHreCZHoXpQTWDkPsG2BHqfDUx6taJ")
+
+let wavesAssetIdStr = "WAVES"
+
+let usdnAssetId = fromBase58String(usdnAssetIdStr)
+
+let puzzleAssetId = fromBase58String(puzzleAssetIdStr)
+
+let usdtAssetId = fromBase58String(usdtAssetIdStr)
+
+let usdtPptAssetId = fromBase58String(usdtPptAssetIdStr)
+
+let romeAssetId = fromBase58String(romeAssetIdStr)
+
+let wavesAssetId = unit
+
+let supportedFeeAssetsStr = [usdnAssetIdStr, puzzleAssetIdStr, usdtAssetIdStr, usdtPptAssetIdStr, wavesAssetIdStr, romeAssetIdStr]
+
+let parentPoolAddress = Address(fromBase58String(valueOrElse(getString(CONFIG_ADDRESS, "parentPoolAddress"), "3PFDgzu1UtswAkCMxqqQjbTeHaX4cMab8Kh")))
+
+let masterAddress = Address(fromBase58String(valueOrElse(getString(CONFIG_ADDRESS, "masterAddress"), "3PLjwHcz9NEuaTo63NZR9B9okQiKQxZSbmf")))
+
+let masterPubKey = fromBase58String(valueOrElse(getString(CONFIG_ADDRESS, "masterPubKey"), "4z8CKSYQBKkzx7PBb5uBP1YPa6YAHRNTApW1sQVHT5eU"))
+
+let oracleAddress = Address(fromBase58String(valueOrElse(getString(CONFIG_ADDRESS, "oracleAddress"), "3P8d1E1BLKoD52y3bQJ1bDTd2TD1gpaLn9t")))
+
+let stakingAddress = Address(fromBase58String(valueOrElse(getString(CONFIG_ADDRESS, "stakingAddress"), "3PFTbywqxtFfukX3HyT881g4iW5K4QL3FAS")))
+
+let feesAddress = Address(fromBase58String(valueOrElse(getString(CONFIG_ADDRESS, "feesAddress"), "3PFWAVKmXjfHXyzJb12jCbhP4Uhi9t4uWiD")))
+
+let poolsHubAddress = Address(fromBase58String(valueOrElse(getString(CONFIG_ADDRESS, "poolsHubAddress"), "3P5YutjDNC3hABBVsveFuZTTbQ5PdtSDBgk")))
+
+let shutdownAddressStr = valueOrElse(getString(CONFIG_ADDRESS, "shutdownAddress"), "3PEpv9hRFWEEBU22WRnLsw1bH4YGtcU728o")
+
+let layer2Addresses = valueOrElse(getString(CONFIG_ADDRESS, "layer2Addresses"), "3PR1Qvi9mHT35SwWEkLSqqE2L8thiPLdVWU,3PQoBfUKHkJAeGWhooLP7WS8ovb54av9Jp2")
+
+let govAddress = Address(fromBase58String(valueOrElse(getString(CONFIG_ADDRESS, "govAddress"), "3P6uro9xCsE8te78QZjzqy7aq8natSzdceC")))
+
+let coldMasterAddress = Address(fromBase58String(valueOrElse(getString(CONFIG_ADDRESS, "coldMasterAddress"), "3PK9nhPfPbMBygB9ZgHVMHaQbSoojwrBfxj")))
+
+let T = tryGetInteger("static_tokensAmount")
+
+let assetIds = {
+    let $l = split(tryGetString("static_tokenIds"), ",")
+    let $s = size($l)
+    let $acc0 = nil
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else addAssetBytesToList($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 10")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+    }
+
+let AssetsWeights = {
+    let $l = assetIds
+    let $s = size($l)
+    let $acc0 = nil
+    func $f1_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else addAssetWeightToList($a, $l[$i])
+
+    func $f1_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 10")
+
+    $f1_2($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($f1_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+    }
+
+let Decimals = {
+    let $l = assetIds
+    let $s = size($l)
+    let $acc0 = nil
+    func $f2_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else addAssetDecimalsToList($a, $l[$i])
+
+    func $f2_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 10")
+
+    $f2_2($f2_1($f2_1($f2_1($f2_1($f2_1($f2_1($f2_1($f2_1($f2_1($f2_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+    }
+
+let Scales = {
+    let $l = assetIds
+    let $s = size($l)
+    let $acc0 = nil
+    func $f3_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else addAssetScaleToList($a, $l[$i])
+
+    func $f3_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 10")
+
+    $f3_2($f3_1($f3_1($f3_1($f3_1($f3_1($f3_1($f3_1($f3_1($f3_1($f3_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+    }
+
+let Fee = tryGetInteger("static_fee")
+
+let earnedAssets = assetIds
+
+func isShutdown () = {
+    let shutdownAddress = addressFromString(shutdownAddressStr)
+    if ((shutdownAddress == unit))
+        then false
+        else {
+            let globalShutdown =             match getBoolean(value(shutdownAddress), "is_shutdown") {
+                case x: Boolean => 
+                    x
+                case _ => 
+                    false
+            }
+            let poolShutdown = valueOrElse(getBoolean(value(shutdownAddress), ("poolShutdown_" + toString(this))), false)
+            if (globalShutdown)
+                then true
+                else poolShutdown
+            }
+    }
+
+
+func getCurrentTokenBalance (tokenNum) = {
+    let tokenIdStr = getAssetString(assetIds[tokenNum])
+    tryGetInteger((("global_" + tokenIdStr) + "_balance"))
+    }
+
+
+func getKMult () = match getInteger("static_KMult") {
+    case x: Int => 
+        x
+    case _ => 
+        Scale16
+}
+
+
+func saveCurrentWeights () = {
+    let assetIdsLi = split(tryGetString("static_tokenIds"), ",")
+    func s (accum,assetId) =     (accum ++ [IntegerEntry(("rebalance_startWeight_" + assetId), tryGetInteger((("static_" + assetId) + "_weight")))])
+
+    let $l = assetIdsLi
+    let $s = size($l)
+    let $acc0 = nil
+    func $f4_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else s($a, $l[$i])
+
+    func $f4_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 10")
+
+    $f4_2($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+    }
+
+
+func getVirtualPoolTokenAmount () = fraction(tryGetInteger("global_poolToken_amount"), getKMult(), Scale16)
+
+
+func calculatePIssued (amount,tokenId) = {
+    let Psupply = getVirtualPoolTokenAmount()
+    let Balance = tryGetInteger((("global_" + getAssetString(tokenId)) + "_balance"))
+    let t1 = fraction(amount, Psupply, Balance, DOWN)
+    t1
+    }
+
+
+func getMinPIssued (payments) = {
+    func handler (accum,current) =     {
+        let PIssued = calculatePIssued(current.amount, current.assetId)
+        if ((PIssued == 0))
+            then throw("one of the tokens amounts is too low")
+            else if (if ((accum == 0))
+                then true
+                else (accum > PIssued))
+                then PIssued
+                else accum
+        }
+
+    let minPIssed = {
+        let $l = payments
+        let $s = size($l)
+        let $acc0 = 0
+        func $f4_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else handler($a, $l[$i])
+
+        func $f4_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 10")
+
+        $f4_2($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+        }
+    minPIssed
+    }
+
+
+func calculateUsdnValue (assetId,amount,aBalance,givenUsdnBalance) = {
+    let usdnInPool = indexOf(assetIds, usdnAssetId)
+    let puzzleInPool = indexOf(assetIds, puzzleAssetId)
+    let usdtInPool = indexOf(assetIds, usdtAssetId)
+    let usdtPptInPool = indexOf(assetIds, usdtPptAssetId)
+    let wavesInPool = indexOf(assetIds, unit)
+    let assetWeight = tryGetInteger((("static_" + getAssetString(assetId)) + "_weight"))
+    let feeAssetStr = tryGetString("static_feeToken")
+    if ((feeAssetStr == puzzleAssetIdStr))
+        then {
+            let puzzleWeight = AssetsWeights[value(indexOf(assetIds, puzzleAssetId))]
+            let puzzleBalance = tryGetInteger((("global_" + puzzleAssetIdStr) + "_balance"))
+            let amountInPuzzle = fraction(amount, (puzzleBalance / puzzleWeight), (aBalance / assetWeight))
+            let puzzlePrice = getIntegerValue(parentPoolAddress, "global_lastPuzzlePrice")
+            fraction((amountInPuzzle * puzzlePrice), 1, Scale8)
+            }
+        else if ((feeAssetStr == usdtAssetIdStr))
+            then {
+                let usdtWeight = AssetsWeights[value(usdtInPool)]
+                let usdtBalance = tryGetInteger((("global_" + usdtAssetIdStr) + "_balance"))
+                fraction(amount, (usdtBalance / usdtWeight), (aBalance / assetWeight))
+                }
+            else if ((feeAssetStr == usdtPptAssetIdStr))
+                then {
+                    let usdtWeight = AssetsWeights[value(usdtPptInPool)]
+                    let usdtBalance = tryGetInteger((("global_" + usdtPptAssetIdStr) + "_balance"))
+                    fraction(amount, (usdtBalance / usdtWeight), (aBalance / assetWeight))
+                    }
+                else if ((feeAssetStr == usdnAssetIdStr))
+                    then {
+                        let usdnWeight = AssetsWeights[value(indexOf(assetIds, usdnAssetId))]
+                        let usdnBalance =                         match givenUsdnBalance {
+                            case x: Int => 
+                                givenUsdnBalance
+                            case _ => 
+                                tryGetInteger((("global_" + getAssetString(usdnAssetId)) + "_balance"))
+                        }
+                        fraction(amount, (value(usdnBalance) / usdnWeight), (aBalance / assetWeight))
+                        }
+                    else {
+                        let wavesWeight = 3000
+                        let wBalance = (tryGetInteger("global_WAVES_balance") / 50)
+                        fraction(amount, (wBalance / wavesWeight), (aBalance / assetWeight))
+                        }
+    }
+
+
+func getPriceFromOracle (assetIdStr) = match getInteger(oracleAddress, (assetIdStr + "_twap5B")) {
+    case x: Int => 
+        x
+    case _ => 
+        0
+}
+
+
+func calculateUsdValue (assetId,amount,aBalance) = {
+    let assetWeight = tryGetInteger((("static_" + getAssetString(assetId)) + "_weight"))
+    let feeAssetStr = tryGetString("static_feeToken")
+    let feeAssetScale = getIntegerValue(this, (("static_" + feeAssetStr) + "_scale"))
+    let feeAssetNum = value(indexOf(assetIds, getAssetBytes(feeAssetStr)))
+    let feeAssetWeight = AssetsWeights[feeAssetNum]
+    let feeAssetBalance = tryGetInteger((("global_" + feeAssetStr) + "_balance"))
+    let valInFeeAsset = fraction(amount, (feeAssetBalance / feeAssetWeight), (aBalance / assetWeight))
+    let feeAssetPrice = getPriceFromOracle(feeAssetStr)
+    fraction(valInFeeAsset, feeAssetPrice, feeAssetScale)
+    }
+
+
+func checkTokensValidity (payments) = {
+    func handler1 (accum,payment) =     (accum ++ [payment.assetId])
+
+    let ids = {
+        let $l = payments
+        let $s = size($l)
+        let $acc0 = nil
+        func $f4_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else handler1($a, $l[$i])
+
+        func $f4_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 10")
+
+        $f4_2($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+        }
+    if ((ids == ids))
+        then {
+            func handler2 (accum,assetId) =             if ((indexOf(ids, assetId) != unit))
+                then (accum + 1)
+                else throw(("asset not attached: " + getAssetString(assetId)))
+
+            let checks = {
+                let $l = assetIds
+                let $s = size($l)
+                let $acc0 = 0
+                func $f5_1 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else handler2($a, $l[$i])
+
+                func $f5_2 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else throw("List size exceeds 10")
+
+                $f5_2($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                }
+            if ((checks == checks))
+                then true
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func handlePoolTokensAdd (PIssued,payments,userAddress,needChange) = {
+    func getTokenPaymentAmount (tokenId) =     {
+        func handler (accum,payment) =         if ((payment.assetId == tokenId))
+            then payment.amount
+            else accum
+
+        let $l = payments
+        let $s = size($l)
+        let $acc0 = 0
+        func $f4_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else handler($a, $l[$i])
+
+        func $f4_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 10")
+
+        $f4_2($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+        }
+
+    func handleTokenChange (accum,tokenId) =     {
+        let Bk = tryGetInteger((("global_" + getAssetString(tokenId)) + "_balance"))
+        let PSupply = getVirtualPoolTokenAmount()
+        let Dk = toInt(fraction(toBigInt(PIssued), toBigInt(Bk), toBigInt(PSupply), CEILING))
+        let paymentAmount = getTokenPaymentAmount(tokenId)
+        let toReturn = (paymentAmount - Dk)
+        let t = if (if (needChange)
+            then (toReturn > 0)
+            else false)
+            then [ScriptTransfer(userAddress, toReturn, tokenId)]
+            else nil
+        ((accum ++ t) ++ [IntegerEntry((("global_" + getAssetString(tokenId)) + "_balance"), (Bk + Dk))])
+        }
+
+    let $l = assetIds
+    let $s = size($l)
+    let $acc0 = nil
+    func $f4_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else handleTokenChange($a, $l[$i])
+
+    func $f4_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 10")
+
+    $f4_2($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+    }
+
+
+func handlePoolTokensRedeem (PRedeemed,userAddress) = {
+    func handleTokenRedeem (accum,tokenId) =     {
+        let Bk = tryGetInteger((("global_" + getAssetString(tokenId)) + "_balance"))
+        let PSupply = getVirtualPoolTokenAmount()
+        let amount = toInt(fraction(toBigInt(PRedeemed), toBigInt(Bk), toBigInt(PSupply), DOWN))
+        (accum ++ [IntegerEntry((("global_" + getAssetString(tokenId)) + "_balance"), (Bk - amount)), ScriptTransfer(userAddress, amount, tokenId)])
+        }
+
+    let $l = assetIds
+    let $s = size($l)
+    let $acc0 = nil
+    func $f4_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else handleTokenRedeem($a, $l[$i])
+
+    func $f4_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 10")
+
+    $f4_2($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+    }
+
+
+func calculateOutAmount (AmountIn,assetIn,assetOut,BalanceIn,BalanceOut) = {
+    let IndexIn = value(indexOf(assetIds, assetIn))
+    let IndexOut = value(indexOf(assetIds, assetOut))
+    if ((IndexIn == IndexOut))
+        then AmountIn
+        else fraction(BalanceOut, ((Scale8 * Scale8) - toInt(pow(fraction((toBigInt(BalanceIn) * toBigInt(10000)), toBigInt((Scale8 * Scale8)), (toBigInt((BalanceIn + AmountIn)) * toBigInt(10000)), HALFUP), 16, toBigInt(fraction(AssetsWeights[IndexIn], 1000000000000, AssetsWeights[IndexOut])), 12, 16, CEILING))), (Scale8 * Scale8), DOWN)
+    }
+
+
+func calculateOutAmount_CEILING (AmountIn,assetIn,assetOut,BalanceIn,BalanceOut) = {
+    let IndexIn = value(indexOf(assetIds, assetIn))
+    let IndexOut = value(indexOf(assetIds, assetOut))
+    if ((IndexIn == IndexOut))
+        then AmountIn
+        else fraction(BalanceOut, ((Scale8 * Scale8) - toInt(pow(fraction((toBigInt(BalanceIn) * toBigInt(10000)), toBigInt((Scale8 * Scale8)), (toBigInt((BalanceIn + AmountIn)) * toBigInt(10000)), HALFUP), 16, toBigInt(fraction(AssetsWeights[IndexIn], 1000000000000, AssetsWeights[IndexOut])), 12, 16, CEILING))), (Scale8 * Scale8), CEILING)
+    }
+
+
+func calculateCurrentAssetInterest (assetId,assetIdStr,aBalance,tokenEarningsLastCheck) = {
+    let totalStaked = tryGetInteger("global_indexStaked")
+    let tokenBalanceLastCheck = tokenEarningsLastCheck
+    let currentBalanceDelta = (getTokenBalance(assetId) - aBalance)
+    let currentTokenEarnings = if ((currentBalanceDelta > tokenBalanceLastCheck))
+        then currentBalanceDelta
+        else tokenBalanceLastCheck
+    let newEarnings = (currentTokenEarnings - tokenBalanceLastCheck)
+    let newInterest = if ((totalStaked == 0))
+        then 0
+        else fraction(newEarnings, Scale8, totalStaked)
+    let lastCheckInterest = tryGetInteger((("global_lastCheck_" + assetIdStr) + "_interest"))
+    (lastCheckInterest + newInterest)
+    }
+
+
+func claimResult (address) = {
+    let addressStr = toString(address)
+    let puzzleAmount = tryGetInteger((addressStr + "_indexStaked"))
+    func handler (accum,assetId) =     {
+        let assetIdStr = getAssetString(assetId)
+        let aBalance = tryGetInteger((("global_" + getAssetString(assetId)) + "_balance"))
+        let tokenEarningsLastCheck = tryGetInteger((("global_lastCheck_" + assetIdStr) + "_earnings"))
+        let currentTokenInterest = calculateCurrentAssetInterest(assetId, assetIdStr, aBalance, tokenEarningsLastCheck)
+        let currentTokenEarnings = max([tokenEarningsLastCheck, (getTokenBalance(assetId) - aBalance)])
+        let rewardAmount = fraction(puzzleAmount, (currentTokenInterest - tryGetInteger((((addressStr + "_lastCheck_") + assetIdStr) + "_interest"))), Scale8)
+        let transfer = if ((rewardAmount == 0))
+            then nil
+            else [ScriptTransfer(address, rewardAmount, assetId)]
+        $Tuple2(((accum._1 ++ transfer) ++ [IntegerEntry((("global_lastCheck_" + assetIdStr) + "_earnings"), (currentTokenEarnings - rewardAmount)), IntegerEntry((("global_lastCheck_" + assetIdStr) + "_interest"), currentTokenInterest), IntegerEntry((((addressStr + "_lastCheck_") + assetIdStr) + "_interest"), currentTokenInterest)]), (accum._2 + calculateUsdValue(assetId, rewardAmount, aBalance)))
+        }
+
+    let accum = {
+        let $l = earnedAssets
+        let $s = size($l)
+        let $acc0 = $Tuple2(nil, 0)
+        func $f4_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else handler($a, $l[$i])
+
+        func $f4_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 10")
+
+        $f4_2($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+        }
+    $Tuple2((accum._1 ++ [IntegerEntry((addressStr + "_claimedRewardUSD"), (tryGetInteger((addressStr + "_claimedRewardUSD")) + accum._2)), IntegerEntry((addressStr + "_lastClaim"), lastBlock.timestamp)]), accum._2)
+    }
+
+
+func getWavesClaimAmount (address) = if ((indexOf(assetIds, unit) == unit))
+    then 0
+    else {
+        let addressStr = toString(address)
+        let puzzleAmount = tryGetInteger((addressStr + "_indexStaked"))
+        let aBalance = tryGetInteger("global_WAVES_balance")
+        let tokenEarningsLastCheck = tryGetInteger("global_lastCheck_WAVES_earnings")
+        let currentTokenInterest = calculateCurrentAssetInterest(unit, "WAVES", aBalance, tokenEarningsLastCheck)
+        let rewardAmount = fraction(puzzleAmount, (currentTokenInterest - tryGetInteger((addressStr + "_lastCheck_WAVES_interest"))), Scale8)
+        max([0, rewardAmount])
+        }
+
+
+func getWavesRedeemAmount (PRedeemed) = if ((indexOf(assetIds, unit) == unit))
+    then 0
+    else {
+        let Bk = tryGetInteger("global_WAVES_balance")
+        let PSupply = getVirtualPoolTokenAmount()
+        toInt(fraction(toBigInt(PRedeemed), toBigInt(Bk), toBigInt(PSupply), CEILING))
+        }
+
+
+func getWavesChangeAmount (PIssued,payments,needChange) = if (if (!(needChange))
+    then true
+    else (indexOf(assetIds, unit) == unit))
+    then 0
+    else {
+        func findWavesPayment (accum,pmt) =         if ((pmt.assetId == unit))
+            then pmt.amount
+            else accum
+
+        let wavesPmt = {
+            let $l = payments
+            let $s = size($l)
+            let $acc0 = 0
+            func $f4_1 ($a,$i) =             if (($i >= $s))
+                then $a
+                else findWavesPayment($a, $l[$i])
+
+            func $f4_2 ($a,$i) =             if (($i >= $s))
+                then $a
+                else throw("List size exceeds 10")
+
+            $f4_2($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+            }
+        if ((wavesPmt == 0))
+            then 0
+            else {
+                let Bk = tryGetInteger("global_WAVES_balance")
+                let PSupply = getVirtualPoolTokenAmount()
+                let Dk = toInt(fraction(toBigInt(PIssued), toBigInt(Bk), toBigInt(PSupply), CEILING))
+                max([0, (wavesPmt - Dk)])
+                }
+        }
+
+
+func indexStakeResult (addressStr,amount) = {
+    let li = claimResult(addressFromStringValue(addressStr))._1
+    (li ++ [IntegerEntry((addressStr + "_indexStaked"), (tryGetInteger((addressStr + "_indexStaked")) + amount)), IntegerEntry("global_indexStaked", (tryGetInteger("global_indexStaked") + amount))])
+    }
+
+
+func isOwnerOrMaster (caller) = {
+    let ownerAddress = addressFromStringValue(tryGetString("static_poolOwner"))
+    if ((caller == ownerAddress))
+        then true
+        else (caller == masterAddress)
+    }
+
+
+func sum (accum,n) = (accum + parseIntValue(n))
+
+
+func checkFeeAsset (accum,next) = if (if ((indexOf(supportedFeeAssetsStr, next) != unit))
+    then (accum == "")
+    else false)
+    then next
+    else accum
+
+
+func getTmpRebalanceIds (newAssetIdsLi) = {
+    let currentAssetIdsLi = split(tryGetString("static_tokenIds"), ",")
+    let result = newAssetIdsLi
+    func f (accum,assetId) =     if ((indexOf(result, assetId) == unit))
+        then (accum ++ [assetId])
+        else accum
+
+    let $l = currentAssetIdsLi
+    let $s = size($l)
+    let $acc0 = result
+    func $f4_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else f($a, $l[$i])
+
+    func $f4_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 10")
+
+    $f4_2($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+    }
+
+
+func checkTokensChange (newAssetIdsLi) = {
+    let currentAssetIdsLi = split(tryGetString("static_tokenIds"), ",")
+    func rem (accum,assetId) =     if ((indexOf(newAssetIdsLi, assetId) == unit))
+        then (accum + 1)
+        else accum
+
+    func add (accum,assetId) =     if ((indexOf(currentAssetIdsLi, assetId) == unit))
+        then (accum + 1)
+        else accum
+
+    let removed = {
+        let $l = currentAssetIdsLi
+        let $s = size($l)
+        let $acc0 = 0
+        func $f4_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else rem($a, $l[$i])
+
+        func $f4_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 10")
+
+        $f4_2($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+        }
+    let added = {
+        let $l = newAssetIdsLi
+        let $s = size($l)
+        let $acc0 = 0
+        func $f5_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else add($a, $l[$i])
+
+        func $f5_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 10")
+
+        $f5_2($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+        }
+    (removed + added)
+    }
+
+
+func validatePayments (assetsList,payments) = {
+    func getPaymentAssets (accum,next) =     if ((0 >= next.amount))
+        then throw(((("Too low payment amount for " + getAssetString(next.assetId)) + ": ") + toString(next.amount)))
+        else (accum ++ [getAssetString(next.assetId)])
+
+    let paymentList = {
+        let $l = payments
+        let $s = size($l)
+        let $acc0 = nil
+        func $f4_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else getPaymentAssets($a, $l[$i])
+
+        func $f4_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 10")
+
+        $f4_2($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+        }
+    func f1 (accum,next) =     if ((indexOf(assetsList, next) == unit))
+        then throw(((next + " asset is present in payments, but is not in new assets: ") + makeString(assetsList, ",")))
+        else (accum + 1)
+
+    func f2 (accum,next) =     if ((indexOf(paymentList, next) == unit))
+        then throw(((next + " asset is present in new assets, but is not in payments: ") + makeString(paymentList, ",")))
+        else (accum + 1)
+
+    let a1 = {
+        let $l = paymentList
+        let $s = size($l)
+        let $acc0 = 0
+        func $f5_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else f1($a, $l[$i])
+
+        func $f5_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 10")
+
+        $f5_2($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+        }
+    let a2 = {
+        let $l = assetsList
+        let $s = size($l)
+        let $acc0 = 0
+        func $f6_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else f2($a, $l[$i])
+
+        func $f6_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 10")
+
+        $f6_2($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+        }
+    (a1 + a2)
+    }
+
+
+func validateWeights (weights) = {
+    func v (accum,w) =     {
+        let wInt = valueOrErrorMessage(parseInt(w), ("Wrong weight format: " + w))
+        if (if ((MIN_WEIGHT > wInt))
+            then true
+            else (wInt > MAX_WEIGHT))
+            then throw(((((("Weight should be in range " + toString(MIN_WEIGHT)) + " - ") + toString(MAX_WEIGHT)) + ", current: ") + w))
+            else accum
+        }
+
+    let $l = weights
+    let $s = size($l)
+    let $acc0 = 0
+    func $f4_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else v($a, $l[$i])
+
+    func $f4_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 10")
+
+    $f4_2($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+    }
+
+
+@Callable(i)
+func setWavesNode (nodeAddress) = if (!(isOwnerOrMaster(i.caller)))
+    then throw("admin/owner only")
+    else {
+        let _nodeAddress = addressFromString(nodeAddress)
+        let nodeOk =         match _nodeAddress {
+            case t: Address => 
+                true
+            case _ => 
+                false
+        }
+        let canSetNode = if (if (nodeOk)
+            then true
+            else (nodeAddress == ""))
+            then true
+            else throw("Wrong node address")
+        if ((canSetNode == canSetNode))
+            then {
+                let selfSet = if ((_nodeAddress == this))
+                    then throw("Node address can't be contract's own address")
+                    else true
+                if ((selfSet == selfSet))
+                    then {
+                        let newNodeAddr = if ((nodeAddress != ""))
+                            then _nodeAddress
+                            else unit
+                        let leaseActions = rebalanceLeaseActions(0, newNodeAddr)
+                        (leaseActions ++ [StringEntry("static_nodeAddress", nodeAddress)])
+                        }
+                    else throw("Strict value is not equal to itself.")
+                }
+            else throw("Strict value is not equal to itself.")
+        }
+
+
+
+@Callable(i)
+func preInit (assetIdsStr,assetWeightsStr,baseTokenIdStr,poolDomain,poolOwner,fee) = {
+    let _checkPoolOwner = if ((addressFromString(poolOwner) == unit))
+        then throw("wrong pool owner address")
+        else true
+    if ((_checkPoolOwner == _checkPoolOwner))
+        then {
+            let assetIdsStrLi = split(assetIdsStr, ",")
+            let assetIdsLi = {
+                let $l = assetIdsStrLi
+                let $s = size($l)
+                let $acc0 = nil
+                func $f4_1 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else addAssetBytesToList($a, $l[$i])
+
+                func $f4_2 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else throw("List size exceeds 10")
+
+                $f4_2($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                }
+            let feeAssetStr = {
+                let $l = assetIdsStrLi
+                let $s = size($l)
+                let $acc0 = ""
+                func $f5_1 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else checkFeeAsset($a, $l[$i])
+
+                func $f5_2 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else throw("List size exceeds 10")
+
+                $f5_2($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                }
+            let basePresent = if ((indexOf(assetIdsStrLi, baseTokenIdStr) == unit))
+                then throw("base token missing in list")
+                else true
+            if ((basePresent == basePresent))
+                then if (isShutdown())
+                    then throw("contract is on stop")
+                    else if ((this != i.caller))
+                        then throw("admin only")
+                        else if ((feeAssetStr == ""))
+                            then throw("pool must have one of the supported fee assets in the composition")
+                            else if ((size(poolDomain) > 13))
+                                then throw("too large pool domain")
+                                else if (if ((fee > 500))
+                                    then true
+                                    else (0 > fee))
+                                    then throw("fee value must be between 50 and 500 (0.5-5%)")
+                                    else {
+                                        let assetWeightsStrLi = split(assetWeightsStr, ",")
+                                        let assetWeightsSum = {
+                                            let $l = assetWeightsStrLi
+                                            let $s = size($l)
+                                            let $acc0 = 0
+                                            func $f6_1 ($a,$i) =                                             if (($i >= $s))
+                                                then $a
+                                                else sum($a, $l[$i])
+
+                                            func $f6_2 ($a,$i) =                                             if (($i >= $s))
+                                                then $a
+                                                else throw("List size exceeds 10")
+
+                                            $f6_2($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                                            }
+                                        let sameLengths = if ((size(assetIdsStrLi) != size(assetWeightsStrLi)))
+                                            then throw("assetIds and weights length mismatch")
+                                            else true
+                                        if ((sameLengths == sameLengths))
+                                            then {
+                                                func addTokenDataEntries (accum,assetNum) =                                                 if ((assetNum >= size(assetIdsLi)))
+                                                    then accum
+                                                    else {
+                                                        let assetDecimals =                                                         match assetIdsLi[assetNum] {
+                                                            case x: ByteVector => 
+                                                                value(assetInfo(x)).decimals
+                                                            case _ => 
+                                                                8
+                                                        }
+                                                        (accum ++ [IntegerEntry((("static_" + assetIdsStrLi[assetNum]) + "_scale"), pow(10, 0, assetDecimals, 0, 0, DOWN)), IntegerEntry((("static_" + assetIdsStrLi[assetNum]) + "_decimals"), assetDecimals), IntegerEntry((("static_" + assetIdsStrLi[assetNum]) + "_weight"), value(parseInt(assetWeightsStrLi[assetNum])))])
+                                                        }
+
+                                                if ((assetWeightsSum != 10000))
+                                                    then throw("sum of token weights must be equal to 10000")
+                                                    else ({
+                                                        let $l = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+                                                        let $s = size($l)
+                                                        let $acc0 = nil
+                                                        func $f7_1 ($a,$i) =                                                         if (($i >= $s))
+                                                            then $a
+                                                            else addTokenDataEntries($a, $l[$i])
+
+                                                        func $f7_2 ($a,$i) =                                                         if (($i >= $s))
+                                                            then $a
+                                                            else throw("List size exceeds 10")
+
+                                                        $f7_2($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                                                        } ++ [StringEntry("static_tokenIds", assetIdsStr), StringEntry("static_feeToken", feeAssetStr), StringEntry("static_tokenWeights", assetWeightsStr), IntegerEntry("static_tokensAmount", size(assetIdsLi)), StringEntry("static_poolDomain", poolDomain), StringEntry("static_baseTokenId", baseTokenIdStr), StringEntry("static_poolOwner", poolOwner), IntegerEntry("static_fee", fee), IntegerEntry("static_KMult", Scale16), IntegerEntry("global_wasPreInited", 1)])
+                                                }
+                                            else throw("Strict value is not equal to itself.")
+                                        }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func deInit () = if (isShutdown())
+    then throw("contract is on stop")
+    else if ((i.caller != this))
+        then throw("admin only")
+        else [IntegerEntry("global_wasInited", 0)]
+
+
+
+@Callable(i)
+func init () = {
+    func prepareList () =     {
+        func handler (accum,n) =         (accum ++ [IntegerEntry((("global_" + getAssetString(n.assetId)) + "_balance"), n.amount)])
+
+        let $l = i.payments
+        let $s = size($l)
+        let $acc0 = nil
+        func $f4_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else handler($a, $l[$i])
+
+        func $f4_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 10")
+
+        $f4_2($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+        }
+
+    let _checkPaymentsSize = if ((size(i.payments) != T))
+        then throw((("you need to attach " + toString(T)) + " tokens to init the pool"))
+        else false
+    if ((_checkPaymentsSize == _checkPaymentsSize))
+        then {
+            let _checkTokensValidity = if (!(checkTokensValidity(i.payments)))
+                then throw("wrong assets attached")
+                else false
+            if ((_checkTokensValidity == _checkTokensValidity))
+                then {
+                    func calculatePoolTokensAmount (payments) =                     {
+                        func handler (accum,pmt) =                         {
+                            let assetId = pmt.assetId
+                            func handler2 (accum,n) =                             if ((n == assetId))
+                                then value(indexOf(assetIds, n))
+                                else accum
+
+                            let Token = {
+                                let $l = assetIds
+                                let $s = size($l)
+                                let $acc0 = 1
+                                func $f4_1 ($a,$i) =                                 if (($i >= $s))
+                                    then $a
+                                    else handler2($a, $l[$i])
+
+                                func $f4_2 ($a,$i) =                                 if (($i >= $s))
+                                    then $a
+                                    else throw("List size exceeds 10")
+
+                                $f4_2($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                                }
+                            fraction(accum, pow(pmt.amount, Decimals[Token], AssetsWeights[Token], AssetsWeightsDecimals, 8, FLOOR), Scale8)
+                            }
+
+                        let $l = payments
+                        let $s = size($l)
+                        let $acc0 = PoolTokenScale
+                        func $f4_1 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else handler($a, $l[$i])
+
+                        func $f4_2 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else throw("List size exceeds 10")
+
+                        $f4_2($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                        }
+
+                    if (isShutdown())
+                        then throw("contract is on stop")
+                        else if ((tryGetInteger("global_wasInited") > 0))
+                            then throw("pool already inited")
+                            else {
+                                let initialPoolTokens = calculatePoolTokensAmount(i.payments)
+                                if ((initialPoolTokens == 0))
+                                    then throw("you need a bigger tokens amount to launch the pool")
+                                    else {
+                                        let poolTokenIssue = Issue(("PZ " + tryGetString("static_poolDomain")), "Puzzle Swap: pool index token", initialPoolTokens, PoolTokenDecimals, true, unit, 0)
+                                        let poolTokenId = calculateAssetId(poolTokenIssue)
+                                        ((prepareList() ++ [poolTokenIssue, IntegerEntry("global_poolToken_amount", initialPoolTokens), IntegerEntry("global_wasInited", 1), BinaryEntry("global_poolToken_id", poolTokenId), StringEntry("static_poolToken_idStr", getAssetString(poolTokenId)), IntegerEntry((toString(i.caller) + "_indexStaked"), initialPoolTokens), IntegerEntry("global_indexStaked", initialPoolTokens)]) ++ rebalanceLeaseActions(0, getNodeAddress()))
+                                        }
+                                }
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func generateIndex (needChange) = if (isShutdown())
+    then throw("contract is on stop")
+    else if ((size(i.payments) != T))
+        then throw(("you need to attach all pool tokens. amount of pool tokens: " + toString(T)))
+        else if (!(checkTokensValidity(i.payments)))
+            then throw("wrong assets attached")
+            else {
+                let PIssuedNoMult = getMinPIssued(i.payments)
+                let result = handlePoolTokensAdd(PIssuedNoMult, i.payments, i.originCaller, needChange)
+                let PIssuedWithMult = fraction(PIssuedNoMult, Scale16, getKMult(), DOWN)
+                let reissue = Reissue(getBinaryValue("global_poolToken_id"), PIssuedWithMult, true)
+                let wavesOut = getWavesChangeAmount(PIssuedNoMult, i.payments, needChange)
+                let leaseActions = rebalanceLeaseActions(wavesOut, getNodeAddress())
+                $Tuple2(((leaseActions ++ result) ++ [reissue, ScriptTransfer(i.caller, PIssuedWithMult, tryGetBinary("global_poolToken_id")), IntegerEntry("global_poolToken_amount", (tryGetInteger("global_poolToken_amount") + PIssuedWithMult))]), PIssuedWithMult)
+                }
+
+
+
+@Callable(i)
+func redeemIndex (sendToOrigin) = {
+    let _checkPaymentsSize = if ((size(i.payments) != 1))
+        then throw("please attach exactly one payment")
+        else false
+    if ((_checkPaymentsSize == _checkPaymentsSize))
+        then {
+            let pmt = i.payments[0]
+            if ((pmt.assetId != tryGetBinary("global_poolToken_id")))
+                then throw("please attach pool share token")
+                else if (isShutdown())
+                    then throw("contract is on stop")
+                    else {
+                        let PRedeemedWithMult = pmt.amount
+                        let PRedeemedWithNoMult = fraction(PRedeemedWithMult, getKMult(), Scale16, DOWN)
+                        let result = handlePoolTokensRedeem(PRedeemedWithNoMult, if (sendToOrigin)
+                            then i.originCaller
+                            else i.caller)
+                        let wavesOut = getWavesRedeemAmount(PRedeemedWithNoMult)
+                        let leaseActions = rebalanceLeaseActions(wavesOut, getNodeAddress())
+                        ((leaseActions ++ result) ++ [Burn(tryGetBinary("global_poolToken_id"), PRedeemedWithMult), IntegerEntry("global_poolToken_amount", (tryGetInteger("global_poolToken_amount") - PRedeemedWithMult))])
+                        }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func stakeIndex () = {
+    let _isShutdown = if (isShutdown())
+        then throw("contract is on stop")
+        else false
+    if ((_isShutdown == _isShutdown))
+        then {
+            let _checkPaymentsSize = if ((size(i.payments) != 1))
+                then throw("please attach exactly one payment")
+                else false
+            if ((_checkPaymentsSize == _checkPaymentsSize))
+                then {
+                    let addressStr = toString(i.originCaller)
+                    let pmt = i.payments[0]
+                    if ((value(pmt.assetId) != tryGetBinary("global_poolToken_id")))
+                        then throw("wrong asset attached")
+                        else {
+                            let wavesClaimOut = getWavesClaimAmount(i.originCaller)
+                            (rebalanceLeaseActions(wavesClaimOut, getNodeAddress()) ++ indexStakeResult(addressStr, pmt.amount))
+                            }
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func stakeIndexFor (addressStr) = {
+    let _isShutdown = if (isShutdown())
+        then throw("contract is on stop")
+        else false
+    if ((_isShutdown == _isShutdown))
+        then {
+            let _checkPaymentsSize = if ((size(i.payments) != 1))
+                then throw("please attach exactly one payment")
+                else false
+            if ((_checkPaymentsSize == _checkPaymentsSize))
+                then {
+                    let pmt = i.payments[0]
+                    if ((value(pmt.assetId) != tryGetBinary("global_poolToken_id")))
+                        then throw("wrong asset attached")
+                        else {
+                            let wavesClaimOut = getWavesClaimAmount(addressFromStringValue(addressStr))
+                            (rebalanceLeaseActions(wavesClaimOut, getNodeAddress()) ++ indexStakeResult(addressStr, pmt.amount))
+                            }
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func unstakeIndex (indexAmount) = {
+    let _isValidAmount = if ((0 >= indexAmount))
+        then throw("amount should be positive")
+        else false
+    if ((_isValidAmount == _isValidAmount))
+        then {
+            let isLayer2 = containsElement(split(layer2Addresses, ","), toString(i.caller))
+            let addressStr = if (isLayer2)
+                then toString(i.originCaller)
+                else toString(i.caller)
+            let indexAvailable = tryGetInteger((addressStr + "_indexStaked"))
+            if (isShutdown())
+                then throw("contract is on stop")
+                else if ((indexAmount > indexAvailable))
+                    then throw("you don't have index tokens available")
+                    else {
+                        let wavesClaimOut = getWavesClaimAmount(addressFromStringValue(addressStr))
+                        ((rebalanceLeaseActions(wavesClaimOut, getNodeAddress()) ++ claimResult(addressFromStringValue(addressStr))._1) ++ [IntegerEntry((addressStr + "_indexStaked"), (indexAvailable - indexAmount)), IntegerEntry("global_indexStaked", (tryGetInteger("global_indexStaked") - indexAmount)), ScriptTransfer(i.caller, indexAmount, getBinaryValue("global_poolToken_id"))])
+                        }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func claimIndexRewards () = if (isShutdown())
+    then throw("contract is on stop")
+    else {
+        let wavesClaimOut = getWavesClaimAmount(i.caller)
+        let cr = claimResult(i.caller)
+        $Tuple2((rebalanceLeaseActions(wavesClaimOut, getNodeAddress()) ++ cr._1), cr._2)
+        }
+
+
+
+@Callable(i)
+func evaluateClaim (user) = $Tuple2(nil, claimResult(addressFromStringValue(user))._2)
+
+
+
+@Callable(i)
+func swap (assetOut,minimum) = {
+    let pmt = if ((size(i.payments) == 1))
+        then value(i.payments[0])
+        else throw("please attach exactly one payment")
+    let AmountIn = value(i.payments[0].amount)
+    let AssetIn = pmt.assetId
+    let AssetOut = getAssetBytes(assetOut)
+    let assetIn = getAssetString(AssetIn)
+    let scaleIn = (Scale8 / tryGetInteger((("static_" + assetIn) + "_scale")))
+    let scaleOut = (Scale8 / tryGetInteger((("static_" + assetOut) + "_scale")))
+    let feeAssetOutStr = tryGetString("static_feeToken")
+    let feeAssetOut = if ((feeAssetOutStr == ""))
+        then usdnAssetId
+        else getAssetBytes(feeAssetOutStr)
+    let AssetInBalance = tryGetInteger((("global_" + getAssetString(AssetIn)) + "_balance"))
+    let AssetOutBalance = tryGetInteger((("global_" + assetOut) + "_balance"))
+    let AssetInBalanceScaled = (AssetInBalance * scaleIn)
+    let AssetOutBalanceScaled = (AssetOutBalance * scaleOut)
+    let feeAmountIn = fraction(AmountIn, Fee, FeeScale, CEILING)
+    let cleanAmountIn = (AmountIn - feeAmountIn)
+    let cleanAmountInScaled = (cleanAmountIn * scaleIn)
+    let AmountOut1 = calculateOutAmount(cleanAmountInScaled, AssetIn, AssetOut, AssetInBalanceScaled, AssetOutBalanceScaled)
+    let AmountOut = fraction(AmountOut1, 1, scaleOut)
+    let AssetOutBalance2 = (AssetOutBalance - AmountOut)
+    let AssetInBalance2 = (AssetInBalance + cleanAmountIn)
+    let feeAssetOutBalance = if ((feeAssetOut == AssetIn))
+        then AssetInBalance2
+        else if ((feeAssetOut == AssetOut))
+            then AssetOutBalance2
+            else tryGetInteger((("global_" + getAssetString(feeAssetOut)) + "_balance"))
+    let feeAmountOut = calculateOutAmount_CEILING(feeAmountIn, AssetIn, feeAssetOut, AssetInBalance, feeAssetOutBalance)
+    if ((minimum > AmountOut))
+        then throw("amount to recieve is lower than given one")
+        else if ((AssetOut == AssetIn))
+            then throw("this swap is not allowed")
+            else if ((0 > (AssetOutBalance - AmountOut)))
+                then throw("contract is out of reserves")
+                else if (isShutdown())
+                    then throw("contract is on stop")
+                    else {
+                        let creatorFee = fraction(feeAmountOut, 1, 10)
+                        let protocolFee = fraction(feeAmountOut, 4, 10)
+                        let newBalanceIn = if ((feeAssetOut == AssetIn))
+                            then AssetInBalance2
+                            else (AssetInBalance + AmountIn)
+                        let newBalanceOut = (AssetOutBalance2 - (if ((AssetOut == feeAssetOut))
+                            then feeAmountOut
+                            else 0))
+                        let newBalanceFeeAsset = if (if ((feeAssetOut != AssetIn))
+                            then (feeAssetOut != AssetOut)
+                            else false)
+                            then (feeAssetOutBalance - feeAmountOut)
+                            else unit
+                        let assetInChange = IntegerEntry((("global_" + getAssetString(AssetIn)) + "_balance"), newBalanceIn)
+                        let assetOutChange = IntegerEntry((("global_" + assetOut) + "_balance"), newBalanceOut)
+                        let feeAssetOutChange = if ((newBalanceFeeAsset != unit))
+                            then [IntegerEntry((("global_" + getAssetString(feeAssetOut)) + "_balance"), value(newBalanceFeeAsset))]
+                            else nil
+                        let volumeUpdate = calculateUsdnValue(AssetIn, AmountIn, AssetInBalance, feeAssetOutBalance)
+                        let volumeUsdUpdate = calculateUsdValue(AssetIn, AmountIn, AssetInBalance)
+                        let wavesOut = ((if ((AssetOut == unit))
+                            then AmountOut
+                            else 0) + (if ((feeAssetOut == unit))
+                            then (creatorFee + protocolFee)
+                            else 0))
+                        let shouldRebalanceLease = if (if ((AssetIn == unit))
+                            then true
+                            else (AssetOut == unit))
+                            then true
+                            else (feeAssetOut == unit)
+                        let leaseActions = if (shouldRebalanceLease)
+                            then rebalanceLeaseActions(wavesOut, getNodeAddress())
+                            else nil
+                        $Tuple2((((leaseActions ++ [assetOutChange, assetInChange]) ++ feeAssetOutChange) ++ [ScriptTransfer(i.caller, AmountOut, AssetOut), ScriptTransfer(addressFromStringValue(tryGetString("static_poolOwner")), creatorFee, feeAssetOut), IntegerEntry("global_earnedByOwner", (tryGetInteger("global_earnedByOwner") + creatorFee)), IntegerEntry("global_volume", (tryGetInteger("global_volume") + volumeUpdate)), IntegerEntry("global_volume_usd", (tryGetInteger("global_volume_usd") + volumeUsdUpdate)), ScriptTransfer(feesAddress, protocolFee, feeAssetOut)]), AmountOut)
+                        }
+    }
+
+
+
+@Callable(i)
+func swapReadOnly (assetIn,assetOut,AmountIn) = {
+    let AssetIn = getAssetBytes(assetIn)
+    let AssetOut = getAssetBytes(assetOut)
+    let scaleIn = (Scale8 / tryGetInteger((("static_" + assetIn) + "_scale")))
+    let scaleOut = (Scale8 / tryGetInteger((("static_" + assetOut) + "_scale")))
+    let feeAssetOutStr = tryGetString("static_feeToken")
+    let feeAssetOut = if ((feeAssetOutStr == ""))
+        then usdnAssetId
+        else getAssetBytes(feeAssetOutStr)
+    let AssetInBalance = tryGetInteger((("global_" + getAssetString(AssetIn)) + "_balance"))
+    let AssetOutBalance = tryGetInteger((("global_" + assetOut) + "_balance"))
+    let AssetInBalanceScaled = (AssetInBalance * scaleIn)
+    let AssetOutBalanceScaled = (AssetOutBalance * scaleOut)
+    let feeAmountIn = fraction(AmountIn, Fee, FeeScale, CEILING)
+    let cleanAmountIn = (AmountIn - feeAmountIn)
+    let cleanAmountInScaled = (cleanAmountIn * scaleIn)
+    let AmountOut1 = calculateOutAmount(cleanAmountInScaled, AssetIn, AssetOut, AssetInBalanceScaled, AssetOutBalanceScaled)
+    let AmountOut = fraction(AmountOut1, 1, scaleOut)
+    let AssetOutBalance2 = (AssetOutBalance - AmountOut)
+    let AssetInBalance2 = (AssetInBalance + cleanAmountIn)
+    let feeAssetOutBalance = if ((feeAssetOut == AssetIn))
+        then AssetInBalance2
+        else if ((feeAssetOut == AssetOut))
+            then AssetOutBalance2
+            else tryGetInteger((("global_" + getAssetString(feeAssetOut)) + "_balance"))
+    let feeAmountOut = calculateOutAmount_CEILING(feeAmountIn, AssetIn, feeAssetOut, AssetInBalance, feeAssetOutBalance)
+    if ((AssetOut == AssetIn))
+        then throw("this swap is not allowed")
+        else if ((0 > (AssetOutBalance - AmountOut)))
+            then throw("contract is out of reserves")
+            else if (isShutdown())
+                then throw("contract is on stop")
+                else $Tuple2(nil, AmountOut)
+    }
+
+
+
+@Callable(i)
+func transferOwnership (newOwnerAddress) = {
+    let _isShutdown = if (isShutdown())
+        then throw("contract is on stop")
+        else false
+    if ((_isShutdown == _isShutdown))
+        then if ((toString(i.caller) != tryGetString("static_poolOwner")))
+            then throw("this call available only for pool owner")
+            else if ((addressFromString(newOwnerAddress) == unit))
+                then throw("invalid address")
+                else [StringEntry("static_poolOwner", newOwnerAddress)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setFee (newFee) = {
+    let _isPositiveFee = if ((0 > newFee))
+        then throw("fee can't be negative")
+        else true
+    if ((_isPositiveFee == _isPositiveFee))
+        then if ((toString(i.caller) != tryGetString("static_poolOwner")))
+            then throw("this call available only for pool owner")
+            else if ((1 > valueOrElse(getInteger(govAddress, ("approvedTx_" + toBase58String(i.transactionId))), 0)))
+                then throw("this transaction needs approval from puzzle network")
+                else [IntegerEntry("static_fee", newFee)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setRebalancingPlan (assetIdsStr,assetWeightsStr,baseTokenIdStr,stepsAmount,stepsInterval) = {
+    let _isShutdown = if (isShutdown())
+        then throw("contract is on stop")
+        else true
+    if ((_isShutdown == _isShutdown))
+        then if ((i.caller != addressFromStringValue(tryGetString("static_poolOwner"))))
+            then throw("this call available only for pool owner")
+            else if (valueOrElse(getBoolean(this, "rebalance_inProgress"), false))
+                then throw("rebalancing in progress")
+                else {
+                    let newAssetWeightsStrLi = split(assetWeightsStr, ",")
+                    let newAssetIdsStrLi = split(assetIdsStr, ",")
+                    let feeAssetStr = {
+                        let $l = newAssetIdsStrLi
+                        let $s = size($l)
+                        let $acc0 = ""
+                        func $f4_1 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else checkFeeAsset($a, $l[$i])
+
+                        func $f4_2 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else throw("List size exceeds 10")
+
+                        $f4_2($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                        }
+                    let assetWeightsSum = {
+                        let $l = newAssetWeightsStrLi
+                        let $s = size($l)
+                        let $acc0 = 0
+                        func $f5_1 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else sum($a, $l[$i])
+
+                        func $f5_2 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else throw("List size exceeds 10")
+
+                        $f5_2($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                        }
+                    let oldAssetIds = getStringValue("static_tokenIds")
+                    let oldAssetIdsLi = split(oldAssetIds, ",")
+                    func findAdded (accum,next) =                     if ((indexOf(oldAssetIdsLi, next) == unit))
+                        then (accum ++ [next])
+                        else accum
+
+                    func findRemoved (accum,next) =                     if ((indexOf(newAssetIdsStrLi, next) == unit))
+                        then (accum ++ [next])
+                        else accum
+
+                    let addedAssets = {
+                        let $l = newAssetIdsStrLi
+                        let $s = size($l)
+                        let $acc0 = nil
+                        func $f6_1 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else findAdded($a, $l[$i])
+
+                        func $f6_2 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else throw("List size exceeds 10")
+
+                        $f6_2($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                        }
+                    let removedAssets = {
+                        let $l = oldAssetIdsLi
+                        let $s = size($l)
+                        let $acc0 = nil
+                        func $f7_1 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else findRemoved($a, $l[$i])
+
+                        func $f7_2 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else throw("List size exceeds 10")
+
+                        $f7_2($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                        }
+                    let validPayments = validatePayments(addedAssets, i.payments)
+                    let validWeights = validateWeights(newAssetWeightsStrLi)
+                    if ((validWeights == validWeights))
+                        then if ((validPayments != (size(addedAssets) + size(i.payments))))
+                            then throw("Payments not present or something wrong with them")
+                            else if ((size(newAssetIdsStrLi) != size(newAssetWeightsStrLi)))
+                                then throw("assetIds and assetWeights should have same length")
+                                else if ((feeAssetStr == ""))
+                                    then throw("pool must have one of the supported fee assets in the composition")
+                                    else if ((indexOf(newAssetIdsStrLi, baseTokenIdStr) == unit))
+                                        then throw("baseTokenId should be present in assetIds")
+                                        else if (if ((MIN_STEPS_AMOUNT > stepsAmount))
+                                            then true
+                                            else (stepsAmount > MAX_STEPS_AMOUNT))
+                                            then throw(((((("Steps amount should be between " + toString(MIN_STEPS_AMOUNT)) + " and ") + toString(MAX_STEPS_AMOUNT)) + ", current: ") + toString(stepsAmount)))
+                                            else if (if ((MIN_STEPS_INTERVAL > stepsInterval))
+                                                then true
+                                                else (stepsInterval > MAX_STEPS_INTERVAL))
+                                                then throw(((((("Steps interval should be between " + toString(MIN_STEPS_INTERVAL)) + " and ") + toString(MAX_STEPS_INTERVAL)) + ", current: ") + toString(stepsInterval)))
+                                                else if ((assetWeightsSum != 10000))
+                                                    then throw(("sum of token weights must be equal to 10000, current: " + toString(assetWeightsSum)))
+                                                    else {
+                                                        func f (accum,assetIdStr) =                                                         {
+                                                            let oldWeight = tryGetInteger((("static_" + assetIdStr) + "_weight"))
+                                                            let newWeight = if ((indexOf(newAssetIdsStrLi, assetIdStr) == unit))
+                                                                then 0
+                                                                else parseIntValue(value(newAssetWeightsStrLi[value(indexOf(newAssetIdsStrLi, assetIdStr))]))
+                                                            let deltaPerStep = fraction((newWeight - oldWeight), 10000, stepsAmount)
+                                                            (accum ++ [toString(deltaPerStep)])
+                                                            }
+
+                                                        let tmpAssetIdsLi = getTmpRebalanceIds(newAssetIdsStrLi)
+                                                        let assetDeltas = {
+                                                            let $l = tmpAssetIdsLi
+                                                            let $s = size($l)
+                                                            let $acc0 = nil
+                                                            func $f8_1 ($a,$i) =                                                             if (($i >= $s))
+                                                                then $a
+                                                                else f($a, $l[$i])
+
+                                                            func $f8_2 ($a,$i) =                                                             if (($i >= $s))
+                                                                then $a
+                                                                else throw("List size exceeds 10")
+
+                                                            $f8_2($f8_1($f8_1($f8_1($f8_1($f8_1($f8_1($f8_1($f8_1($f8_1($f8_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                                                            }
+                                                        let newTokensAdded = (checkTokensChange(newAssetIdsStrLi) > 0)
+                                                        func recordAssetPayment (accum,next) =                                                         (accum ++ [IntegerEntry(("rebalance_attachedPayment_" + getAssetString(next.assetId)), next.amount)])
+
+                                                        let paymentEntries = {
+                                                            let $l = i.payments
+                                                            let $s = size($l)
+                                                            let $acc0 = nil
+                                                            func $f9_1 ($a,$i) =                                                             if (($i >= $s))
+                                                                then $a
+                                                                else recordAssetPayment($a, $l[$i])
+
+                                                            func $f9_2 ($a,$i) =                                                             if (($i >= $s))
+                                                                then $a
+                                                                else throw("List size exceeds 10")
+
+                                                            $f9_2($f9_1($f9_1($f9_1($f9_1($f9_1($f9_1($f9_1($f9_1($f9_1($f9_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                                                            }
+                                                        let storeWeights = saveCurrentWeights()
+                                                        let requestGovInvoke = invoke(govAddress, "requestRebalancing", [toBase58String(i.transactionId)], nil)
+                                                        if ((requestGovInvoke == requestGovInvoke))
+                                                            then (([StringEntry("rebalance_addedAssets", makeString(addedAssets, ",")), StringEntry("rebalance_removedAssets", makeString(removedAssets, ",")), StringEntry("tmp_rebalanceAssetIds", makeString(tmpAssetIdsLi, ",")), BooleanEntry("rebalance_inProgress", true), BooleanEntry("rebalance_newTokensAdded", newTokensAdded), IntegerEntry("rebalance_stepsDone", 0), IntegerEntry("rebalance_lastStepHeight", height), IntegerEntry("rebalance_stepsAmount", stepsAmount), IntegerEntry("rebalance_stepsInterval", stepsInterval), StringEntry("rebalance_assetIds", assetIdsStr), StringEntry("rebalance_newBaseTokenId", baseTokenIdStr), StringEntry("rebalance_assetDeltas", makeString(assetDeltas, ","))] ++ paymentEntries) ++ storeWeights)
+                                                            else throw("Strict value is not equal to itself.")
+                                                        }
+                        else throw("Strict value is not equal to itself.")
+                    }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func stepRebalancing () = {
+    let _isShutdown = if (isShutdown())
+        then throw("contract is on stop")
+        else true
+    if ((_isShutdown == _isShutdown))
+        then {
+            let rebId = valueOrErrorMessage(getString(govAddress, ("pool_lastRebalancing_" + toString(this))), "rebalancing is not registered at gov address")
+            if (!(valueOrElse(getBoolean(this, "rebalance_inProgress"), false)))
+                then throw("no rebalancing in progress")
+                else if ((valueOrElse(getInteger(govAddress, ("rebalancing_status_" + rebId)), 0) != 2))
+                    then throw("this transaction needs approval from puzzle network")
+                    else {
+                        let lastStepHeight = getIntegerValue("rebalance_lastStepHeight")
+                        let stepInterval = getIntegerValue("rebalance_stepsInterval")
+                        let stepsDone = getIntegerValue("rebalance_stepsDone")
+                        let nextStepHeight = (lastStepHeight + stepInterval)
+                        if ((nextStepHeight > height))
+                            then throw("can't be done yet")
+                            else {
+                                let assetDeltas = split(getStringValue("rebalance_assetDeltas"), ",")
+                                let newAssetIdsStr = getStringValue("tmp_rebalanceAssetIds")
+                                let newAssetIds = split(newAssetIdsStr, ",")
+                                func f (accum,assetIdStr) =                                 (accum ++ [toString(fraction(((valueOrElse(getInteger(("rebalance_startWeight_" + assetIdStr)), 0) * 10000) + (parseIntValue(assetDeltas[value(indexOf(newAssetIds, assetIdStr))]) * (stepsDone + 1))), 1, 10000, HALFUP))])
+
+                                let newShares = makeString({
+                                    let $l = newAssetIds
+                                    let $s = size($l)
+                                    let $acc0 = nil
+                                    func $f4_1 ($a,$i) =                                     if (($i >= $s))
+                                        then $a
+                                        else f($a, $l[$i])
+
+                                    func $f4_2 ($a,$i) =                                     if (($i >= $s))
+                                        then $a
+                                        else throw("List size exceeds 10")
+
+                                    $f4_2($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                                    }, ",")
+                                let newTokensAdded = getBooleanValue("rebalance_newTokensAdded")
+                                let inv = if (if (newTokensAdded)
+                                    then (stepsDone == 0)
+                                    else false)
+                                    then invoke(this, "doRebalancingWithNewTokens", [newAssetIdsStr, newShares, getStringValue("rebalance_newBaseTokenId")], nil)
+                                    else invoke(this, "doRebalancing", [newShares], nil)
+                                if ((inv == inv))
+                                    then {
+                                        let notifyInvoke = invoke(poolsHubAddress, "notifyPoolChange", nil, nil)
+                                        if ((notifyInvoke == notifyInvoke))
+                                            then {
+                                                let isFinished = ((stepsDone + 1) >= getIntegerValue("rebalance_stepsAmount"))
+                                                let actions = [BooleanEntry("rebalance_inProgress", !(isFinished)), IntegerEntry("rebalance_stepsDone", (stepsDone + 1)), IntegerEntry("rebalance_lastStepHeight", height)]
+                                                if ((stepsDone == 0))
+                                                    then (actions ++ [StringEntry("static_tokenIds", newAssetIdsStr)])
+                                                    else if (isFinished)
+                                                        then {
+                                                            let removedAssetsLi = split(tryGetString("rebalance_removedAssets"), ",")
+                                                            func rmData (accum,assetId) =                                                             (accum ++ [DeleteEntry((("static_" + assetId) + "_scale")), DeleteEntry((("static_" + assetId) + "_decimals")), DeleteEntry((("static_" + assetId) + "_weight")), DeleteEntry((("global_" + assetId) + "_balance")), DeleteEntry(("rebalance_attachedPayment_" + assetId))])
+
+                                                            let rm = {
+                                                                let $l = removedAssetsLi
+                                                                let $s = size($l)
+                                                                let $acc0 = nil
+                                                                func $f5_1 ($a,$i) =                                                                 if (($i >= $s))
+                                                                    then $a
+                                                                    else rmData($a, $l[$i])
+
+                                                                func $f5_2 ($a,$i) =                                                                 if (($i >= $s))
+                                                                    then $a
+                                                                    else throw("List size exceeds 10")
+
+                                                                $f5_2($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                                                                }
+                                                            let addedAssetsLi = split(tryGetString("rebalance_addedAssets"), ",")
+                                                            func addRemovePayments (accum,assetId) =                                                             (accum ++ [DeleteEntry(("rebalance_attachedPayment_" + assetId))])
+
+                                                            let rmPayments = {
+                                                                let $l = addedAssetsLi
+                                                                let $s = size($l)
+                                                                let $acc0 = nil
+                                                                func $f6_1 ($a,$i) =                                                                 if (($i >= $s))
+                                                                    then $a
+                                                                    else addRemovePayments($a, $l[$i])
+
+                                                                func $f6_2 ($a,$i) =                                                                 if (($i >= $s))
+                                                                    then $a
+                                                                    else throw("List size exceeds 10")
+
+                                                                $f6_2($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                                                                }
+                                                            let finalAssetsIdsStr = tryGetString("rebalance_assetIds")
+                                                            let AssetsWeightsStr = {
+                                                                let $l = split(finalAssetsIdsStr, ",")
+                                                                let $s = size($l)
+                                                                let $acc0 = nil
+                                                                func $f7_1 ($a,$i) =                                                                 if (($i >= $s))
+                                                                    then $a
+                                                                    else addAssetWeightToStrList($a, $l[$i])
+
+                                                                func $f7_2 ($a,$i) =                                                                 if (($i >= $s))
+                                                                    then $a
+                                                                    else throw("List size exceeds 10")
+
+                                                                $f7_2($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                                                                }
+                                                            let notify = invoke(govAddress, "notifyRebalancingDone", [rebId], nil)
+                                                            if ((notify == notify))
+                                                                then (((actions ++ rm) ++ rmPayments) ++ [StringEntry("static_tokenIds", finalAssetsIdsStr), StringEntry("static_tokenWeights", makeString(AssetsWeightsStr, ",")), IntegerEntry("static_tokensAmount", size(split(finalAssetsIdsStr, ",")))])
+                                                                else throw("Strict value is not equal to itself.")
+                                                            }
+                                                        else {
+                                                            let finalAssetsIdsStr = tryGetString("rebalance_assetIds")
+                                                            let AssetsWeightsStr = {
+                                                                let $l = split(finalAssetsIdsStr, ",")
+                                                                let $s = size($l)
+                                                                let $acc0 = nil
+                                                                func $f5_1 ($a,$i) =                                                                 if (($i >= $s))
+                                                                    then $a
+                                                                    else addAssetWeightToStrList($a, $l[$i])
+
+                                                                func $f5_2 ($a,$i) =                                                                 if (($i >= $s))
+                                                                    then $a
+                                                                    else throw("List size exceeds 10")
+
+                                                                $f5_2($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                                                                }
+                                                            (actions ++ [StringEntry("static_tokenWeights", makeString(AssetsWeightsStr, ","))])
+                                                            }
+                                                }
+                                            else throw("Strict value is not equal to itself.")
+                                        }
+                                    else throw("Strict value is not equal to itself.")
+                                }
+                        }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func doRebalancing (assetWeightsStr) = {
+    let _isShutdown = if (isShutdown())
+        then throw("contract is on stop")
+        else true
+    if ((_isShutdown == _isShutdown))
+        then {
+            let assetWeightsStrLi = split(assetWeightsStr, ",")
+            let assetWeightsSum = {
+                let $l = assetWeightsStrLi
+                let $s = size($l)
+                let $acc0 = 0
+                func $f4_1 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else sum($a, $l[$i])
+
+                func $f4_2 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else throw("List size exceeds 10")
+
+                $f4_2($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                }
+            let assetIdsStrLi = split(tryGetString("static_tokenIds"), ",")
+            if ((i.caller != this))
+                then throw("this call available only for admin")
+                else {
+                    let oldKMult = getKMult()
+                    func handler (pars,assetId) =                     {
+                        let accum = pars._1
+                        let assetIdStr = getAssetString(assetId)
+                        func handler2 (accum,n) =                         if ((n == assetId))
+                            then value(indexOf(assetIds, n))
+                            else accum
+
+                        let Token = {
+                            let $l = assetIds
+                            let $s = size($l)
+                            let $acc0 = 1
+                            func $f5_1 ($a,$i) =                             if (($i >= $s))
+                                then $a
+                                else handler2($a, $l[$i])
+
+                            func $f5_2 ($a,$i) =                             if (($i >= $s))
+                                then $a
+                                else throw("List size exceeds 10")
+
+                            $f5_2($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                            }
+                        let balance = tryGetInteger((("global_" + assetIdStr) + "_balance"))
+                        let weight = if ((pars._2 == "new"))
+                            then parseIntValue(assetWeightsStrLi[Token])
+                            else tryGetInteger((("static_" + assetIdStr) + "_weight"))
+                        $Tuple2(fraction(accum, pow(balance, Decimals[Token], weight, AssetsWeightsDecimals, 8, FLOOR), Scale8), pars._2)
+                        }
+
+                    let newK = (                    let $l = assetIds
+                    let $s = size($l)
+                    let $acc0 = $Tuple2(PoolTokenScale, "new")
+                    func $f5_1 ($a,$i) =                     if (($i >= $s))
+                        then $a
+                        else handler($a, $l[$i])
+
+                    func $f5_2 ($a,$i) =                     if (($i >= $s))
+                        then $a
+                        else throw("List size exceeds 10")
+
+                    $f5_2($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10))._1
+                    let oldK = (                    let $l = assetIds
+                    let $s = size($l)
+                    let $acc0 = $Tuple2(PoolTokenScale, "old")
+                    func $f6_1 ($a,$i) =                     if (($i >= $s))
+                        then $a
+                        else handler($a, $l[$i])
+
+                    func $f6_2 ($a,$i) =                     if (($i >= $s))
+                        then $a
+                        else throw("List size exceeds 10")
+
+                    $f6_2($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10))._1
+                    let newKMult = fraction(oldKMult, newK, oldK)
+                    func addTokenDataEntries (accum,assetNum) =                     if ((assetNum >= size(assetWeightsStrLi)))
+                        then accum
+                        else (accum ++ [IntegerEntry((("static_" + assetIdsStrLi[assetNum]) + "_weight"), value(parseInt(assetWeightsStrLi[assetNum])))])
+
+                    ({
+                        let $l = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+                        let $s = size($l)
+                        let $acc0 = nil
+                        func $f7_1 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else addTokenDataEntries($a, $l[$i])
+
+                        func $f7_2 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else throw("List size exceeds 10")
+
+                        $f7_2($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                        } ++ [IntegerEntry("static_KMult", newKMult)])
+                    }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func doRebalancingWithNewTokens (assetIdsStr,assetWeightsStr,baseTokenIdStr) = {
+    let _isShutdown = if (isShutdown())
+        then throw("contract is on stop")
+        else true
+    if ((_isShutdown == _isShutdown))
+        then {
+            let newAssetWeightsStrLi = split(assetWeightsStr, ",")
+            let prevAssetIdsStrLi = split(tryGetString("static_tokenIds"), ",")
+            let newAssetIdsStrLi = split(assetIdsStr, ",")
+            let newAssetIds = {
+                let $l = newAssetIdsStrLi
+                let $s = size($l)
+                let $acc0 = nil
+                func $f4_1 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else addAssetBytesToList($a, $l[$i])
+
+                func $f4_2 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else throw("List size exceeds 10")
+
+                $f4_2($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($f4_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                }
+            let feeAssetStr = {
+                let $l = newAssetIdsStrLi
+                let $s = size($l)
+                let $acc0 = ""
+                func $f5_1 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else checkFeeAsset($a, $l[$i])
+
+                func $f5_2 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else throw("List size exceeds 10")
+
+                $f5_2($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($f5_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                }
+            let addedAssets = split(tryGetString("rebalance_addedAssets"), ",")
+            func findAssetPayment (assetId) =             valueOrElse(getInteger(("rebalance_attachedPayment_" + getAssetString(assetId))), 0)
+
+            func addAssetBalanceToLi (li,assetId) =             (li ++ [findAssetPayment(assetId)])
+
+            let attachedBalances = {
+                let $l = newAssetIds
+                let $s = size($l)
+                let $acc0 = nil
+                func $f6_1 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else addAssetBalanceToLi($a, $l[$i])
+
+                func $f6_2 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else throw("List size exceeds 10")
+
+                $f6_2($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($f6_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                }
+            if ((i.caller != this))
+                then throw(("this call available only for admin, " + toString(i.caller)))
+                else {
+                    let oldKMult = getKMult()
+                    let oldK = getVirtualPoolTokenAmount()
+                    func myltiplyAssetsForK (pars,assetId) =                     {
+                        func findAssetNum (accum,n) =                         if ((n == assetId))
+                            then value(indexOf(newAssetIds, n))
+                            else accum
+
+                        let currentK = pars
+                        let assetIdStr = getAssetString(assetId)
+                        let TokenNum = {
+                            let $l = newAssetIds
+                            let $s = size($l)
+                            let $acc0 = 1
+                            func $f7_1 ($a,$i) =                             if (($i >= $s))
+                                then $a
+                                else findAssetNum($a, $l[$i])
+
+                            func $f7_2 ($a,$i) =                             if (($i >= $s))
+                                then $a
+                                else throw("List size exceeds 10")
+
+                            $f7_2($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                            }
+                        let weight = parseIntValue(newAssetWeightsStrLi[TokenNum])
+                        let balanceInState = tryGetInteger((("global_" + assetIdStr) + "_balance"))
+                        let balanceInPayment = attachedBalances[TokenNum]
+                        let balance = (balanceInState + balanceInPayment)
+                        let assetDecimals = if ((assetId == unit))
+                            then 8
+                            else value(assetInfo(value(assetId))).decimals
+                        if ((0 >= balance))
+                            then throw(("you need to attach all new assets in payment. this asset is missed: " + assetIdStr))
+                            else fraction(currentK, pow(balance, assetDecimals, weight, AssetsWeightsDecimals, 8, FLOOR), Scale8)
+                        }
+
+                    let newK = {
+                        let $l = newAssetIds
+                        let $s = size($l)
+                        let $acc0 = PoolTokenScale
+                        func $f7_1 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else myltiplyAssetsForK($a, $l[$i])
+
+                        func $f7_2 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else throw("List size exceeds 10")
+
+                        $f7_2($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($f7_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                        }
+                    let newKMult = fraction(oldKMult, newK, oldK)
+                    func addTokenDataEntries (accum,assetNum) =                     {
+                        let assetIdStr = newAssetIdsStrLi[assetNum]
+                        let assetId = newAssetIds[assetNum]
+                        let assetDecimals = if ((assetId == unit))
+                            then 8
+                            else value(assetInfo(value(assetId))).decimals
+                        let newAssetData = if ((indexOf(addedAssets, assetIdStr) != unit))
+                            then [IntegerEntry((("global_" + assetIdStr) + "_balance"), attachedBalances[assetNum]), IntegerEntry((("static_" + assetIdStr) + "_scale"), pow(10, 0, assetDecimals, 0, 0, DOWN)), IntegerEntry((("static_" + assetIdStr) + "_decimals"), assetDecimals)]
+                            else nil
+                        if ((assetNum >= size(newAssetWeightsStrLi)))
+                            then accum
+                            else ((accum ++ [IntegerEntry((("static_" + assetIdStr) + "_weight"), value(parseInt(newAssetWeightsStrLi[assetNum])))]) ++ newAssetData)
+                        }
+
+                    ({
+                        let $l = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+                        let $s = size($l)
+                        let $acc0 = nil
+                        func $f8_1 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else addTokenDataEntries($a, $l[$i])
+
+                        func $f8_2 ($a,$i) =                         if (($i >= $s))
+                            then $a
+                            else throw("List size exceeds 10")
+
+                        $f8_2($f8_1($f8_1($f8_1($f8_1($f8_1($f8_1($f8_1($f8_1($f8_1($f8_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                        } ++ [StringEntry("static_tokenIds", assetIdsStr), StringEntry("static_feeToken", feeAssetStr), StringEntry("static_tokenWeights", assetWeightsStr), IntegerEntry("static_tokensAmount", size(newAssetIds)), IntegerEntry("static_KMult", newKMult)])
+                    }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Verifier(tx)
+func verify () = if (if ((valueOrElse(getInteger("global_wasPreInited"), 0) == 0))
+    then if (sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey))
+        then true
+        else sigVerify(tx.bodyBytes, tx.proofs[0], masterPubKey)
+    else false)
+    then true
+    else {
+        let multisigStr = "3PJdVErH5VmVYvkuN3Ayrrtd1zCZ4Xru6gT"
+        let multisigAddress = addressFromString(multisigStr)
+        let multisigOk =         match multisigAddress {
+            case t: Address => 
+                true
+            case _ => 
+                false
+        }
+        let isInited = if (multisigOk)
+            then valueOrElse(getBoolean(value(multisigAddress), "INITED"), false)
+            else false
+        let hasAdmins = if (multisigOk)
+            then (valueOrElse(getString(value(multisigAddress), "ADMINS_PBKS"), "") != "")
+            else false
+        if (if (if (multisigOk)
+            then isInited
+            else false)
+            then hasAdmins
+            else false)
+            then             match tx {
+                case ttx: SetScriptTransaction => 
+                    match ttx.script {
+                        case script: ByteVector => 
+                            let scriptHasha = toBase58String(blake2b256(script))
+                            let validFrom = valueOrErrorMessage(getInteger(value(multisigAddress), (((("script%%" + CONTRACT_TYPE) + "%%") + scriptHasha) + "%%validFrom")), "validFrom not set")
+                            let validTo = valueOrErrorMessage(getInteger(value(multisigAddress), (((("script%%" + CONTRACT_TYPE) + "%%") + scriptHasha) + "%%validTo")), "validTo not set")
+                            if ((height >= validFrom))
+                                then (validTo >= height)
+                                else false
+                        case _ => 
+                            false
+                    }
+                case otx => 
+                    let taskId = ((("tx_" + toString(this)) + "_") + toBase58String(otx.id))
+                    let isApproved = valueOrElse(getBoolean(value(multisigAddress), (((toString(this) + "_") + toBase58String(otx.id)) + "__approved")), false)
+                    let approvedFrom = valueOrElse(getInteger(value(multisigAddress), (taskId + "__approvedFrom")), 0)
+                    if (isApproved)
+                        then (height >= approvedFrom)
+                        else false
+            }
+            else             match tx {
+                case ttx: SetScriptTransaction => 
+                    if (sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey))
+                        then true
+                        else sigVerify(ttx.bodyBytes, ttx.proofs[0], masterPubKey)
+                case _ => 
+                    false
+            }
+        }

@@ -1,0 +1,392 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+func writeConstString (key,value) = if (!(isDefined(getString(this, key))))
+    then StringEntry(key, value)
+    else throw(("already initialized: " + key))
+
+
+func writeInt (key,value) = if ((0 > value))
+    then throw(((("writing negative value " + toString(value)) + " for key ") + key))
+    else IntegerEntry(key, value)
+
+
+func changeBy (key,value) = writeInt(key, (valueOrElse(getInteger(this, key), 0) + value))
+
+
+func asInt (value) = match value {
+    case int: Int => 
+        int
+    case _ => 
+        throw("wrong type, expected: Int")
+}
+
+
+func asPriceAndAvg (value) = match value {
+    case _ => 
+        if (if (if ($isInstanceOf($match0._1, "Int"))
+            then if ($isInstanceOf($match0._2, "Int"))
+                then if ($isInstanceOf($match0._3, "Int"))
+                    then $isInstanceOf($match0._4, "Int")
+                    else false
+                else false
+            else false)
+            then $isInstanceOf($match0, "(Int, Int, Int, Int)")
+            else false)
+            then {
+                let int1 = $match0._1
+                let int2 = $match0._2
+                let int3 = $match0._3
+                let int4 = $match0._4
+                $Tuple2(int1, int2)
+                }
+            else throw("wrong type, expected: (Int, Int, Int, Int)")
+}
+
+
+let configAddressStore = "config"
+
+let configAddress = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(this, configAddressStore), "treasury: config address not found")), "invalid config address")
+
+let votingResults = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "contract_voting_result"), "no contract_voting_result")), "invalid contract_voting_result")
+
+let HEIGHT = height
+
+func opAllowedStore (op) = (("op_" + op) + "_allowed")
+
+
+func allowed (op) = invoke(configAddress, "opAllowed", [op], nil)
+
+
+let pwrAssetId = fromBase58String(valueOrErrorMessage(getString(configAddress, "powerAssetId"), "pwr asset id not found"))
+
+let minterContract = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "contract_minter"), "no contract_minter")), "invalid minter contract")
+
+let stakingContract = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "contract_staking"), "no staking_contract")), "invalid staking address")
+
+let oracle = valueOrErrorMessage(addressFromString(valueOrElse(getString(configAddress, (toString(this) + "_oracle")), "3PKkojKdd6BBzTf1RXbQVfUDraNFXXHKzQF")), "invalid oracle address")
+
+let swap = valueOrErrorMessage(addressFromString(valueOrElse(getString(configAddress, (toString(this) + "_swap")), "3P68zNiufsu1viZpu1aY3cdahRRKcvV5N93")), "invalid swap address")
+
+let puzzleSwap = valueOrErrorMessage(addressFromString(valueOrElse(getString(configAddress, (toString(this) + "_puzzleSwap")), "3PGFHzVGT4NTigwCKP1NcwoXkodVZwvBuuU")), "invalid puzzleSwap address")
+
+let votingPowerContract = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "contract_voting_power"), "no voting_power")), "invalid voting_power contract")
+
+let totalPower = asInt(invoke(stakingContract, "totalPower", nil, nil))
+
+let weeklyGlobalLimitPercent = valueOrElse(getInteger(configAddress, (toString(this) + "_weeklyGlobalLimitPercentBase1000")), 100)
+
+let weeklyGlobalLimit = fraction(totalPower, weeklyGlobalLimitPercent, 1000)
+
+let currentWeek = fraction(HEIGHT, 1, (1440 * 7))
+
+let currentGlobalLimitStore = ("global_limit_" + toString(currentWeek))
+
+let currentGlobalLimit = valueOrElse(getInteger(this, currentGlobalLimitStore), weeklyGlobalLimit)
+
+let dailyBuybackWaves = valueOrElse(getInteger(configAddress, (toString(this) + "_dailyBuybackWaves")), 0)
+
+let hourlyBuybackWaves = (dailyBuybackWaves / 24)
+
+let currentHour = fraction(HEIGHT, 1, 60)
+
+let lastBuybackHour = valueOrElse(getInteger(this, "last_buyback_hour"), 0)
+
+let bonusPercent = valueOrElse(getInteger(configAddress, (toString(this) + "_bonusPercentBase1000")), 1010)
+
+let buyPwrSwapPercentBase1000 = valueOrElse(getInteger(configAddress, (toString(this) + "_buyPwrSwapPercentBase1000")), 100)
+
+let buyPwrSwapPercentSanitized = if ((0 > buyPwrSwapPercentBase1000))
+    then 0
+    else if ((buyPwrSwapPercentBase1000 > 1000))
+        then 1000
+        else buyPwrSwapPercentBase1000
+
+let buybackSlippageToleranceBase1000 = valueOrElse(getInteger(configAddress, (toString(this) + "_buybackSlippageToleranceBase1000")), 975)
+
+let buybackSlippageSanitized = if ((975 > buybackSlippageToleranceBase1000))
+    then 975
+    else if ((buybackSlippageToleranceBase1000 > 1000))
+        then 1000
+        else buybackSlippageToleranceBase1000
+
+let pwrAssetIdStr = toBase58String(pwrAssetId)
+
+let pwrPricePeriodHours = valueOrElse(getInteger(configAddress, (toString(this) + "_pwrPricePeriodHours")), 4)
+
+let xtn = "DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p"
+
+let usdtERC20 = "9wc3LXNA4TEBsXyKtoLE9mrbDD7WMHXvXrCjZvabLAsi"
+
+let usdtPPT = "G5WWWzzVsWRyzGf32xojbnfp7gXbWrgqJT8RcVWEfLmC"
+
+let ethPPT = "3VuV5WTmDz47Dmdn3QpcYjzbSdipjQE4JMdNe1xZpX13"
+
+func refBonusStorage (code) = ("ref_bonus_" + code)
+
+
+func refAddressStorage (code) = ("ref_address_" + code)
+
+
+func refCodeStorage (address) = ("ref_code_" + address)
+
+
+func refCntStorage (address) = ("ref_cnt_" + address)
+
+
+func refUniqAdrStorage (address) = ("ref_uniq_" + address)
+
+
+func refSumStorage (address) = ("ref_sum_" + address)
+
+
+func addressSumStorage (address) = ("address_sum_" + address)
+
+
+func refBonusSumStorage (address) = ("ref_bonus_sum_" + address)
+
+
+let maxRefBonus = valueOrElse(getInteger(configAddress, (toString(this) + "_maxRefBonusPercentBase1000")), 100)
+
+let allowNewRefAddresses = valueOrElse(getString(configAddress, (toString(this) + "_allowNewRef")), "")
+
+func pwrAmount (amountIn,assetIn) = {
+    let $t052335335 = asPriceAndAvg(invoke(oracle, "priceInfo", [pwrPricePeriodHours, "PWR-USDT"], nil))
+    let price = $t052335335._1
+    let priceAvg = $t052335335._2
+    let PWR_USDT = max([price, priceAvg])
+    let usdtPrice = if (if ((assetIn == usdtERC20))
+        then true
+        else (assetIn == usdtPPT))
+        then 100000000
+        else if ((assetIn == ethPPT))
+            then valueOrErrorMessage(getInteger(oracle, "%s%s__price__ETH-USDT"), "ETH price is not in the Oracle")
+            else if ((assetIn == "WAVES"))
+                then valueOrErrorMessage(getInteger(oracle, "%s%s__price__WAVES-USDT"), "WAVES price is not in the Oracle")
+                else if ((assetIn == xtn))
+                    then (valueOrErrorMessage(getInteger(oracle, "%s%s__price__USDN-USDT"), "XTN price is not in the Oracle") * 100)
+                    else throw("Token is not supported yet. Supported are: USDT-ERC20, USDT-PPT, WAVES, XTN")
+    fraction(amountIn, usdtPrice, PWR_USDT)
+    }
+
+
+func buyPwrPuzzleInternal (i,minPwr,routesStr,refCode) = {
+    let paused = allowed("buyPwr")
+    if ((paused == paused))
+        then if ((size(i.payments) != 1))
+            then throw("1 and only 1 payment is allowed")
+            else {
+                let user = toString(i.caller)
+                let p = i.payments[0]
+                let pwrBalanceAtStart = assetBalance(this, pwrAssetId)
+                if ((pwrBalanceAtStart == pwrBalanceAtStart))
+                    then {
+                        let assetIn = if (isDefined(p.assetId))
+                            then toBase58String(value(p.assetId))
+                            else "WAVES"
+                        let swapPercent = fraction(buyPwrSwapPercentSanitized, p.amount, 1000)
+                        let minSwappedPwr = fraction(pwrAmount(swapPercent, assetIn), buybackSlippageSanitized, 1000)
+                        let paymentToBuyPwr = AttachedPayment(p.assetId, swapPercent)
+                        let swaped = invoke(puzzleSwap, "swap", [routesStr, minSwappedPwr], [paymentToBuyPwr])
+                        if ((swaped == swaped))
+                            then {
+                                let pwrBalanceAfterSwap = assetBalance(this, pwrAssetId)
+                                if ((pwrBalanceAfterSwap == pwrBalanceAfterSwap))
+                                    then {
+                                        let pwrSwapped = (pwrBalanceAfterSwap - pwrBalanceAtStart)
+                                        if ((minSwappedPwr > pwrSwapped))
+                                            then throw(((("swap returned too little PWR: " + toString(pwrSwapped)) + " < ") + toString(minSwappedPwr)))
+                                            else {
+                                                let basePwr = pwrAmount(p.amount, assetIn)
+                                                let totalPwr = fraction(basePwr, bonusPercent, 1000)
+                                                if ((totalPwr == totalPwr))
+                                                    then {
+                                                        let bonus = {
+                                                            let bonusBase1000 = getInteger(refBonusStorage(refCode))
+                                                            if (if ((size(refCode) >= 4))
+                                                                then isDefined(bonusBase1000)
+                                                                else false)
+                                                                then {
+                                                                    let cappedBonus = min([value(bonusBase1000), maxRefBonus])
+                                                                    fraction(totalPwr, cappedBonus, 1000)
+                                                                    }
+                                                                else 0
+                                                            }
+                                                        let pwrNeeded = (totalPwr + (2 * bonus))
+                                                        let pwrAvailableFromSwap = pwrSwapped
+                                                        let pwrAvailableFromBalance = (pwrBalanceAfterSwap - pwrSwapped)
+                                                        let totalPwrAvailable = (pwrAvailableFromSwap + pwrAvailableFromBalance)
+                                                        let pwrToMint = if ((totalPwrAvailable >= pwrNeeded))
+                                                            then 0
+                                                            else (pwrNeeded - totalPwrAvailable)
+                                                        let mint = if ((pwrToMint > 0))
+                                                            then invoke(minterContract, "mint", [pwrToMint], nil)
+                                                            else unit
+                                                        if ((mint == mint))
+                                                            then {
+                                                                let newLimit = (currentGlobalLimit - pwrToMint)
+                                                                if ((0 > newLimit))
+                                                                    then throw(("The rest of weekly global limit is: PWR " + toString(currentGlobalLimit)))
+                                                                    else {
+                                                                        let pwrToUser = (totalPwr + bonus)
+                                                                        if ((minPwr > pwrToUser))
+                                                                            then throw(((("Resulting " + toString(pwrToUser)) + " PWR is less than min requested ") + toString(minPwr)))
+                                                                            else {
+                                                                                let staked = invoke(votingPowerContract, "stakeFor", [user], [AttachedPayment(pwrAssetId, pwrToUser)])
+                                                                                if ((staked == staked))
+                                                                                    then {
+                                                                                        let bonusToRef = if ((bonus > 0))
+                                                                                            then {
+                                                                                                let refAddress = getStringValue(refAddressStorage(refCode))
+                                                                                                let transferBonus = ScriptTransfer(addressFromStringValue(refAddress), bonus, pwrAssetId)
+                                                                                                let uniqStorage = refUniqAdrStorage(refAddress)
+                                                                                                let uniqAddresses = valueOrElse(getString(uniqStorage), "")
+                                                                                                let bonusSum = changeBy(refBonusSumStorage(refAddress), bonus)
+                                                                                                let uniqStatCmds = if (contains(uniqAddresses, user))
+                                                                                                    then [transferBonus, bonusSum]
+                                                                                                    else [changeBy(refCntStorage(refAddress), 1), StringEntry(uniqStorage, ((uniqAddresses + "|") + user)), bonusSum, transferBonus]
+changeBy(refSumStorage(refAddress), pwrToUser) :: uniqStatCmds
+                                                                                                }
+                                                                                            else nil
+                                                                                        if ((bonusToRef == bonusToRef))
+                                                                                            then $Tuple2(([changeBy("pwr_swapped", pwrSwapped), IntegerEntry(currentGlobalLimitStore, newLimit), changeBy(("balance_" + assetIn), (p.amount - swapPercent)), changeBy(addressSumStorage(user), pwrToUser)] ++ bonusToRef), pwrToUser)
+                                                                                            else throw("Strict value is not equal to itself.")
+                                                                                        }
+                                                                                    else throw("Strict value is not equal to itself.")
+                                                                                }
+                                                                        }
+                                                                }
+                                                            else throw("Strict value is not equal to itself.")
+                                                        }
+                                                    else throw("Strict value is not equal to itself.")
+                                                }
+                                        }
+                                    else throw("Strict value is not equal to itself.")
+                                }
+                            else throw("Strict value is not equal to itself.")
+                        }
+                    else throw("Strict value is not equal to itself.")
+                }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Callable(i)
+func buyPwrPuzzleRef (minPwr,routesStr,refCode) = buyPwrPuzzleInternal(i, minPwr, routesStr, refCode)
+
+
+
+@Callable(i)
+func buyPwrPuzzle (minPwr,routesStr) = buyPwrPuzzleInternal(i, minPwr, routesStr, "")
+
+
+
+@Callable(i)
+func buybackPWR (routesStr) = {
+    let paused = allowed("buybackPWR")
+    if ((paused == paused))
+        then if ((0 >= dailyBuybackWaves))
+            then throw("buyback not configured")
+            else if ((0 >= hourlyBuybackWaves))
+                then throw("daily buyback limit too low")
+                else if ((lastBuybackHour == currentHour))
+                    then throw("buyback already executed this hour, try next hour")
+                    else {
+                        let treasuryWavesBalance = wavesBalance(this).available
+                        let callerReward = 5000000
+                        let totalNeeded = (hourlyBuybackWaves + callerReward)
+                        if ((totalNeeded > treasuryWavesBalance))
+                            then throw("insufficient WAVES balance in treasury")
+                            else {
+                                let pwrBalanceAtStart = assetBalance(this, pwrAssetId)
+                                if ((pwrBalanceAtStart == pwrBalanceAtStart))
+                                    then {
+                                        let expectedPwr = pwrAmount(hourlyBuybackWaves, "WAVES")
+                                        let minPwrReceived = fraction(expectedPwr, buybackSlippageSanitized, 1000)
+                                        if ((0 >= minPwrReceived))
+                                            then throw(("oracle price too low, expected PWR: " + toString(expectedPwr)))
+                                            else {
+                                                let paymentToBuyPwr = AttachedPayment(unit, hourlyBuybackWaves)
+                                                let swapped = invoke(puzzleSwap, "swap", [routesStr, minPwrReceived], [paymentToBuyPwr])
+                                                if ((swapped == swapped))
+                                                    then {
+                                                        let pwrBalanceAfterSwap = assetBalance(this, pwrAssetId)
+                                                        if ((pwrBalanceAfterSwap == pwrBalanceAfterSwap))
+                                                            then {
+                                                                let pwrBought = (pwrBalanceAfterSwap - pwrBalanceAtStart)
+                                                                if ((minPwrReceived > pwrBought))
+                                                                    then throw(((("buyback failed: received " + toString(pwrBought)) + " PWR, expected at least ") + toString(minPwrReceived)))
+                                                                    else $Tuple2([IntegerEntry("last_buyback_hour", currentHour), changeBy("total_buyback_waves", hourlyBuybackWaves), changeBy("total_buyback_pwr", pwrBought), ScriptTransfer(i.caller, callerReward, unit)], pwrBought)
+                                                                }
+                                                            else throw("Strict value is not equal to itself.")
+                                                        }
+                                                    else throw("Strict value is not equal to itself.")
+                                                }
+                                        }
+                                    else throw("Strict value is not equal to itself.")
+                                }
+                        }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func newRefCode (code,address,bonusBASE1000) = if (!(contains(allowNewRefAddresses, toString(i.caller))))
+    then throw("denied")
+    else if ((4 > size(code)))
+        then throw("code must be at least 4 chr long")
+        else if (!(isDefined(addressFromString(address))))
+            then throw("invalid address")
+            else if ((0 >= bonusBASE1000))
+                then throw("bonus must be greater than 0")
+                else if ((bonusBASE1000 > maxRefBonus))
+                    then throw(("max bonusBASE1000 = " + toString(maxRefBonus)))
+                    else {
+                        let bonusStorage = refBonusStorage(code)
+                        let addressStorage = refAddressStorage(code)
+                        let codeStorage = refCodeStorage(address)
+                        if (isDefined(getInteger(bonusStorage)))
+                            then throw("ref code already exists")
+                            else if (isDefined(getString(codeStorage)))
+                                then throw("address already has a ref code assigned")
+                                else [IntegerEntry(bonusStorage, bonusBASE1000), StringEntry(addressStorage, address), StringEntry(codeStorage, code)]
+                        }
+
+
+
+@Callable(i)
+func updateRefCodeBonus (code,newBonusBASE1000) = if (!(contains(allowNewRefAddresses, toString(i.caller))))
+    then throw("denied")
+    else if ((newBonusBASE1000 > maxRefBonus))
+        then throw(("max bonusBASE1000 = " + toString(maxRefBonus)))
+        else {
+            let bonusStorage = refBonusStorage(code)
+            let addressStorage = refAddressStorage(code)
+            let address = valueOrErrorMessage(getString(addressStorage), "ref code does not exist")
+            if ((newBonusBASE1000 > 0))
+                then [IntegerEntry(bonusStorage, newBonusBASE1000)]
+                else [DeleteEntry(bonusStorage), DeleteEntry(addressStorage), DeleteEntry(refCodeStorage(address))]
+            }
+
+
+
+@Callable(i)
+func init (conf) = [writeConstString(configAddressStore, conf)]
+
+
+@Verifier(tx)
+func verify () = {
+    let byVoting = {
+        let enabled = valueOrElse(getBoolean(configAddress, opAllowedStore("governance_apply_tx")), true)
+        if (!(enabled))
+            then throw("tx application throw governance not enabled")
+            else {
+                let id = toBase58String(tx.id)
+                (HEIGHT >= getIntegerValue(votingResults, ((("proposal_allow_broadcast_" + toString(this)) + "_") + id)))
+                }
+        }
+    if (sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey))
+        then true
+        else byVoting
+    }

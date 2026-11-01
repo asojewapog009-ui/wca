@@ -1,0 +1,260 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let CONF = addressFromStringValue(getStringValue(this, "config"))
+
+let SCALE8 = 100000000
+
+let PERCENT_SCALE = 10000
+
+let AXLY_MAIN_ADDR = addressFromStringValue(getStringValue(CONF, "main_contract"))
+
+let AXLY_TOKENOMIC = addressFromStringValue(getStringValue(CONF, "tokenomic"))
+
+let AXLY_MONEY_BOX = addressFromStringValue(getStringValue(CONF, "money_box"))
+
+let kInterest = "interest"
+
+let kUserInterest = "_userInterest"
+
+let kUserAvailable = "_userAvailableClaim"
+
+let kUserTokenStaked = "_userTokenStaked"
+
+let kTotalTokenStaked = "totalTokenStaked"
+
+let kLastAirdrops = "lastAirdrops"
+
+let kActive = "active"
+
+let kAXLYTokenId = "axlyTokenId"
+
+let kAdmin1PK = "group1_admin1_pub_key"
+
+let kAdmin2PK = "group1_admin2_pub_key"
+
+let kAdmin3PK = "group1_admin3_pub_key"
+
+let kOperatorCallPK = "admin_call_pub_key"
+
+let admin1PK = fromBase58String(valueOrErrorMessage(getString(CONF, kAdmin1PK), "Can't get admin1PK"))
+
+let admin2PK = fromBase58String(valueOrErrorMessage(getString(CONF, kAdmin2PK), "Can't get admin2PK"))
+
+let admin3PK = fromBase58String(valueOrErrorMessage(getString(CONF, kAdmin3PK), "Can't get admin3PK"))
+
+let operatorPK = fromBase58String(valueOrErrorMessage(getString(CONF, kOperatorCallPK), "Can't get operatorPK"))
+
+let axlyId = fromBase58String(valueOrErrorMessage(getString(AXLY_TOKENOMIC, kAXLYTokenId), "Can't get axly token id"))
+
+func isAdminCall (i) = if (containsElement([admin1PK, admin2PK, admin3PK], i.callerPublicKey))
+    then unit
+    else throw("Only admin can call this function")
+
+
+func isOperatorCall (i) = if (if (containsElement([admin1PK, admin2PK, admin3PK, operatorPK], i.callerPublicKey))
+    then true
+    else (i.caller == AXLY_MONEY_BOX))
+    then unit
+    else throw("Only admin can call this function")
+
+
+func isSelfCall (i) = if ((i.caller == this))
+    then unit
+    else throw("Only contract itself can call this function")
+
+
+func isActive () = if (valueOrElse(getBoolean(this, kActive), true))
+    then unit
+    else throw("DApp is inactive at this moment")
+
+
+func assetIdToStr (assetId) = match assetId {
+    case id: ByteVector => 
+        toBase58String(id)
+    case waves: Unit => 
+        "WAVES"
+    case _ => 
+        throw("Not Asset id")
+}
+
+
+func claimCalc (user) = {
+    let totalTokenStaked = valueOrElse(getInteger(this, kTotalTokenStaked), 0)
+    let curInterest = valueOrElse(getInteger(this, kInterest), 0)
+    let availableForClaim = valueOrElse(getInteger(this, (user + kUserAvailable)), 0)
+    let userInterest = valueOrElse(getInteger(this, (user + kUserInterest)), curInterest)
+    let userTokenStaked = valueOrElse(getInteger(this, (user + kUserTokenStaked)), 0)
+    let claimAmount = fraction(userTokenStaked, (curInterest - userInterest), SCALE8)
+    $Tuple4(curInterest, (claimAmount + availableForClaim), userTokenStaked, totalTokenStaked)
+    }
+
+
+func calcTokenApr () = {
+    let lastAirdrops = valueOrElse(getString(this, kLastAirdrops), "")
+    if ((lastAirdrops == ""))
+        then 0
+        else {
+            func calcTotalAirdrops (total,airdrop) =             {
+                let aInt = parseIntValue(airdrop)
+                (total + aInt)
+                }
+
+            let airdrops = split(lastAirdrops, ",")
+            let avgAirdrop = ({
+                let $l = airdrops
+                let $s = size($l)
+                let $acc0 = 0
+                func $f0_1 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else calcTotalAirdrops($a, $l[$i])
+
+                func $f0_2 ($a,$i) =                 if (($i >= $s))
+                    then $a
+                    else throw("List size exceeds 7")
+
+                $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7)
+                } / size(airdrops))
+            let totalTokenStaked = valueOrElse(getInteger(this, kTotalTokenStaked), 0)
+            fraction(avgAirdrop, (PERCENT_SCALE * 365), totalTokenStaked)
+            }
+    }
+
+
+func calcAirdrops (pmt) = {
+    let airdrops = valueOrElse(getString(this, kLastAirdrops), "")
+    let airdropsList = if ((airdrops == ""))
+        then nil
+        else split(airdrops, ",")
+    let newAirdropsList = if ((7 > size(airdropsList)))
+        then (airdropsList :+ toString(pmt))
+        else (removeByIndex(airdropsList, 0) :+ toString(pmt))
+    makeString(newAirdropsList, ",")
+    }
+
+
+@Callable(i)
+func getStatsREADONLY (user) = {
+    let apr = calcTokenApr()
+    if ((user == ""))
+        then $Tuple2(nil, [apr, 0, 0, 0])
+        else {
+            let userAddr = valueOrErrorMessage(addressFromString(user), "Wrong user address")
+            let $t039394035 = claimCalc(user)
+            let userNewInterest = $t039394035._1
+            let claimAmountAvailable = $t039394035._2
+            let userTokenStaked = $t039394035._3
+            let totalTokenStaked = $t039394035._4
+            let userTokenBalance = assetBalance(userAddr, axlyId)
+            $Tuple2(nil, [apr, userTokenBalance, userTokenStaked, claimAmountAvailable])
+            }
+    }
+
+
+
+@Callable(i)
+func stake () = valueOrElse(isActive(), if ((size(i.payments) != 1))
+    then throw("One payment expected")
+    else {
+        let $t043344409 = $Tuple2(i.payments[0].amount, i.payments[0].assetId)
+        let pmtAmount = $t043344409._1
+        let pmtAssetId = $t043344409._2
+        if ((pmtAssetId != axlyId))
+            then throw("Wrong payment asset")
+            else {
+                let user = toString(i.caller)
+                let $t045104606 = claimCalc(user)
+                let userNewInterest = $t045104606._1
+                let claimAmountAvailable = $t045104606._2
+                let userTokenStaked = $t045104606._3
+                let totalTokenStaked = $t045104606._4
+[IntegerEntry((user + kUserInterest), userNewInterest), IntegerEntry((user + kUserAvailable), claimAmountAvailable), IntegerEntry((user + kUserTokenStaked), (userTokenStaked + pmtAmount)), IntegerEntry(kTotalTokenStaked, (totalTokenStaked + pmtAmount))]
+                }
+        })
+
+
+
+@Callable(i)
+func unstake (amount) = valueOrElse(isActive(), {
+    let user = toString(i.caller)
+    if ((0 >= amount))
+        then throw("Amount must be greater than 0")
+        else {
+            let $t050445140 = claimCalc(user)
+            let userNewInterest = $t050445140._1
+            let claimAmountAvailable = $t050445140._2
+            let userTokenStaked = $t050445140._3
+            let totalTokenStaked = $t050445140._4
+            if ((amount > userTokenStaked))
+                then throw("You can't unstake more than staked")
+                else [IntegerEntry((user + kUserInterest), userNewInterest), IntegerEntry((user + kUserAvailable), claimAmountAvailable), IntegerEntry((user + kUserTokenStaked), (userTokenStaked - amount)), IntegerEntry(kTotalTokenStaked, (totalTokenStaked - amount)), ScriptTransfer(i.caller, amount, axlyId)]
+            }
+    })
+
+
+
+@Callable(i)
+func claim () = valueOrElse(isActive(), {
+    let user = toString(i.caller)
+    let $t056265722 = claimCalc(user)
+    let userNewInterest = $t056265722._1
+    let claimAmountAvailable = $t056265722._2
+    let userTokenStaked = $t056265722._3
+    let totalTokenStaked = $t056265722._4
+    if ((claimAmountAvailable == 0))
+        then throw("Nothing to claim")
+        else [IntegerEntry((user + kUserInterest), userNewInterest), IntegerEntry((user + kUserAvailable), 0), ScriptTransfer(i.caller, claimAmountAvailable, axlyId)]
+    })
+
+
+
+@Callable(i)
+func airdrop () = valueOrElse(isActive(), valueOrElse(isOperatorCall(i), if ((size(i.payments) != 1))
+    then throw("One payment expected")
+    else {
+        let $t061206195 = $Tuple2(i.payments[0].amount, i.payments[0].assetId)
+        let pmtAmount = $t061206195._1
+        let pmtAssetId = $t061206195._2
+        if ((pmtAssetId != axlyId))
+            then throw("Wrong payment asset")
+            else {
+                let totalTokenStaked = valueOrElse(getInteger(this, kTotalTokenStaked), 0)
+                let curInterest = valueOrElse(getInteger(this, kInterest), 0)
+                let interestNew = if ((totalTokenStaked > 0))
+                    then (curInterest + fraction(pmtAmount, SCALE8, totalTokenStaked))
+                    else curInterest
+[IntegerEntry(kInterest, interestNew), StringEntry(kLastAirdrops, calcAirdrops(pmtAmount))]
+                }
+        }))
+
+
+
+@Callable(i)
+func activate () = valueOrElse(isAdminCall(i), if (valueOrElse(getBoolean(this, kActive), true))
+    then throw("dApp already active")
+    else [BooleanEntry(kActive, true)])
+
+
+
+@Callable(i)
+func shutdown () = valueOrElse(isAdminCall(i), if (!(valueOrElse(getBoolean(this, kActive), true)))
+    then throw("dApp already shutdown")
+    else [BooleanEntry(kActive, false)])
+
+
+@Verifier(tx)
+func verify () = {
+    let multiSignedByAdmins = {
+        let adminPubKey1Signed = if (sigVerify(tx.bodyBytes, tx.proofs[0], admin1PK))
+            then 1
+            else 0
+        let adminPubKey2Signed = if (sigVerify(tx.bodyBytes, tx.proofs[1], admin2PK))
+            then 1
+            else 0
+        let adminPubKey3Signed = if (sigVerify(tx.bodyBytes, tx.proofs[2], admin3PK))
+            then 1
+            else 0
+        (((adminPubKey1Signed + adminPubKey2Signed) + adminPubKey3Signed) >= 2)
+        }
+    multiSignedByAdmins
+    }

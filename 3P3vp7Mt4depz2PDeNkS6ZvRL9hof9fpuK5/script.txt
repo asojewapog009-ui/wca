@@ -1,0 +1,64 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let SEP = "__"
+
+func join (ar) = makeString(ar, SEP)
+
+
+func keyInitialized () = join(["%s", "initialized"])
+
+
+func keyCoordinatorAddress () = join(["%s", "coordinatorAddress"])
+
+
+func keyVerifierAddress () = join(["%s", "verifierAddress"])
+
+
+func keySigned (_address,_txId) = join(["%s%s%s", "signed", _address, _txId])
+
+
+func isInitialized () = valueOrElse(getBoolean(this, keyInitialized()), false)
+
+
+func mustNotInitialized () = if (isInitialized())
+    then throw("Already initialized")
+    else unit
+
+
+func verifier () = match getString(keyCoordinatorAddress()) {
+    case s: String => 
+        getString(addressFromStringValue(s), keyVerifierAddress())
+    case _: Unit => 
+        unit
+    case _ => 
+        throw("Match error")
+}
+
+
+func checkAddress (_address) = match addressFromString(_address) {
+    case address: Address => 
+        true
+    case _: Unit => 
+        throw("Invalid address")
+    case _ => 
+        throw("Match error")
+}
+
+
+@Callable(i)
+func initialize (_coordinatorAddress) = {
+    let checks = [mustNotInitialized(), checkAddress(_coordinatorAddress)]
+    if ((checks == checks))
+        then [StringEntry(keyCoordinatorAddress(), _coordinatorAddress), BooleanEntry(keyInitialized(), true)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Verifier(tx)
+func verify () = match verifier() {
+    case address: String => 
+        valueOrElse(getBoolean(addressFromStringValue(address), keySigned(toString(this), toBase58String(tx.id))), false)
+    case _ => 
+        sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)
+}

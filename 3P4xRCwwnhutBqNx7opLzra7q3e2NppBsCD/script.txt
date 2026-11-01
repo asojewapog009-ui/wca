@@ -1,0 +1,131 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let SEP = "__"
+
+func MakeKey (array) = makeString(array, "_")
+
+
+func Join (array) = makeString(array, SEP)
+
+
+func Split (string) = if ((size(string) == 0))
+    then nil
+    else split(string, SEP)
+
+
+let PETE = base58'GAzAEjApmjMYZKPzri2g2VUXNvTiQGF7KDYZFFsP3AEq'
+
+let peteAddress = addressFromStringValue("3PBf2jd3ZEPX7NHQvVarscTjLQ8bk43uAfn")
+
+let auraUnit1Address = addressFromStringValue("3P4AUZGRUY215GTnPAzs2TpzxbEiuSRgAU1")
+
+let felineAddress = addressFromStringValue("3P6KR6QtXmPH8onFKMe276bVKUNVRzmNGSR")
+
+let mutantsAddress = addressFromStringValue("3PFDP2upzDE7Djhhey5yweAQqWsMcoAzaUc")
+
+let FP = 6000000000000
+
+let AP = 8000000000000
+
+let admins = if (isDefined(getString(this, "admins")))
+    then Split(getStringValue(this, "admins"))
+    else ["3P3Yzn5Cw8VgcpyN5aPrC1YG5in9f6nSP8B"]
+
+let configAddress = addressFromStringValue(valueOrElse(getString(this, "config"), "3PDiqTYEykMd1b7H1mknYdSCCwcXarQMroS"))
+
+func isAdmin (caller) = if ((caller == this))
+    then true
+    else containsElement(admins, toString(caller))
+
+
+func checkAdmin (i) = if (if (!(isAdmin(i.caller)))
+    then !(isAdmin(i.originCaller))
+    else false)
+    then throw("you can not")
+    else true
+
+
+func checkAvailability () = {
+    let isDisabled = getBooleanValue(configAddress, "is_disabled")
+    if (isDisabled)
+        then throw("is disabled")
+        else true
+    }
+
+
+func checkAll (i) = {
+    let ch1 = checkAdmin(i)
+    if ((ch1 == ch1))
+        then {
+            let ch2 = checkAvailability()
+            if ((ch2 == ch2))
+                then true
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Callable(i)
+func claim () = {
+    let check = checkAll(i)
+    if ((check == check))
+        then {
+            let userTokenStaked = valueOrErrorMessage(getInteger(peteAddress, (toString(this) + "_userTokenStaked")), "zero staking")
+            let balanceBefore = assetBalance(this, PETE)
+            if ((balanceBefore == balanceBefore))
+                then {
+                    let inv = invoke(peteAddress, "claim", nil, nil)
+                    if ((inv == inv))
+                        then {
+                            let balanceAfter = assetBalance(this, PETE)
+                            if ((balanceAfter == balanceAfter))
+                                then {
+                                    let rewards = (balanceAfter - balanceBefore)
+                                    if (if ((rewards == 0))
+                                        then true
+                                        else (rewards > 100000000000))
+                                        then throw("nothing to claim")
+                                        else {
+                                            let w = (rewards * 3)
+                                            let i3 = invoke(peteAddress, "unstake", [w], nil)
+                                            if ((i3 == i3))
+                                                then {
+                                                    let forRewards = rewards
+[ScriptTransfer(addressFromStringValue("3PCaVbA51UopJqGiK7qHP8iQNvh8ztqddTH"), forRewards, PETE), ScriptTransfer(addressFromStringValue("3PCaVbA51UopJqGiK7qHP8iQNvh8ztqddTH"), w, PETE)]
+                                                    }
+                                                else throw("Strict value is not equal to itself.")
+                                            }
+                                    }
+                                else throw("Strict value is not equal to itself.")
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func unstakeForPeteSale (amount) = {
+    let check = checkAvailability()
+    if ((check == check))
+        then if ((toString(i.caller) != "3PFguNjMLHGEhqgmcpf9rvZQxQNfEaSFXrq"))
+            then throw("you can not")
+            else {
+                let userTokenStaked = valueOrErrorMessage(getInteger(peteAddress, (toString(this) + "_userTokenStaked")), "zero staking")
+                if ((15000000000000 > (userTokenStaked - amount)))
+                    then throw("lt 150k")
+                    else {
+                        let i1 = invoke(peteAddress, "unstake", [amount], nil)
+                        if ((i1 == i1))
+                            then [ScriptTransfer(i.caller, amount, PETE)]
+                            else throw("Strict value is not equal to itself.")
+                        }
+                }
+        else throw("Strict value is not equal to itself.")
+    }
+

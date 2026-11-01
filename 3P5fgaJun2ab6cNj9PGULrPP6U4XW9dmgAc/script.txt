@@ -1,0 +1,13 @@
+{-# STDLIB_VERSION 6 #-}
+{-# CONTENT_TYPE EXPRESSION #-}
+match tx {
+    case t: TransferTransaction => 
+        let transferAsset = base58'Hk8B8kP6147aygF9vkud4cnQyvUK6sZQEtXZrK51jW8o'
+        if (if ((t.assetId == transferAsset))
+            then (100000000 > t.amount)
+            else false)
+            then throw("You cannot transfer less than 1 token")
+            else sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)
+    case _ => 
+        sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)
+}

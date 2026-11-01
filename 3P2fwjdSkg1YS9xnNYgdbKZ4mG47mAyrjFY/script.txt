@@ -1,0 +1,34 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let CONF = addressFromStringValue(getStringValue(this, "config"))
+
+let kAdmin1PK = "group1_admin1_pub_key"
+
+let kAdmin2PK = "group1_admin2_pub_key"
+
+let kAdmin3PK = "group1_admin3_pub_key"
+
+let admin1PK = fromBase58String(valueOrErrorMessage(getString(CONF, kAdmin1PK), "Can't get admin1PK"))
+
+let admin2PK = fromBase58String(valueOrErrorMessage(getString(CONF, kAdmin2PK), "Can't get admin2PK"))
+
+let admin3PK = fromBase58String(valueOrErrorMessage(getString(CONF, kAdmin3PK), "Can't get admin3PK"))
+
+
+@Verifier(tx)
+func verify () = {
+    let multiSignedByAdmins = {
+        let adminPubKey1Signed = if (sigVerify(tx.bodyBytes, tx.proofs[0], admin1PK))
+            then 1
+            else 0
+        let adminPubKey2Signed = if (sigVerify(tx.bodyBytes, tx.proofs[1], admin2PK))
+            then 1
+            else 0
+        let adminPubKey3Signed = if (sigVerify(tx.bodyBytes, tx.proofs[2], admin3PK))
+            then 1
+            else 0
+        (((adminPubKey1Signed + adminPubKey2Signed) + adminPubKey3Signed) >= 2)
+        }
+    multiSignedByAdmins
+    }

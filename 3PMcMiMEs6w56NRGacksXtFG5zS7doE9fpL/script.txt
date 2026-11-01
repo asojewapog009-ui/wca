@@ -1,0 +1,81 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let VERSION = "SHUT-0.2.0"
+
+func callerEnabled (address) = (indexOf(valueOrElse(getString("setup_shutdownCallers"), ""), toString(address)) != unit)
+
+
+@Callable(i)
+func addCaller (address) = if ((i.caller == this))
+    then [StringEntry("setup_shutdownCallers", ((valueOrElse(getString("setup_shutdownCallers"), "") + address) + ","))]
+    else throw("self invoke only")
+
+
+
+@Callable(i)
+func stopOne (addressStr,domain,bool) = if (callerEnabled(i.caller))
+    then if (if ((addressStr == "3PEpv9hRFWEEBU22WRnLsw1bH4YGtcU728o"))
+        then true
+        else (domain == "pools"))
+        then {
+            let inv = invoke(Address(base58'3PEpv9hRFWEEBU22WRnLsw1bH4YGtcU728o'), "setStop", [bool], nil)
+            if ((inv == inv))
+                then nil
+                else throw("Strict value is not equal to itself.")
+            }
+        else {
+            let inv = invoke(addressFromStringValue(addressStr), "shutdown", [bool], nil)
+            if ((inv == inv))
+                then nil
+                else throw("Strict value is not equal to itself.")
+            }
+    else throw("caller not enabled")
+
+
+
+@Callable(i)
+func stop (bool) = if (callerEnabled(i.caller))
+    then {
+        let inv1 = invoke(Address(base58'3PEpv9hRFWEEBU22WRnLsw1bH4YGtcU728o'), "setStop", [bool], nil)
+        if ((inv1 == inv1))
+            then {
+                let inv2 = invoke(Address(base58'3P8Df2b7ywHtLBHBe8PBVQYd3A5MdEEJAou'), "shutdown", [bool], nil)
+                if ((inv2 == inv2))
+                    then {
+                        let inv3 = invoke(Address(base58'3PP9NsYNdmXTqt5bseaegRKHUE76F9MHGgW'), "shutdown", [bool], nil)
+                        if ((inv3 == inv3))
+                            then {
+                                let inv4 = invoke(Address(base58'3P4uA5etnZi4AmBabKinq2bMiWU8KcnHZdH'), "shutdown", [bool], nil)
+                                if ((inv4 == inv4))
+                                    then {
+                                        let inv5 = invoke(Address(base58'3P4DK5VzDwL3vfc5ahUEhtoe5ByZNyacJ3X'), "shutdown", [bool], nil)
+                                        if ((inv5 == inv5))
+                                            then {
+                                                let inv6 = invoke(Address(base58'3PHpuQUPVUoR3AYzFeJzeWJfYLsLTmWssVH'), "shutdown", [bool], nil)
+                                                if ((inv6 == inv6))
+                                                    then {
+                                                        let inv8 = invoke(Address(base58'3PFB6LJyShsCKEA1AU1U1WLbDazqyj6ZL9b'), "shutdown", [bool], nil)
+                                                        if ((inv8 == inv8))
+                                                            then {
+                                                                let inv9 = invoke(Address(base58'3PGFHzVGT4NTigwCKP1NcwoXkodVZwvBuuU'), "shutdown", [bool], nil)
+                                                                if ((inv9 == inv9))
+                                                                    then nil
+                                                                    else throw("Strict value is not equal to itself.")
+                                                                }
+                                                            else throw("Strict value is not equal to itself.")
+                                                        }
+                                                    else throw("Strict value is not equal to itself.")
+                                                }
+                                            else throw("Strict value is not equal to itself.")
+                                        }
+                                    else throw("Strict value is not equal to itself.")
+                                }
+                            else throw("Strict value is not equal to itself.")
+                        }
+                    else throw("Strict value is not equal to itself.")
+                }
+            else throw("Strict value is not equal to itself.")
+        }
+    else throw("caller not enabled")
+

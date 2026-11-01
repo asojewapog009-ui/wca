@@ -1,0 +1,1836 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let lPdecimals = 8
+
+let scale8 = 100000000
+
+let scale8BigInt = toBigInt(100000000)
+
+let scale18 = toBigInt(1000000000000000000)
+
+let zeroBigInt = toBigInt(0)
+
+let big0 = toBigInt(0)
+
+let big1 = toBigInt(1)
+
+let big2 = toBigInt(2)
+
+let wavesString = "WAVES"
+
+let SEP = "__"
+
+let PoolActive = 1
+
+let PoolPutDisabled = 2
+
+let PoolMatcherDisabled = 3
+
+let PoolShutdown = 4
+
+let idxPoolAddress = 1
+
+let idxPoolStatus = 2
+
+let idxPoolLPAssetId = 3
+
+let idxAmtAssetId = 4
+
+let idxPriceAssetId = 5
+
+let idxAmtAssetDcm = 6
+
+let idxPriceAssetDcm = 7
+
+let idxIAmtAssetId = 8
+
+let idxIPriceAssetId = 9
+
+let idxLPAssetDcm = 10
+
+let idxPoolAmtAssetAmt = 1
+
+let idxPoolPriceAssetAmt = 2
+
+let idxPoolLPAssetAmt = 3
+
+let idxFactoryStakingContract = 1
+
+let idxFactorySlippageContract = 7
+
+func toX18 (origVal,origScaleMult) = fraction(toBigInt(origVal), scale18, toBigInt(origScaleMult))
+
+
+func toX18BigInt (origVal,origScaleMult) = fraction(origVal, scale18, origScaleMult)
+
+
+func fromX18 (val,resultScaleMult) = toInt(fraction(val, toBigInt(resultScaleMult), scale18))
+
+
+func fromX18Round (val,resultScaleMult,round) = toInt(fraction(val, toBigInt(resultScaleMult), scale18, round))
+
+
+func toScale (amt,resScale,curScale) = fraction(amt, resScale, curScale)
+
+
+func abs (val) = if ((0 > val))
+    then -(val)
+    else val
+
+
+func absBigInt (val) = if ((zeroBigInt > val))
+    then -(val)
+    else val
+
+
+func swapContract () = "%s__swapContract"
+
+
+func fc () = "%s__factoryContract"
+
+
+func keyManagerPublicKey () = "%s__managerPublicKey"
+
+
+func keyManagerVaultAddress () = "%s__managerVaultAddress"
+
+
+func pl () = "%s%s__price__last"
+
+
+func ph (h,timestamp) = makeString(["%s%s%d%d__price__history", toString(h), toString(timestamp)], SEP)
+
+
+func pau (userAddress,txId) = ((("%s%s%s__P__" + userAddress) + "__") + txId)
+
+
+func gau (userAddress,txId) = ((("%s%s%s__G__" + userAddress) + "__") + txId)
+
+
+func aa () = "%s__amountAsset"
+
+
+func pa () = "%s__priceAsset"
+
+
+let keyFee = "%s__fee"
+
+let feeDefault = fraction(10, scale8, 10000)
+
+let fee = valueOrElse(getInteger(this, keyFee), feeDefault)
+
+let keyKLp = makeString(["%s", "kLp"], SEP)
+
+let keyKLpRefreshedHeight = makeString(["%s", "kLpRefreshedHeight"], SEP)
+
+let keyKLpRefreshDelay = makeString(["%s", "refreshKLpDelay"], SEP)
+
+let kLpRefreshDelayDefault = 30
+
+let kLpRefreshDelay = valueOrElse(getInteger(this, keyKLpRefreshDelay), kLpRefreshDelayDefault)
+
+func keyAdditionalBalance (assetId) = makeString(["%s%s", "stakedBalance", assetId], SEP)
+
+
+func keyStakingAssetBalance (assetId) = makeString(["%s%s", "shareAssetBalance", assetId], SEP)
+
+
+func getAdditionalBalanceOrZero (assetId) = valueOrElse(getInteger(this, keyAdditionalBalance(assetId)), 0)
+
+
+func getStakingAssetBalanceOrZero (assetId) = valueOrElse(getInteger(this, keyStakingAssetBalance(assetId)), 0)
+
+
+func keyFactoryConfig () = "%s__factoryConfig"
+
+
+func keyMatcherPub () = "%s%s__matcher__publicKey"
+
+
+func keyMappingPoolContractAddressToPoolAssets (poolContractAddress) = (("%s%s%s__" + poolContractAddress) + "__mappings__poolContract2LpAsset")
+
+
+func keyPoolConfig (iAmtAsset,iPriceAsset) = (((("%d%d%s__" + iAmtAsset) + "__") + iPriceAsset) + "__config")
+
+
+func keyMappingsBaseAsset2internalId (baseAssetStr) = ("%s%s%s__mappings__baseAsset2internalId__" + baseAssetStr)
+
+
+func keyAllPoolsShutdown () = "%s__shutdown"
+
+
+func keyPoolWeight (contractAddress) = ("%s%s__poolWeight__" + contractAddress)
+
+
+func keyAllowedLpScriptHash () = "%s__allowedLpScriptHash"
+
+
+let keyFeeCollectorAddress = "%s__feeCollectorAddress"
+
+func keySkipOrderValidation (poolAddress) = ("%s%s__skipOrderValidation__" + poolAddress)
+
+
+func throwOrderError (orderValid,orderValidInfo,matcherValid) = throw((((((("order validation failed: orderValid=" + toString(orderValid)) + " (") + orderValidInfo) + ")") + " matcherValid=") + toString(matcherValid)))
+
+
+func addressFromStringOrThis (addressString) = match addressFromString(addressString) {
+    case a: Address => 
+        a
+    case _ => 
+        this
+}
+
+
+func getManagerVaultAddressOrThis () = {
+    let factoryAddress =     match getString(fc()) {
+        case fca: String => 
+            addressFromStringOrThis(fca)
+        case _ => 
+            this
+    }
+    match getString(factoryAddress, keyManagerVaultAddress()) {
+        case s: String => 
+            addressFromStringOrThis(s)
+        case _ => 
+            this
+    }
+    }
+
+
+func getStringOrFail (address,key) = valueOrErrorMessage(getString(address, key), makeString(["mandatory ", toString(address), ".", key, " is not defined"], ""))
+
+
+func getIntOrFail (address,key) = valueOrErrorMessage(getInteger(address, key), makeString(["mandatory ", toString(address), ".", key, " is not defined"], ""))
+
+
+func throwErr (msg) = throw(makeString(["lp.ride:", msg], " "))
+
+
+func fmtErr (msg) = makeString(["lp.ride:", msg], " ")
+
+
+let factoryContract = addressFromStringValue(getStringOrFail(this, fc()))
+
+let feeCollectorAddress = addressFromStringValue(getStringOrFail(factoryContract, keyFeeCollectorAddress))
+
+let inFee = {
+    let @ = invoke(factoryContract, "getInFeeREADONLY", [toString(this)], nil)
+    if ($isInstanceOf(@, "Int"))
+        then @
+        else throw(($getType(@) + " couldn't be cast to Int"))
+    }
+
+let outFee = {
+    let @ = invoke(factoryContract, "getOutFeeREADONLY", [toString(this)], nil)
+    if ($isInstanceOf(@, "Int"))
+        then @
+        else throw(($getType(@) + " couldn't be cast to Int"))
+    }
+
+func keyAddressWhitelisted (address) = makeString(["%s%s", "whitelisted", toString(address)], SEP)
+
+
+func isAddressWhitelisted (address) = valueOrElse(getBoolean(factoryContract, keyAddressWhitelisted(address)), false)
+
+
+func isGlobalShutdown () = valueOrElse(getBoolean(factoryContract, keyAllPoolsShutdown()), false)
+
+
+func getMatcherPubOrFail () = fromBase58String(getStringOrFail(factoryContract, keyMatcherPub()))
+
+
+func getPoolConfig () = {
+    let amtAsset = getStringOrFail(this, aa())
+    let priceAsset = getStringOrFail(this, pa())
+    let iPriceAsset = getIntOrFail(factoryContract, keyMappingsBaseAsset2internalId(priceAsset))
+    let iAmtAsset = getIntOrFail(factoryContract, keyMappingsBaseAsset2internalId(amtAsset))
+    split(getStringOrFail(factoryContract, keyPoolConfig(toString(iAmtAsset), toString(iPriceAsset))), SEP)
+    }
+
+
+func parseAssetId (input) = if ((input == wavesString))
+    then unit
+    else fromBase58String(input)
+
+
+func assetIdToString (input) = if ((input == unit))
+    then wavesString
+    else toBase58String(value(input))
+
+
+func parsePoolConfig (poolConfig) = $Tuple7(addressFromStringValue(poolConfig[idxPoolAddress]), parseIntValue(poolConfig[idxPoolStatus]), fromBase58String(poolConfig[idxPoolLPAssetId]), parseAssetId(poolConfig[idxAmtAssetId]), parseAssetId(poolConfig[idxPriceAssetId]), parseIntValue(poolConfig[idxAmtAssetDcm]), parseIntValue(poolConfig[idxPriceAssetDcm]))
+
+
+let poolConfigParsed = parsePoolConfig(getPoolConfig())
+
+let $t097029868 = poolConfigParsed
+
+let cfgPoolAddress = $t097029868._1
+
+let cfgPoolStatus = $t097029868._2
+
+let cfgLpAssetId = $t097029868._3
+
+let cfgAmountAssetId = $t097029868._4
+
+let cfgPriceAssetId = $t097029868._5
+
+let cfgAmountAssetDecimals = $t097029868._6
+
+let cfgPriceAssetDecimals = $t097029868._7
+
+func getFactoryConfig () = split(getStringOrFail(factoryContract, keyFactoryConfig()), SEP)
+
+
+let stakingContract = valueOrErrorMessage(addressFromString(getFactoryConfig()[idxFactoryStakingContract]), "incorrect staking address")
+
+let slippageContract = valueOrErrorMessage(addressFromString(getFactoryConfig()[idxFactorySlippageContract]), "incorrect staking address")
+
+func dataPutActionInfo (inAmtAssetAmt,inPriceAssetAmt,outLpAmt,price,slippageTolerancePassedByUser,slippageToleranceReal,txHeight,txTimestamp,slipageAmtAssetAmt,slipagePriceAssetAmt) = makeString(["%d%d%d%d%d%d%d%d%d%d", toString(inAmtAssetAmt), toString(inPriceAssetAmt), toString(outLpAmt), toString(price), toString(slippageTolerancePassedByUser), toString(slippageToleranceReal), toString(txHeight), toString(txTimestamp), toString(slipageAmtAssetAmt), toString(slipagePriceAssetAmt)], SEP)
+
+
+func dataGetActionInfo (outAmtAssetAmt,outPriceAssetAmt,inLpAmt,price,txHeight,txTimestamp) = makeString(["%d%d%d%d%d%d", toString(outAmtAssetAmt), toString(outPriceAssetAmt), toString(inLpAmt), toString(price), toString(txHeight), toString(txTimestamp)], SEP)
+
+
+func getAccBalance (assetId) = {
+    let balanceOnPool = if ((assetId == "WAVES"))
+        then wavesBalance(this).available
+        else assetBalance(this, fromBase58String(assetId))
+    let totalBalance = ((balanceOnPool + getAdditionalBalanceOrZero(assetId)) - getStakingAssetBalanceOrZero(assetId))
+    max([0, totalBalance])
+    }
+
+
+func calcPriceBigInt (prAmtX18,amAmtX18) = fraction(prAmtX18, scale18, amAmtX18)
+
+
+func calcPriceBigIntRound (prAmtX18,amAmtX18,round) = fraction(prAmtX18, scale18, amAmtX18, round)
+
+
+func getRate (proxy) = {
+    let inv = invoke(proxy, "getRate", nil, nil)
+    if ((inv == inv))
+        then         match inv {
+            case r: Int => 
+                r
+            case _ => 
+                throwErr("proxy.getRate() unexpected value")
+        }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func deposit (assetId,amount,stakingAssetId,proxy) = {
+    let currentAdditionalBalance = getAdditionalBalanceOrZero(assetId)
+    if ((currentAdditionalBalance == currentAdditionalBalance))
+        then {
+            let currentStakingAssetBalance = getStakingAssetBalanceOrZero(stakingAssetId)
+            if ((currentStakingAssetBalance == currentStakingAssetBalance))
+                then {
+                    let asset = parseAssetId(assetId)
+                    if ((amount > 0))
+                        then {
+                            let depositInvoke = invoke(proxy, "deposit", nil, [AttachedPayment(asset, amount)])
+                            if ((depositInvoke == depositInvoke))
+                                then                                 match depositInvoke {
+                                    case receivedStakingAsset: Int => 
+                                        let newAdditionalBalance = (currentAdditionalBalance + amount)
+                                        let newStakingAssetBalance = (currentStakingAssetBalance + receivedStakingAsset)
+[IntegerEntry(keyAdditionalBalance(assetId), newAdditionalBalance), IntegerEntry(keyStakingAssetBalance(stakingAssetId), newStakingAssetBalance)]
+                                    case _ => 
+                                        nil
+                                }
+                                else throw("Strict value is not equal to itself.")
+                            }
+                        else nil
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func withdraw (assetId,amount,stakingAssetId,proxy,proxyRateMul,profitAddress) = {
+    let currentAdditionalBalance = getAdditionalBalanceOrZero(assetId)
+    if ((currentAdditionalBalance == currentAdditionalBalance))
+        then {
+            let currentStakingAssetBalance = getStakingAssetBalanceOrZero(stakingAssetId)
+            if ((currentStakingAssetBalance == currentStakingAssetBalance))
+                then {
+                    let currentProxyRate = getRate(proxy)
+                    if ((currentProxyRate == currentProxyRate))
+                        then {
+                            let oldRate = fraction(proxyRateMul, currentAdditionalBalance, currentStakingAssetBalance)
+                            let stakingAsset = parseAssetId(stakingAssetId)
+                            let oldSendStakingAmount = fraction(proxyRateMul, amount, oldRate)
+                            let sendStakingAssetAmount = fraction(proxyRateMul, amount, currentProxyRate)
+                            let profitAmount = max([0, (oldSendStakingAmount - sendStakingAssetAmount)])
+                            if ((sendStakingAssetAmount > 0))
+                                then {
+                                    let withdrawInvoke = invoke(proxy, "withdraw", nil, [AttachedPayment(stakingAsset, sendStakingAssetAmount)])
+                                    if ((withdrawInvoke == withdrawInvoke))
+                                        then                                         match withdrawInvoke {
+                                            case receivedAssets: Int => 
+                                                let newAdditionalBalance = (currentAdditionalBalance - receivedAssets)
+                                                let newStakingAssetBalance = ((currentStakingAssetBalance - sendStakingAssetAmount) - profitAmount)
+[IntegerEntry(keyAdditionalBalance(assetId), newAdditionalBalance), IntegerEntry(keyStakingAssetBalance(stakingAssetId), newStakingAssetBalance), ScriptTransfer(profitAddress, profitAmount, parseAssetId(stakingAssetId))]
+                                            case _ => 
+                                                nil
+                                        }
+                                        else throw("Strict value is not equal to itself.")
+                                    }
+                                else nil
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func getLeaseProxyConfig (assetId) = match invoke(factoryContract, "getPoolLeaseConfigREADONLY", [toString(this), assetId], nil) {
+    case a: (Boolean, Int, Int, String, String, Int, String) => 
+        a
+    case _ => 
+        throwErr((("[" + assetId) + "] getLeaseProxyConfig() error"))
+}
+
+
+func rebalanceInternal (targetRatio,assetId,stakingAssetId,minBalance,proxy,proxyRateMul,profitAddress) = {
+    let currentStakingAssetBalance = getStakingAssetBalanceOrZero(stakingAssetId)
+    if ((currentStakingAssetBalance == currentStakingAssetBalance))
+        then {
+            let currentAdditionalBalance = if ((currentStakingAssetBalance != 0))
+                then getAdditionalBalanceOrZero(assetId)
+                else 0
+            if ((currentAdditionalBalance == currentAdditionalBalance))
+                then {
+                    let leasableTotalBalance = max([0, (getAccBalance(assetId) - minBalance)])
+                    let targetAdditionalBalance = fraction(targetRatio, leasableTotalBalance, 100)
+                    let diff = (currentAdditionalBalance - targetAdditionalBalance)
+                    if ((diff == 0))
+                        then nil
+                        else if ((0 > diff))
+                            then {
+                                let sendAssetAmount = -(diff)
+                                deposit(assetId, sendAssetAmount, stakingAssetId, proxy)
+                                }
+                            else {
+                                let getAssetAmount = diff
+                                withdraw(assetId, getAssetAmount, stakingAssetId, proxy, proxyRateMul, profitAddress)
+                                }
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func rebalanceAsset (assetId) = {
+    let $t01615316289 = getLeaseProxyConfig(assetId)
+    let isLeasable = $t01615316289._1
+    let leasedRatio = $t01615316289._2
+    let minBalance = $t01615316289._3
+    let proxyAddress = $t01615316289._4
+    let proxyAssetId = $t01615316289._5
+    let proxyRateMul = $t01615316289._6
+    let stakingProfitAddress = $t01615316289._7
+    if (isLeasable)
+        then rebalanceInternal(leasedRatio, assetId, proxyAssetId, minBalance, addressFromStringValue(proxyAddress), proxyRateMul, addressFromStringValue(stakingProfitAddress))
+        else nil
+    }
+
+
+func withdrawAndRebalanceAsset (assetId,getAmount) = {
+    let $t01668816824 = getLeaseProxyConfig(assetId)
+    let isLeasable = $t01668816824._1
+    let leasedRatio = $t01668816824._2
+    let minBalance = $t01668816824._3
+    let proxyAddress = $t01668816824._4
+    let proxyAssetId = $t01668816824._5
+    let proxyRateMul = $t01668816824._6
+    let stakingProfitAddress = $t01668816824._7
+    if (isLeasable)
+        then {
+            let currentStakingAssetBalance = getStakingAssetBalanceOrZero(proxyAssetId)
+            if ((currentStakingAssetBalance == currentStakingAssetBalance))
+                then {
+                    let currentAdditionalBalance = if ((currentStakingAssetBalance != 0))
+                        then getAdditionalBalanceOrZero(assetId)
+                        else 0
+                    if ((currentAdditionalBalance == currentAdditionalBalance))
+                        then {
+                            let newTotalLeasableBalance = max([0, ((getAccBalance(assetId) - getAmount) - minBalance)])
+                            if ((newTotalLeasableBalance == newTotalLeasableBalance))
+                                then {
+                                    let newAdditionalBalance = fraction(leasedRatio, newTotalLeasableBalance, 100)
+                                    if ((newAdditionalBalance == newAdditionalBalance))
+                                        then {
+                                            let withdrawAmount = (currentAdditionalBalance - newAdditionalBalance)
+                                            if ((withdrawAmount == withdrawAmount))
+                                                then if ((withdrawAmount == 0))
+                                                    then nil
+                                                    else if ((0 > withdrawAmount))
+                                                        then deposit(assetId, -(withdrawAmount), proxyAssetId, addressFromStringValue(proxyAddress))
+                                                        else withdraw(assetId, withdrawAmount, proxyAssetId, addressFromStringValue(proxyAddress), proxyRateMul, addressFromStringValue(stakingProfitAddress))
+                                                else throw("Strict value is not equal to itself.")
+                                            }
+                                        else throw("Strict value is not equal to itself.")
+                                    }
+                                else throw("Strict value is not equal to itself.")
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else nil
+    }
+
+
+func withdrawAndRebalanceAll (amountAssetOutAmount,priceAssetOutAmount) = {
+    let AmAmtWithdrawState = withdrawAndRebalanceAsset(getStringOrFail(this, aa()), amountAssetOutAmount)
+    let PrAmtWithdrawState = withdrawAndRebalanceAsset(getStringOrFail(this, pa()), priceAssetOutAmount)
+    (AmAmtWithdrawState ++ PrAmtWithdrawState)
+    }
+
+
+func privateCalcPrice (amAssetDcm,prAssetDcm,amAmt,prAmt) = {
+    let amtAssetAmtX18 = toX18(amAmt, amAssetDcm)
+    let priceAssetAmtX18 = toX18(prAmt, prAssetDcm)
+    calcPriceBigInt(priceAssetAmtX18, amtAssetAmtX18)
+    }
+
+
+func calcPrices (amAmt,prAmt,lpAmt) = {
+    let cfg = getPoolConfig()
+    let amtAssetDcm = parseIntValue(cfg[idxAmtAssetDcm])
+    let priceAssetDcm = parseIntValue(cfg[idxPriceAssetDcm])
+    let priceX18 = privateCalcPrice(amtAssetDcm, priceAssetDcm, amAmt, prAmt)
+    let amAmtX18 = toX18(amAmt, amtAssetDcm)
+    let prAmtX18 = toX18(prAmt, priceAssetDcm)
+    let lpAmtX18 = toX18(lpAmt, scale8)
+    let lpPriceInAmAssetX18 = calcPriceBigInt(amAmtX18, lpAmtX18)
+    let lpPriceInPrAssetX18 = calcPriceBigInt(prAmtX18, lpAmtX18)
+[priceX18, lpPriceInAmAssetX18, lpPriceInPrAssetX18]
+    }
+
+
+func calculatePrices (amAmt,prAmt,lpAmt) = {
+    let prices = calcPrices(amAmt, prAmt, lpAmt)
+[fromX18(prices[0], scale8), fromX18(prices[1], scale8), fromX18(prices[2], scale8)]
+    }
+
+
+func estimateGetOperation (txId58,pmtAssetId,pmtLpAmt,userAddress) = {
+    let cfg = getPoolConfig()
+    let lpAssetId = cfg[idxPoolLPAssetId]
+    let amAssetId = cfg[idxAmtAssetId]
+    let prAssetId = cfg[idxPriceAssetId]
+    let amAssetDcm = parseIntValue(cfg[idxAmtAssetDcm])
+    let prAssetDcm = parseIntValue(cfg[idxPriceAssetDcm])
+    let poolStatus = cfg[idxPoolStatus]
+    let lpEmission = valueOrErrorMessage(assetInfo(fromBase58String(lpAssetId)), (("Asset " + lpAssetId) + " doesn't exist")).quantity
+    if ((lpAssetId != pmtAssetId))
+        then throw("Invalid asset passed.")
+        else {
+            let amBalance = getAccBalance(amAssetId)
+            let amBalanceX18 = toX18(amBalance, amAssetDcm)
+            let prBalance = getAccBalance(prAssetId)
+            let prBalanceX18 = toX18(prBalance, prAssetDcm)
+            let curPriceX18 = calcPriceBigInt(prBalanceX18, amBalanceX18)
+            let curPrice = fromX18(curPriceX18, scale8)
+            let pmtLpAmtX18 = toX18(pmtLpAmt, scale8)
+            let lpEmissionX18 = toX18(lpEmission, scale8)
+            let outAmAmtX18 = fraction(amBalanceX18, pmtLpAmtX18, lpEmissionX18)
+            let outPrAmtX18 = fraction(prBalanceX18, pmtLpAmtX18, lpEmissionX18)
+            let outAmAmt = fromX18Round(outAmAmtX18, amAssetDcm, FLOOR)
+            let outPrAmt = fromX18Round(outPrAmtX18, prAssetDcm, FLOOR)
+            let state = if ((txId58 == ""))
+                then nil
+                else [ScriptTransfer(userAddress, outAmAmt, if ((amAssetId == "WAVES"))
+                    then unit
+                    else fromBase58String(amAssetId)), ScriptTransfer(userAddress, outPrAmt, if ((prAssetId == "WAVES"))
+                    then unit
+                    else fromBase58String(prAssetId)), StringEntry(gau(toString(userAddress), txId58), dataGetActionInfo(outAmAmt, outPrAmt, pmtLpAmt, curPrice, height, lastBlock.timestamp)), IntegerEntry(pl(), curPrice), IntegerEntry(ph(height, lastBlock.timestamp), curPrice)]
+            $Tuple10(outAmAmt, outPrAmt, amAssetId, prAssetId, amBalance, prBalance, lpEmission, curPriceX18, poolStatus, state)
+            }
+    }
+
+
+func estimatePutOperation (txId58,slippageTolerance,inAmAssetAmt,inAmAssetId,inPrAssetAmt,inPrAssetId,userAddress,isEvaluate,emitLp) = {
+    let cfg = getPoolConfig()
+    let lpAssetId = fromBase58String(cfg[idxPoolLPAssetId])
+    let amAssetIdStr = cfg[idxAmtAssetId]
+    let prAssetIdStr = cfg[idxPriceAssetId]
+    let iAmtAssetId = cfg[idxIAmtAssetId]
+    let iPriceAssetId = cfg[idxIPriceAssetId]
+    let amtAssetDcm = parseIntValue(cfg[idxAmtAssetDcm])
+    let priceAssetDcm = parseIntValue(cfg[idxPriceAssetDcm])
+    let poolStatus = cfg[idxPoolStatus]
+    let lpEmission = valueOrErrorMessage(assetInfo(lpAssetId), (("Asset " + toBase58String(lpAssetId)) + " doesn't exist")).quantity
+    let inAmAssetIdStr = toBase58String(valueOrElse(inAmAssetId, fromBase58String("WAVES")))
+    let inPrAssetIdStr = toBase58String(valueOrElse(inPrAssetId, fromBase58String("WAVES")))
+    if (if ((amAssetIdStr != inAmAssetIdStr))
+        then true
+        else (prAssetIdStr != inPrAssetIdStr))
+        then throw("Invalid amt or price asset passed.")
+        else {
+            let amBalance = if (isEvaluate)
+                then getAccBalance(amAssetIdStr)
+                else (getAccBalance(amAssetIdStr) - inAmAssetAmt)
+            let prBalance = if (isEvaluate)
+                then getAccBalance(prAssetIdStr)
+                else (getAccBalance(prAssetIdStr) - inPrAssetAmt)
+            let inAmAssetAmtX18 = toX18(inAmAssetAmt, amtAssetDcm)
+            let inPrAssetAmtX18 = toX18(inPrAssetAmt, priceAssetDcm)
+            let userPriceX18 = calcPriceBigInt(inPrAssetAmtX18, inAmAssetAmtX18)
+            let amBalanceX18 = toX18(amBalance, amtAssetDcm)
+            let prBalanceX18 = toX18(prBalance, priceAssetDcm)
+            let res = if ((lpEmission == 0))
+                then {
+                    let curPriceX18 = zeroBigInt
+                    let slippageX18 = zeroBigInt
+                    let lpAmtX18 = pow((inAmAssetAmtX18 * inPrAssetAmtX18), 0, toBigInt(5), 1, 0, DOWN)
+                    $Tuple5(fromX18(lpAmtX18, scale8), fromX18(inAmAssetAmtX18, amtAssetDcm), fromX18(inPrAssetAmtX18, priceAssetDcm), calcPriceBigInt((prBalanceX18 + inPrAssetAmtX18), (amBalanceX18 + inAmAssetAmtX18)), slippageX18)
+                    }
+                else {
+                    let curPriceX18 = calcPriceBigInt(prBalanceX18, amBalanceX18)
+                    let slippageX18 = fraction(absBigInt((curPriceX18 - userPriceX18)), scale18, curPriceX18)
+                    let slippageToleranceX18 = toX18(slippageTolerance, scale8)
+                    if (if ((curPriceX18 != zeroBigInt))
+                        then (slippageX18 > slippageToleranceX18)
+                        else false)
+                        then throw(((("Price slippage " + toString(slippageX18)) + " exceeded the passed limit of ") + toString(slippageToleranceX18)))
+                        else {
+                            let lpEmissionX18 = toX18(lpEmission, scale8)
+                            let prViaAmX18 = fraction(inAmAssetAmtX18, calcPriceBigIntRound(prBalanceX18, amBalanceX18, CEILING), scale18, CEILING)
+                            let amViaPrX18 = fraction(inPrAssetAmtX18, scale18, calcPriceBigIntRound(prBalanceX18, amBalanceX18, FLOOR), CEILING)
+                            let expectedAmts = if ((prViaAmX18 > inPrAssetAmtX18))
+                                then $Tuple2(amViaPrX18, inPrAssetAmtX18)
+                                else $Tuple2(inAmAssetAmtX18, prViaAmX18)
+                            let expAmtAssetAmtX18 = expectedAmts._1
+                            let expPriceAssetAmtX18 = expectedAmts._2
+                            let lpAmtX18 = fraction(lpEmissionX18, expPriceAssetAmtX18, prBalanceX18, FLOOR)
+                            $Tuple5(fromX18Round(lpAmtX18, scale8, FLOOR), fromX18Round(expAmtAssetAmtX18, amtAssetDcm, CEILING), fromX18Round(expPriceAssetAmtX18, priceAssetDcm, CEILING), curPriceX18, slippageX18)
+                            }
+                    }
+            let calcLpAmt = res._1
+            let calcAmAssetPmt = res._2
+            let calcPrAssetPmt = res._3
+            let curPrice = fromX18(res._4, scale8)
+            let slippageCalc = fromX18(res._5, scale8)
+            if ((0 >= calcLpAmt))
+                then throw("Invalid calculations. LP calculated is less than zero.")
+                else {
+                    let emitLpAmt = if (!(emitLp))
+                        then 0
+                        else calcLpAmt
+                    let amDiff = (inAmAssetAmt - calcAmAssetPmt)
+                    let prDiff = (inPrAssetAmt - calcPrAssetPmt)
+                    let commonState = [IntegerEntry(pl(), curPrice), IntegerEntry(ph(height, lastBlock.timestamp), curPrice), StringEntry(pau(userAddress, txId58), dataPutActionInfo(calcAmAssetPmt, calcPrAssetPmt, emitLpAmt, curPrice, slippageTolerance, slippageCalc, height, lastBlock.timestamp, amDiff, prDiff))]
+                    $Tuple13(calcLpAmt, emitLpAmt, curPrice, amBalance, prBalance, lpEmission, lpAssetId, poolStatus, commonState, amDiff, prDiff, inAmAssetId, inPrAssetId)
+                    }
+            }
+    }
+
+
+func calcKLp (amountBalance,priceBalance,lpEmission) = {
+    let amountBalanceX18 = toX18BigInt(amountBalance, toBigInt(cfgAmountAssetDecimals))
+    let priceBalanceX18 = toX18BigInt(priceBalance, toBigInt(cfgPriceAssetDecimals))
+    let updatedKLp = fraction(pow((amountBalanceX18 * priceBalanceX18), 0, toBigInt(5), 1, 18, DOWN), big1, lpEmission)
+    if ((lpEmission == big0))
+        then big0
+        else updatedKLp
+    }
+
+
+func calcCurrentKLp (amountAssetDelta,priceAssetDelta,lpAssetEmissionDelta) = {
+    let amountAssetBalance = (toBigInt(getAccBalance(assetIdToString(cfgAmountAssetId))) - amountAssetDelta)
+    let priceAssetBalance = (toBigInt(getAccBalance(assetIdToString(cfgPriceAssetId))) - priceAssetDelta)
+    let lpAssetEmission = (toBigInt(value(assetInfo(cfgLpAssetId)).quantity) - lpAssetEmissionDelta)
+    let currentKLp = calcKLp(amountAssetBalance, priceAssetBalance, lpAssetEmission)
+    currentKLp
+    }
+
+
+func refreshKLpInternal (amountAssetBalanceDelta,priceAssetBalanceDelta,lpAssetEmissionDelta) = {
+    let amountAssetBalance = (getAccBalance(assetIdToString(cfgAmountAssetId)) + amountAssetBalanceDelta)
+    let priceAssetBalance = (getAccBalance(assetIdToString(cfgPriceAssetId)) + priceAssetBalanceDelta)
+    let lpAssetEmission = (value(assetInfo(cfgLpAssetId)).quantity + lpAssetEmissionDelta)
+    let updatedKLp = calcKLp(toBigInt(amountAssetBalance), toBigInt(priceAssetBalance), toBigInt(lpAssetEmission))
+    let actions = [IntegerEntry(keyKLpRefreshedHeight, height), StringEntry(keyKLp, toString(updatedKLp))]
+    $Tuple2(actions, updatedKLp)
+    }
+
+
+func skipOrderValidation () = valueOrElse(getBoolean(factoryContract, keySkipOrderValidation(toString(this))), false)
+
+
+func validateUpdatedKLp (oldKLp,updatedKLp) = if ((updatedKLp >= oldKLp))
+    then true
+    else throwErr(makeString(["updated KLp lower than current KLp", toString(oldKLp), toString(updatedKLp)], " "))
+
+
+func validateMatcherOrderAllowed (order) = {
+    let amountAssetBalance = getAccBalance(assetIdToString(cfgAmountAssetId))
+    let priceAssetBalance = getAccBalance(assetIdToString(cfgPriceAssetId))
+    let amountAssetAmount = order.amount
+    let priceAssetAmount = fraction(order.amount, order.price, scale8, FLOOR)
+    let $t02945029662 = if ((order.orderType == Buy))
+        then $Tuple2(amountAssetAmount, -(priceAssetAmount))
+        else $Tuple2(-(amountAssetAmount), priceAssetAmount)
+    let amountAssetBalanceDelta = $t02945029662._1
+    let priceAssetBalanceDelta = $t02945029662._2
+    if (if (if (isGlobalShutdown())
+        then true
+        else (cfgPoolStatus == PoolMatcherDisabled))
+        then true
+        else (cfgPoolStatus == PoolShutdown))
+        then throw("Exchange operations disabled")
+        else if (if ((order.assetPair.amountAsset != cfgAmountAssetId))
+            then true
+            else (order.assetPair.priceAsset != cfgPriceAssetId))
+            then throw("Wrong order assets.")
+            else {
+                let kLp = valueOrErrorMessage(parseBigInt(valueOrElse(getString(this, keyKLp), "0")), fmtErr("invalid kLp"))
+                let $t03010230202 = refreshKLpInternal(amountAssetBalanceDelta, priceAssetBalanceDelta, 0)
+                let unusedActions = $t03010230202._1
+                let kLpNew = $t03010230202._2
+                let isOrderValid = (kLpNew >= kLp)
+                let info = makeString(["kLp=", toString(kLp), " kLpNew=", toString(kLpNew), " amountAssetBalance=", toString(amountAssetBalance), " priceAssetBalance=", toString(priceAssetBalance), " amountAssetBalanceDelta=", toString(amountAssetBalanceDelta), " priceAssetBalanceDelta=", toString(priceAssetBalanceDelta), " height=", toString(height)], "")
+                $Tuple2(isOrderValid, info)
+                }
+    }
+
+
+func commonGet (i) = if ((size(i.payments) != 1))
+    then throw("exactly 1 payment is expected")
+    else {
+        let pmt = value(i.payments[0])
+        let pmtAssetId = value(pmt.assetId)
+        let pmtAmt = pmt.amount
+        let res = estimateGetOperation(toBase58String(i.transactionId), toBase58String(pmtAssetId), pmtAmt, i.caller)
+        let outAmAmt = res._1
+        let outPrAmt = res._2
+        let state = res._10
+        let isGetDisabled = if (!(isAddressWhitelisted(i.caller)))
+            then if (isGlobalShutdown())
+                then true
+                else (cfgPoolStatus == PoolShutdown)
+            else false
+        if (isGetDisabled)
+            then throw(("Get operation is blocked by admin. Status = " + toString(cfgPoolStatus)))
+            else $Tuple5(outAmAmt, outPrAmt, pmtAmt, pmtAssetId, state)
+        }
+
+
+func commonPut (i,slippageTolerance,emitLp) = if ((size(i.payments) != 2))
+    then throw("exactly 2 payments are expected")
+    else {
+        let amAssetPmt = value(i.payments[0])
+        let prAssetPmt = value(i.payments[1])
+        let estPut = estimatePutOperation(toBase58String(i.transactionId), slippageTolerance, amAssetPmt.amount, amAssetPmt.assetId, prAssetPmt.amount, prAssetPmt.assetId, toString(i.caller), false, emitLp)
+        let isPutDisabled = if (!(isAddressWhitelisted(i.caller)))
+            then if (if (isGlobalShutdown())
+                then true
+                else (cfgPoolStatus == PoolPutDisabled))
+                then true
+                else (cfgPoolStatus == PoolShutdown)
+            else false
+        if (isPutDisabled)
+            then throw(("Put operation is blocked by admin. Status = " + toString(cfgPoolStatus)))
+            else estPut
+        }
+
+
+func emit (amount) = {
+    let emitInv = invoke(factoryContract, "emit", [amount], nil)
+    if ((emitInv == emitInv))
+        then {
+            let emitInvLegacy =             match emitInv {
+                case legacyFactoryContract: Address => 
+                    invoke(legacyFactoryContract, "emit", [amount], nil)
+                case _ => 
+                    unit
+            }
+            if ((emitInvLegacy == emitInvLegacy))
+                then amount
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func takeFee (amount,fee) = {
+    let feeAmount = if ((fee == 0))
+        then 0
+        else fraction(amount, fee, scale8)
+    $Tuple2((amount - feeAmount), feeAmount)
+    }
+
+
+func calcPutOneToken (paymentAmountRaw,paymentAssetId,userAddress,txId) = {
+    let isEval = (txId == unit)
+    let amountBalanceRaw = getAccBalance(assetIdToString(cfgAmountAssetId))
+    let priceBalanceRaw = getAccBalance(assetIdToString(cfgPriceAssetId))
+    let paymentInAmountAsset = if ((paymentAssetId == cfgAmountAssetId))
+        then true
+        else if ((paymentAssetId == cfgPriceAssetId))
+            then false
+            else throwErr("invalid asset")
+    let $t03338833681 = if (isEval)
+        then $Tuple2(amountBalanceRaw, priceBalanceRaw)
+        else if (paymentInAmountAsset)
+            then $Tuple2((amountBalanceRaw - paymentAmountRaw), priceBalanceRaw)
+            else $Tuple2(amountBalanceRaw, (priceBalanceRaw - paymentAmountRaw))
+    let amountBalanceOld = $t03338833681._1
+    let priceBalanceOld = $t03338833681._2
+    let $t03368533834 = if (paymentInAmountAsset)
+        then $Tuple2(paymentAmountRaw, 0)
+        else $Tuple2(0, paymentAmountRaw)
+    let amountAssetAmountRaw = $t03368533834._1
+    let priceAssetAmountRaw = $t03368533834._2
+    let amountAssetAmount = takeFee(amountAssetAmountRaw, inFee)._1
+    let priceAssetAmount = takeFee(priceAssetAmountRaw, inFee)._1
+    let $t03396634030 = takeFee(paymentAmountRaw, inFee)
+    let paymentAmount = $t03396634030._1
+    let feeAmount = $t03396634030._2
+    let amountBalanceNew = (amountBalanceOld + amountAssetAmount)
+    let priceBalanceNew = (priceBalanceOld + priceAssetAmount)
+    let priceNewX18 = calcPriceBigInt(toX18(priceBalanceNew, cfgPriceAssetDecimals), toX18(amountBalanceNew, cfgAmountAssetDecimals))
+    let priceNew = fromX18(priceNewX18, scale8)
+    let paymentBalance = if (paymentInAmountAsset)
+        then amountBalanceOld
+        else priceBalanceOld
+    let paymentBalanceBigInt = toBigInt(paymentBalance)
+    let supplyBigInt = toBigInt(valueOrErrorMessage(assetInfo(cfgLpAssetId), (("asset " + toBase58String(cfgLpAssetId)) + " doesn't exist")).quantity)
+    let chechSupply = if ((supplyBigInt > big0))
+        then true
+        else throwErr("initial deposit requires all coins")
+    if ((chechSupply == chechSupply))
+        then {
+            let depositBigInt = toBigInt(paymentAmount)
+            let issueAmount = max([0, toInt(((supplyBigInt * (sqrtBigInt((scale18 + ((depositBigInt * scale18) / paymentBalanceBigInt)), 18, 18, DOWN) - scale18)) / scale18))])
+            let commonState = if (isEval)
+                then nil
+                else [IntegerEntry(pl(), priceNew), IntegerEntry(ph(height, lastBlock.timestamp), priceNew), StringEntry(pau(toString(value(userAddress)), toBase58String(value(txId))), dataPutActionInfo(amountAssetAmountRaw, priceAssetAmountRaw, issueAmount, priceNew, 0, 0, height, lastBlock.timestamp, 0, 0))]
+            let priceOldX18 = calcPriceBigInt(toX18(priceBalanceOld, cfgPriceAssetDecimals), toX18(amountBalanceOld, cfgAmountAssetDecimals))
+            let priceOld = fromX18(priceOldX18, scale8)
+            let loss = {
+                let $t03571135878 = if (paymentInAmountAsset)
+                    then $Tuple2(amountAssetAmountRaw, amountBalanceOld)
+                    else $Tuple2(priceAssetAmountRaw, priceBalanceOld)
+                let amount = $t03571135878._1
+                let balance = $t03571135878._2
+                let issueAmountBoth = toInt(fraction(supplyBigInt, toBigInt((amount / 2)), toBigInt(balance)))
+                fraction((issueAmount - issueAmountBoth), scale8, issueAmountBoth)
+                }
+            $Tuple5(issueAmount, commonState, feeAmount, loss, paymentInAmountAsset)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func calcGetOneToken (outAssetId,paymentAmount,paymentAssetId,userAddress,txId) = {
+    let isEval = (txId == unit)
+    let cfg = getPoolConfig()
+    let amtAssetDcm = parseIntValue(cfg[idxAmtAssetDcm])
+    let priceAssetDcm = parseIntValue(cfg[idxPriceAssetDcm])
+    let checks = [if ((paymentAssetId == cfgLpAssetId))
+        then true
+        else throwErr("invalid lp asset")]
+    if ((checks == checks))
+        then {
+            let outInAmountAsset = if ((outAssetId == cfgAmountAssetId))
+                then true
+                else if ((outAssetId == cfgPriceAssetId))
+                    then false
+                    else throwErr("invalid asset")
+            let balanceBigInt = if (outInAmountAsset)
+                then toBigInt(getAccBalance(assetIdToString(cfgAmountAssetId)))
+                else toBigInt(getAccBalance(assetIdToString(cfgPriceAssetId)))
+            let outInAmountAssetDecimals = if (outInAmountAsset)
+                then amtAssetDcm
+                else priceAssetDcm
+            let amBalanceOld = getAccBalance(assetIdToString(cfgAmountAssetId))
+            let prBalanceOld = getAccBalance(assetIdToString(cfgPriceAssetId))
+            let outBalance = if (outInAmountAsset)
+                then amBalanceOld
+                else prBalanceOld
+            let outBalanceBigInt = toBigInt(outBalance)
+            let supplyBigInt = toBigInt(valueOrErrorMessage(assetInfo(cfgLpAssetId), (("asset " + toBase58String(cfgLpAssetId)) + " doesn't exist")).quantity)
+            let redeemedBigInt = toBigInt(paymentAmount)
+            let amountRaw = max([0, toInt(((balanceBigInt * (scale18 - pow((scale18 - ((redeemedBigInt * scale18) / supplyBigInt)), 18, big2, 0, 18, DOWN))) / scale18))])
+            let $t03795638012 = takeFee(amountRaw, outFee)
+            let totalAmount = $t03795638012._1
+            let feeAmount = $t03795638012._2
+            let $t03801638242 = if (outInAmountAsset)
+                then $Tuple4(totalAmount, 0, (amBalanceOld - amountRaw), prBalanceOld)
+                else $Tuple4(0, totalAmount, amBalanceOld, (prBalanceOld - amountRaw))
+            let outAmAmount = $t03801638242._1
+            let outPrAmount = $t03801638242._2
+            let amBalanceNew = $t03801638242._3
+            let prBalanceNew = $t03801638242._4
+            let priceNewX18 = calcPriceBigInt(toX18(prBalanceNew, cfgPriceAssetDecimals), toX18(amBalanceNew, cfgAmountAssetDecimals))
+            let priceNew = fromX18(priceNewX18, scale8)
+            let commonState = if (isEval)
+                then nil
+                else [StringEntry(gau(toString(value(userAddress)), toBase58String(value(txId))), dataGetActionInfo(outAmAmount, outPrAmount, paymentAmount, priceNew, height, lastBlock.timestamp)), IntegerEntry(pl(), priceNew), IntegerEntry(ph(height, lastBlock.timestamp), priceNew)]
+            let priceOldX18 = calcPriceBigInt(toX18(prBalanceOld, cfgPriceAssetDecimals), toX18(amBalanceOld, cfgAmountAssetDecimals))
+            let priceOld = fromX18(priceOldX18, scale8)
+            let loss = {
+                let amountBothInPaymentAsset = (toInt(fraction(balanceBigInt, redeemedBigInt, supplyBigInt)) * 2)
+                fraction((totalAmount - amountBothInPaymentAsset), scale8, amountBothInPaymentAsset)
+                }
+            $Tuple5(totalAmount, commonState, feeAmount, loss, outInAmountAsset)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func managerPublicKeyOrUnit () = {
+    let managerVaultAddress = getManagerVaultAddressOrThis()
+    match getString(managerVaultAddress, keyManagerPublicKey()) {
+        case s: String => 
+            fromBase58String(s)
+        case _: Unit => 
+            unit
+        case _ => 
+            throw("Match error")
+    }
+    }
+
+
+func isManager (i) = match managerPublicKeyOrUnit() {
+    case pk: ByteVector => 
+        (i.callerPublicKey == pk)
+    case _: Unit => 
+        (i.caller == this)
+    case _ => 
+        throw("Match error")
+}
+
+
+func mustManager (i) = {
+    let pd = throw("Permission denied")
+    match managerPublicKeyOrUnit() {
+        case pk: ByteVector => 
+            if ((i.callerPublicKey == pk))
+                then true
+                else pd
+        case _: Unit => 
+            if ((i.caller == this))
+                then true
+                else pd
+        case _ => 
+            throw("Match error")
+    }
+    }
+
+
+@Callable(i)
+func rebalance () = (rebalanceAsset(getStringOrFail(this, aa())) ++ rebalanceAsset(getStringOrFail(this, pa())))
+
+
+
+@Callable(i)
+func calculateAmountOutForSwapREADONLY (cleanAmountIn,isReverse,feePoolAmount) = {
+    let $t04010040405 = if ((isReverse == false))
+        then {
+            let assetOut = getStringOrFail(this, pa())
+            let assetIn = getStringOrFail(this, aa())
+            $Tuple2(assetOut, assetIn)
+            }
+        else {
+            let assetOut = getStringOrFail(this, aa())
+            let assetIn = getStringOrFail(this, pa())
+            $Tuple2(assetOut, assetIn)
+            }
+    let assetOut = $t04010040405._1
+    let assetIn = $t04010040405._2
+    let poolAssetInBalance = getAccBalance(assetIn)
+    let poolAssetOutBalance = getAccBalance(assetOut)
+    let amountOut = fraction(poolAssetOutBalance, cleanAmountIn, (poolAssetInBalance + cleanAmountIn))
+    let oldK = (toBigInt(poolAssetInBalance) * toBigInt(poolAssetOutBalance))
+    let newK = (((toBigInt(getAccBalance(assetIn)) + toBigInt(cleanAmountIn)) + toBigInt(feePoolAmount)) * (toBigInt(getAccBalance(assetOut)) - toBigInt(amountOut)))
+    let checkK = if ((newK >= oldK))
+        then true
+        else throw("new K is fewer error")
+    if ((checkK == checkK))
+        then $Tuple2(nil, amountOut)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func calculateAmountOutForSwapAndSendTokens (cleanAmountIn,isReverse,amountOutMin,addressTo,feePoolAmount) = {
+    let swapContact = {
+        let @ = invoke(factoryContract, "getSwapContractREADONLY", nil, nil)
+        if ($isInstanceOf(@, "String"))
+            then @
+            else throw(($getType(@) + " couldn't be cast to String"))
+        }
+    let isPoolSwapDisabled = {
+        let @ = invoke(factoryContract, "isPoolSwapDisabledREADONLY", [toString(this)], nil)
+        if ($isInstanceOf(@, "Boolean"))
+            then @
+            else throw(($getType(@) + " couldn't be cast to Boolean"))
+        }
+    let isSwapDisabled = if (!(isAddressWhitelisted(i.caller)))
+        then if (if (isGlobalShutdown())
+            then true
+            else (cfgPoolStatus == PoolShutdown))
+            then true
+            else isPoolSwapDisabled
+        else false
+    let checks = [if (if (!(isSwapDisabled))
+        then true
+        else isManager(i))
+        then true
+        else throwErr("swap operation is blocked by admin"), if ((value(i.payments[0]).amount >= cleanAmountIn))
+        then true
+        else throwErr("Wrong amount"), if ((i.caller == addressFromStringValue(swapContact)))
+        then true
+        else throwErr("Permission denied")]
+    if ((checks == checks))
+        then {
+            let pmt = value(i.payments[0])
+            let assetIn = assetIdToString(pmt.assetId)
+            let assetOut = if ((isReverse == false))
+                then getStringOrFail(this, pa())
+                else getStringOrFail(this, aa())
+            let poolAssetInBalance = ((getAccBalance(assetIn) - value(i.payments[0]).amount) - feePoolAmount)
+            let poolAssetOutBalance = getAccBalance(assetOut)
+            let amountOut = fraction(poolAssetOutBalance, cleanAmountIn, (poolAssetInBalance + cleanAmountIn))
+            let oldK = (toBigInt(poolAssetInBalance) * toBigInt(poolAssetOutBalance))
+            let newK = ((toBigInt(getAccBalance(assetIn)) + toBigInt(feePoolAmount)) * (toBigInt(getAccBalance(assetOut)) - toBigInt(amountOut)))
+            let checkK = if ((newK >= oldK))
+                then true
+                else throw("new K is fewer error")
+            if ((checkK == checkK))
+                then {
+                    let checkMin = if ((amountOut >= amountOutMin))
+                        then true
+                        else throw("Exchange result is fewer coins than expected")
+                    if ((checkMin == checkMin))
+                        then {
+                            let amountAssetBalanceDelta = if (isReverse)
+                                then -(amountOut)
+                                else feePoolAmount
+                            let priceAssetBalanceDelta = if (isReverse)
+                                then feePoolAmount
+                                else -(amountOut)
+                            let refreshKLpActions = refreshKLpInternal(amountAssetBalanceDelta, priceAssetBalanceDelta, 0)._1
+                            if ((refreshKLpActions == refreshKLpActions))
+                                then {
+                                    let rebalanceState = rebalanceAsset(assetIn)
+                                    if ((rebalanceState == rebalanceState))
+                                        then {
+                                            let withdrawState = withdrawAndRebalanceAsset(assetOut, amountOut)
+                                            if ((withdrawState == withdrawState))
+                                                then $Tuple2(((withdrawState ++ rebalanceState) ++ [ScriptTransfer(addressFromStringValue(addressTo), amountOut, parseAssetId(assetOut))]), amountOut)
+                                                else throw("Strict value is not equal to itself.")
+                                            }
+                                        else throw("Strict value is not equal to itself.")
+                                    }
+                                else throw("Strict value is not equal to itself.")
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func put (slippageTolerance,shouldAutoStake) = if ((0 > slippageTolerance))
+    then throw("Invalid slippageTolerance passed")
+    else {
+        let estPut = commonPut(i, slippageTolerance, true)
+        let emitLpAmt = estPut._2
+        let lpAssetId = estPut._7
+        let state = estPut._9
+        let amDiff = estPut._10
+        let prDiff = estPut._11
+        let amId = estPut._12
+        let prId = estPut._13
+        let amAssetPmt = toBigInt(value(i.payments[0]).amount)
+        let prAssetPmt = toBigInt(value(i.payments[1]).amount)
+        let currentKLp = calcCurrentKLp(amAssetPmt, prAssetPmt, toBigInt(0))
+        if ((currentKLp == currentKLp))
+            then {
+                let emitInv = invoke(factoryContract, "emit", [emitLpAmt], nil)
+                if ((emitInv == emitInv))
+                    then {
+                        let emitInvLegacy =                         match emitInv {
+                            case legacyFactoryContract: Address => 
+                                invoke(legacyFactoryContract, "emit", [emitLpAmt], nil)
+                            case _ => 
+                                unit
+                        }
+                        if ((emitInvLegacy == emitInvLegacy))
+                            then {
+                                let slippageAInv = if ((amDiff > 0))
+                                    then invoke(slippageContract, "put", nil, [AttachedPayment(amId, amDiff)])
+                                    else nil
+                                if ((slippageAInv == slippageAInv))
+                                    then {
+                                        let slippagePInv = if ((prDiff > 0))
+                                            then invoke(slippageContract, "put", nil, [AttachedPayment(prId, prDiff)])
+                                            else nil
+                                        if ((slippagePInv == slippagePInv))
+                                            then {
+                                                let lpTransfer = if (shouldAutoStake)
+                                                    then {
+                                                        let slpStakeInv = invoke(stakingContract, "stake", nil, [AttachedPayment(lpAssetId, emitLpAmt)])
+                                                        if ((slpStakeInv == slpStakeInv))
+                                                            then nil
+                                                            else throw("Strict value is not equal to itself.")
+                                                        }
+                                                    else [ScriptTransfer(i.caller, emitLpAmt, lpAssetId)]
+                                                let $t04558146043 = refreshKLpInternal(0, 0, 0)
+                                                if (($t04558146043 == $t04558146043))
+                                                    then {
+                                                        let updatedKLp = $t04558146043._2
+                                                        let refreshKLpActions = $t04558146043._1
+                                                        let isUpdatedKLpValid = validateUpdatedKLp(currentKLp, updatedKLp)
+                                                        if ((isUpdatedKLpValid == isUpdatedKLpValid))
+                                                            then {
+                                                                let reb = invoke(this, "rebalance", nil, nil)
+                                                                if ((reb == reb))
+                                                                    then ((state ++ lpTransfer) ++ refreshKLpActions)
+                                                                    else throw("Strict value is not equal to itself.")
+                                                                }
+                                                            else throw("Strict value is not equal to itself.")
+                                                        }
+                                                    else throw("Strict value is not equal to itself.")
+                                                }
+                                            else throw("Strict value is not equal to itself.")
+                                        }
+                                    else throw("Strict value is not equal to itself.")
+                                }
+                            else throw("Strict value is not equal to itself.")
+                        }
+                    else throw("Strict value is not equal to itself.")
+                }
+            else throw("Strict value is not equal to itself.")
+        }
+
+
+
+@Callable(i)
+func putForFree (maxSlippage) = if ((0 > maxSlippage))
+    then throw("Invalid value passed")
+    else {
+        let estPut = commonPut(i, maxSlippage, false)
+        let state = estPut._9
+        let amAssetPmt = toBigInt(value(i.payments[0]).amount)
+        let prAssetPmt = toBigInt(value(i.payments[1]).amount)
+        let currentKLp = calcCurrentKLp(amAssetPmt, prAssetPmt, toBigInt(0))
+        if ((currentKLp == currentKLp))
+            then {
+                let $t04665546720 = refreshKLpInternal(0, 0, 0)
+                let refreshKLpActions = $t04665546720._1
+                let updatedKLp = $t04665546720._2
+                let isUpdatedKLpValid = validateUpdatedKLp(currentKLp, updatedKLp)
+                if ((isUpdatedKLpValid == isUpdatedKLpValid))
+                    then (state ++ refreshKLpActions)
+                    else throw("Strict value is not equal to itself.")
+                }
+            else throw("Strict value is not equal to itself.")
+        }
+
+
+
+@Callable(i)
+func putOneTkn (minOutAmount,autoStake) = {
+    let isPoolOneTokenOperationsDisabled = {
+        let @ = invoke(factoryContract, "isPoolOneTokenOperationsDisabledREADONLY", [toString(this)], nil)
+        if ($isInstanceOf(@, "Boolean"))
+            then @
+            else throw(($getType(@) + " couldn't be cast to Boolean"))
+        }
+    let isPutDisabled = if (!(isAddressWhitelisted(i.caller)))
+        then if (if (if (isGlobalShutdown())
+            then true
+            else (cfgPoolStatus == PoolPutDisabled))
+            then true
+            else (cfgPoolStatus == PoolShutdown))
+            then true
+            else isPoolOneTokenOperationsDisabled
+        else false
+    let checks = [if (if (!(isPutDisabled))
+        then true
+        else isManager(i))
+        then true
+        else throwErr("put operation is blocked by admin"), if ((size(i.payments) == 1))
+        then true
+        else throwErr("exactly 1 payment are expected")]
+    if ((checks == checks))
+        then {
+            let payment = i.payments[0]
+            let paymentAssetId = payment.assetId
+            let paymentAmountRaw = payment.amount
+            let currentKLp = if ((paymentAssetId == cfgAmountAssetId))
+                then calcCurrentKLp(toBigInt(paymentAmountRaw), toBigInt(0), toBigInt(0))
+                else if ((paymentAssetId == cfgPriceAssetId))
+                    then calcCurrentKLp(toBigInt(0), toBigInt(paymentAmountRaw), toBigInt(0))
+                    else throwErr("payment asset is not supported")
+            if ((currentKLp == currentKLp))
+                then {
+                    let userAddress = i.caller
+                    let txId = i.transactionId
+                    let $t04794948101 = calcPutOneToken(paymentAmountRaw, paymentAssetId, userAddress, txId)
+                    if (($t04794948101 == $t04794948101))
+                        then {
+                            let paymentInAmountAsset = $t04794948101._5
+                            let bonus = $t04794948101._4
+                            let feeAmount = $t04794948101._3
+                            let commonState = $t04794948101._2
+                            let emitAmountEstimated = $t04794948101._1
+                            let emitAmount = if (if ((minOutAmount > 0))
+                                then (minOutAmount > emitAmountEstimated)
+                                else false)
+                                then throwErr(makeString(["amount to receive is less than ", toString(minOutAmount)], ""))
+                                else emitAmountEstimated
+                            let emitInv = emit(emitAmount)
+                            if ((emitInv == emitInv))
+                                then {
+                                    let lpTransfer = if (autoStake)
+                                        then {
+                                            let stakeInv = invoke(stakingContract, "stake", nil, [AttachedPayment(cfgLpAssetId, emitAmount)])
+                                            if ((stakeInv == stakeInv))
+                                                then nil
+                                                else throw("Strict value is not equal to itself.")
+                                            }
+                                        else [ScriptTransfer(i.caller, emitAmount, cfgLpAssetId)]
+                                    let sendFee = if ((feeAmount > 0))
+                                        then [ScriptTransfer(feeCollectorAddress, feeAmount, paymentAssetId)]
+                                        else nil
+                                    let $t04868748884 = if ((this == feeCollectorAddress))
+                                        then $Tuple2(0, 0)
+                                        else if (paymentInAmountAsset)
+                                            then $Tuple2(-(feeAmount), 0)
+                                            else $Tuple2(0, -(feeAmount))
+                                    let amountAssetBalanceDelta = $t04868748884._1
+                                    let priceAssetBalanceDelta = $t04868748884._2
+                                    let $t04888748995 = refreshKLpInternal(amountAssetBalanceDelta, priceAssetBalanceDelta, 0)
+                                    let refreshKLpActions = $t04888748995._1
+                                    let updatedKLp = $t04888748995._2
+                                    let kLp = value(getString(keyKLp))
+                                    let isUpdatedKLpValid = validateUpdatedKLp(currentKLp, updatedKLp)
+                                    if ((isUpdatedKLpValid == isUpdatedKLpValid))
+                                        then {
+                                            let reb = invoke(this, "rebalance", nil, nil)
+                                            if ((reb == reb))
+                                                then $Tuple2((((commonState ++ lpTransfer) ++ sendFee) ++ refreshKLpActions), emitAmount)
+                                                else throw("Strict value is not equal to itself.")
+                                            }
+                                        else throw("Strict value is not equal to itself.")
+                                    }
+                                else throw("Strict value is not equal to itself.")
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func putOneTknREADONLY (paymentAssetId,paymentAmountRaw) = {
+    let $t04935049507 = calcPutOneToken(paymentAmountRaw, parseAssetId(paymentAssetId), unit, unit)
+    let emitAmountEstimated = $t04935049507._1
+    let commonState = $t04935049507._2
+    let feeAmount = $t04935049507._3
+    let bonus = $t04935049507._4
+    let paymentInAmountAsset = $t04935049507._5
+    $Tuple2(nil, $Tuple3(emitAmountEstimated, feeAmount, bonus))
+    }
+
+
+
+@Callable(i)
+func getOneTkn (outAssetIdStr,minOutAmount) = {
+    let isPoolOneTokenOperationsDisabled = {
+        let @ = invoke(factoryContract, "isPoolOneTokenOperationsDisabledREADONLY", [toString(this)], nil)
+        if ($isInstanceOf(@, "Boolean"))
+            then @
+            else throw(($getType(@) + " couldn't be cast to Boolean"))
+        }
+    let isGetDisabled = if (!(isAddressWhitelisted(i.caller)))
+        then if (if (isGlobalShutdown())
+            then true
+            else (cfgPoolStatus == PoolShutdown))
+            then true
+            else isPoolOneTokenOperationsDisabled
+        else false
+    let checks = [if (if (!(isGetDisabled))
+        then true
+        else isManager(i))
+        then true
+        else throwErr("get operation is blocked by admin"), if ((size(i.payments) == 1))
+        then true
+        else throwErr("exactly 1 payment are expected")]
+    if ((checks == checks))
+        then {
+            let outAssetId = parseAssetId(outAssetIdStr)
+            let payment = i.payments[0]
+            let paymentAssetId = payment.assetId
+            let paymentAmount = payment.amount
+            let currentKLp = calcCurrentKLp(toBigInt(0), toBigInt(0), toBigInt(0))
+            if ((currentKLp == currentKLp))
+                then {
+                    let userAddress = i.caller
+                    let txId = i.transactionId
+                    let $t05042950582 = calcGetOneToken(outAssetId, paymentAmount, paymentAssetId, userAddress, txId)
+                    if (($t05042950582 == $t05042950582))
+                        then {
+                            let outInAmountAsset = $t05042950582._5
+                            let bonus = $t05042950582._4
+                            let feeAmount = $t05042950582._3
+                            let commonState = $t05042950582._2
+                            let amountEstimated = $t05042950582._1
+                            let amount = if (if ((minOutAmount > 0))
+                                then (minOutAmount > amountEstimated)
+                                else false)
+                                then throwErr(makeString(["amount to receive is less than ", toString(minOutAmount)], ""))
+                                else amountEstimated
+                            let burnInv = invoke(factoryContract, "burn", [paymentAmount], [AttachedPayment(paymentAssetId, paymentAmount)])
+                            if ((burnInv == burnInv))
+                                then {
+                                    let withdrawState = withdrawAndRebalanceAsset(outAssetIdStr, (amount + max([0, feeAmount])))
+                                    let assetTransfer = [ScriptTransfer(userAddress, amount, outAssetId)]
+                                    let sendFee = if ((feeAmount > 0))
+                                        then [ScriptTransfer(feeCollectorAddress, feeAmount, outAssetId)]
+                                        else nil
+                                    let $t05124651493 = {
+                                        let feeAmountForCalc = if ((this == feeCollectorAddress))
+                                            then 0
+                                            else feeAmount
+                                        if (outInAmountAsset)
+                                            then $Tuple2(-((amount + feeAmountForCalc)), 0)
+                                            else $Tuple2(0, -((amount + feeAmountForCalc)))
+                                        }
+                                    let amountAssetBalanceDelta = $t05124651493._1
+                                    let priceAssetBalanceDelta = $t05124651493._2
+                                    let $t05149651604 = refreshKLpInternal(amountAssetBalanceDelta, priceAssetBalanceDelta, 0)
+                                    let refreshKLpActions = $t05149651604._1
+                                    let updatedKLp = $t05149651604._2
+                                    let isUpdatedKLpValid = validateUpdatedKLp(currentKLp, updatedKLp)
+                                    if ((isUpdatedKLpValid == isUpdatedKLpValid))
+                                        then $Tuple2(((((commonState ++ withdrawState) ++ assetTransfer) ++ sendFee) ++ refreshKLpActions), amount)
+                                        else throw("Strict value is not equal to itself.")
+                                    }
+                                else throw("Strict value is not equal to itself.")
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func getOneTknREADONLY (outAssetId,paymentAmount) = {
+    let $t05188252038 = calcGetOneToken(parseAssetId(outAssetId), paymentAmount, cfgLpAssetId, unit, unit)
+    let amountEstimated = $t05188252038._1
+    let commonState = $t05188252038._2
+    let feeAmount = $t05188252038._3
+    let bonus = $t05188252038._4
+    let outInAmountAsset = $t05188252038._5
+    $Tuple2(nil, $Tuple3(amountEstimated, feeAmount, bonus))
+    }
+
+
+
+@Callable(i)
+func unstakeAndGetOneTkn (unstakeAmount,outAssetIdStr,minOutAmount) = {
+    let isPoolOneTokenOperationsDisabled = {
+        let @ = invoke(factoryContract, "isPoolOneTokenOperationsDisabledREADONLY", [toString(this)], nil)
+        if ($isInstanceOf(@, "Boolean"))
+            then @
+            else throw(($getType(@) + " couldn't be cast to Boolean"))
+        }
+    let isGetDisabled = if (!(isAddressWhitelisted(i.caller)))
+        then if (if (isGlobalShutdown())
+            then true
+            else (cfgPoolStatus == PoolShutdown))
+            then true
+            else isPoolOneTokenOperationsDisabled
+        else false
+    let checks = [if (if (!(isGetDisabled))
+        then true
+        else isManager(i))
+        then true
+        else throwErr("get operation is blocked by admin"), if ((size(i.payments) == 0))
+        then true
+        else throwErr("no payments are expected")]
+    if ((checks == checks))
+        then {
+            let outAssetId = parseAssetId(outAssetIdStr)
+            let userAddress = i.caller
+            let txId = i.transactionId
+            let currentKLp = calcCurrentKLp(toBigInt(0), toBigInt(0), toBigInt(0))
+            if ((currentKLp == currentKLp))
+                then {
+                    let unstakeInv = invoke(stakingContract, "unstake", [toBase58String(cfgLpAssetId), unstakeAmount], nil)
+                    if ((unstakeInv == unstakeInv))
+                        then {
+                            let $t05298053131 = calcGetOneToken(outAssetId, unstakeAmount, cfgLpAssetId, userAddress, txId)
+                            if (($t05298053131 == $t05298053131))
+                                then {
+                                    let outInAmountAsset = $t05298053131._5
+                                    let bonus = $t05298053131._4
+                                    let feeAmount = $t05298053131._3
+                                    let commonState = $t05298053131._2
+                                    let amountEstimated = $t05298053131._1
+                                    let amount = if (if ((minOutAmount > 0))
+                                        then (minOutAmount > amountEstimated)
+                                        else false)
+                                        then throwErr(makeString(["amount to receive is less than ", toString(minOutAmount)], ""))
+                                        else amountEstimated
+                                    let burnInv = invoke(factoryContract, "burn", [unstakeAmount], [AttachedPayment(cfgLpAssetId, unstakeAmount)])
+                                    if ((burnInv == burnInv))
+                                        then {
+                                            let withdrawState = withdrawAndRebalanceAsset(outAssetIdStr, (amount + max([0, feeAmount])))
+                                            let assetTransfer = [ScriptTransfer(i.caller, amount, outAssetId)]
+                                            let sendFee = if ((feeAmount > 0))
+                                                then [ScriptTransfer(feeCollectorAddress, feeAmount, outAssetId)]
+                                                else nil
+                                            let $t05379054037 = {
+                                                let feeAmountForCalc = if ((this == feeCollectorAddress))
+                                                    then 0
+                                                    else feeAmount
+                                                if (outInAmountAsset)
+                                                    then $Tuple2(-((amount + feeAmountForCalc)), 0)
+                                                    else $Tuple2(0, -((amount + feeAmountForCalc)))
+                                                }
+                                            let amountAssetBalanceDelta = $t05379054037._1
+                                            let priceAssetBalanceDelta = $t05379054037._2
+                                            let $t05404054148 = refreshKLpInternal(amountAssetBalanceDelta, priceAssetBalanceDelta, 0)
+                                            let refreshKLpActions = $t05404054148._1
+                                            let updatedKLp = $t05404054148._2
+                                            let isUpdatedKLpValid = validateUpdatedKLp(currentKLp, updatedKLp)
+                                            if ((isUpdatedKLpValid == isUpdatedKLpValid))
+                                                then $Tuple2(((((commonState ++ withdrawState) ++ assetTransfer) ++ sendFee) ++ refreshKLpActions), amount)
+                                                else throw("Strict value is not equal to itself.")
+                                            }
+                                        else throw("Strict value is not equal to itself.")
+                                    }
+                                else throw("Strict value is not equal to itself.")
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func get () = {
+    let res = commonGet(i)
+    let outAmAmt = res._1
+    let outPrAmt = res._2
+    let pmtAmt = res._3
+    let pmtAssetId = res._4
+    let state = res._5
+    let withdrawState = withdrawAndRebalanceAll(outAmAmt, outPrAmt)
+    let currentKLp = calcCurrentKLp(toBigInt(0), toBigInt(0), toBigInt(0))
+    if ((currentKLp == currentKLp))
+        then {
+            let burnLPAssetOnFactory = invoke(factoryContract, "burn", [pmtAmt], [AttachedPayment(pmtAssetId, pmtAmt)])
+            if ((burnLPAssetOnFactory == burnLPAssetOnFactory))
+                then {
+                    let $t05524355324 = refreshKLpInternal(-(outAmAmt), -(outPrAmt), 0)
+                    let refreshKLpActions = $t05524355324._1
+                    let updatedKLp = $t05524355324._2
+                    let isUpdatedKLpValid = validateUpdatedKLp(currentKLp, updatedKLp)
+                    if ((isUpdatedKLpValid == isUpdatedKLpValid))
+                        then ((withdrawState ++ state) ++ refreshKLpActions)
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func getNoLess (noLessThenAmtAsset,noLessThenPriceAsset) = {
+    let res = commonGet(i)
+    let outAmAmt = res._1
+    let outPrAmt = res._2
+    let pmtAmt = res._3
+    let pmtAssetId = res._4
+    let state = res._5
+    if ((noLessThenAmtAsset > outAmAmt))
+        then throw(((("noLessThenAmtAsset failed:  " + toString(outAmAmt)) + " < ") + toString(noLessThenAmtAsset)))
+        else if ((noLessThenPriceAsset > outPrAmt))
+            then throw(((("noLessThenPriceAsset failed: " + toString(outPrAmt)) + " < ") + toString(noLessThenPriceAsset)))
+            else {
+                let withdrawState = withdrawAndRebalanceAll(outAmAmt, outPrAmt)
+                let currentKLp = calcCurrentKLp(toBigInt(0), toBigInt(0), toBigInt(0))
+                if ((currentKLp == currentKLp))
+                    then {
+                        let burnLPAssetOnFactory = invoke(factoryContract, "burn", [pmtAmt], [AttachedPayment(pmtAssetId, pmtAmt)])
+                        if ((burnLPAssetOnFactory == burnLPAssetOnFactory))
+                            then {
+                                let $t05641956500 = refreshKLpInternal(-(outAmAmt), -(outPrAmt), 0)
+                                let refreshKLpActions = $t05641956500._1
+                                let updatedKLp = $t05641956500._2
+                                let isUpdatedKLpValid = validateUpdatedKLp(currentKLp, updatedKLp)
+                                if ((isUpdatedKLpValid == isUpdatedKLpValid))
+                                    then ((withdrawState ++ state) ++ refreshKLpActions)
+                                    else throw("Strict value is not equal to itself.")
+                                }
+                            else throw("Strict value is not equal to itself.")
+                        }
+                    else throw("Strict value is not equal to itself.")
+                }
+    }
+
+
+
+@Callable(i)
+func unstakeAndGet (amount) = {
+    let checkPayments = if ((size(i.payments) != 0))
+        then throw("No payments are expected")
+        else true
+    if ((checkPayments == checkPayments))
+        then {
+            let cfg = getPoolConfig()
+            let lpAssetId = fromBase58String(cfg[idxPoolLPAssetId])
+            let currentKLp = calcCurrentKLp(toBigInt(0), toBigInt(0), toBigInt(0))
+            if ((currentKLp == currentKLp))
+                then {
+                    let unstakeInv = invoke(stakingContract, "unstake", [toBase58String(lpAssetId), amount], nil)
+                    if ((unstakeInv == unstakeInv))
+                        then {
+                            let res = estimateGetOperation(toBase58String(i.transactionId), toBase58String(lpAssetId), amount, i.caller)
+                            let outAmAmt = res._1
+                            let outPrAmt = res._2
+                            let poolStatus = parseIntValue(res._9)
+                            let state = res._10
+                            let withdrawState = withdrawAndRebalanceAll(outAmAmt, outPrAmt)
+                            let isGetDisabled = if (!(isAddressWhitelisted(i.caller)))
+                                then if (isGlobalShutdown())
+                                    then true
+                                    else (cfgPoolStatus == PoolShutdown)
+                                else false
+                            let checkPoolStatus = if (isGetDisabled)
+                                then throw(("Get operation is blocked by admin. Status = " + toString(poolStatus)))
+                                else true
+                            if ((checkPoolStatus == checkPoolStatus))
+                                then {
+                                    let burnLPAssetOnFactory = invoke(factoryContract, "burn", [amount], [AttachedPayment(lpAssetId, amount)])
+                                    if ((burnLPAssetOnFactory == burnLPAssetOnFactory))
+                                        then {
+                                            let $t05784857929 = refreshKLpInternal(-(outAmAmt), -(outPrAmt), 0)
+                                            let refreshKLpActions = $t05784857929._1
+                                            let updatedKLp = $t05784857929._2
+                                            let isUpdatedKLpValid = validateUpdatedKLp(currentKLp, updatedKLp)
+                                            if ((isUpdatedKLpValid == isUpdatedKLpValid))
+                                                then ((withdrawState ++ state) ++ refreshKLpActions)
+                                                else throw("Strict value is not equal to itself.")
+                                            }
+                                        else throw("Strict value is not equal to itself.")
+                                    }
+                                else throw("Strict value is not equal to itself.")
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func unstakeAndGetNoLess (unstakeAmount,noLessThenAmountAsset,noLessThenPriceAsset) = {
+    let isGetDisabled = if (!(isAddressWhitelisted(i.caller)))
+        then if (isGlobalShutdown())
+            then true
+            else (cfgPoolStatus == PoolShutdown)
+        else false
+    let checks = [if (!(isGetDisabled))
+        then true
+        else throw("get operation is blocked by admin"), if ((size(i.payments) == 0))
+        then true
+        else throw("no payments are expected")]
+    if ((checks == checks))
+        then {
+            let currentKLp = calcCurrentKLp(toBigInt(0), toBigInt(0), toBigInt(0))
+            if ((currentKLp == currentKLp))
+                then {
+                    let unstakeInv = invoke(stakingContract, "unstake", [toBase58String(cfgLpAssetId), unstakeAmount], nil)
+                    if ((unstakeInv == unstakeInv))
+                        then {
+                            let res = estimateGetOperation(toBase58String(i.transactionId), toBase58String(cfgLpAssetId), unstakeAmount, i.caller)
+                            let outAmAmt = res._1
+                            let outPrAmt = res._2
+                            let state = res._10
+                            let withdrawState = withdrawAndRebalanceAll(outAmAmt, outPrAmt)
+                            let checkAmounts = [if ((outAmAmt >= noLessThenAmountAsset))
+                                then true
+                                else throw(makeString(["amount asset amount to receive is less than ", toString(noLessThenAmountAsset)], "")), if ((outPrAmt >= noLessThenPriceAsset))
+                                then true
+                                else throw(makeString(["price asset amount to receive is less than ", toString(noLessThenPriceAsset)], ""))]
+                            if ((checkAmounts == checkAmounts))
+                                then {
+                                    let burnLPAssetOnFactory = invoke(factoryContract, "burn", [unstakeAmount], [AttachedPayment(cfgLpAssetId, unstakeAmount)])
+                                    if ((burnLPAssetOnFactory == burnLPAssetOnFactory))
+                                        then {
+                                            let $t05940759488 = refreshKLpInternal(-(outAmAmt), -(outPrAmt), 0)
+                                            let refreshKLpActions = $t05940759488._1
+                                            let updatedKLp = $t05940759488._2
+                                            let isUpdatedKLpValid = validateUpdatedKLp(currentKLp, updatedKLp)
+                                            if ((isUpdatedKLpValid == isUpdatedKLpValid))
+                                                then ((withdrawState ++ state) ++ refreshKLpActions)
+                                                else throw("Strict value is not equal to itself.")
+                                            }
+                                        else throw("Strict value is not equal to itself.")
+                                    }
+                                else throw("Strict value is not equal to itself.")
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func activate (amtAssetStr,priceAssetStr) = if ((toString(i.caller) != toString(factoryContract)))
+    then throw("permissions denied")
+    else $Tuple2([StringEntry(aa(), amtAssetStr), StringEntry(pa(), priceAssetStr)], "success")
+
+
+
+@Callable(i)
+func refreshKLp () = {
+    let lastRefreshedBlockHeight = valueOrElse(getInteger(keyKLpRefreshedHeight), 0)
+    let checkLastRefreshedBlockHeight = if (((height - lastRefreshedBlockHeight) >= kLpRefreshDelay))
+        then unit
+        else throwErr(makeString([toString(kLpRefreshDelay), " blocks have not passed since the previous call"], ""))
+    if ((checkLastRefreshedBlockHeight == checkLastRefreshedBlockHeight))
+        then {
+            let kLp = valueOrErrorMessage(parseBigInt(valueOrElse(getString(this, keyKLp), "0")), fmtErr("invalid kLp"))
+            let $t06069260756 = refreshKLpInternal(0, 0, 0)
+            let kLpUpdateActions = $t06069260756._1
+            let updatedKLp = $t06069260756._2
+            let actions = if ((kLp != updatedKLp))
+                then kLpUpdateActions
+                else throwErr("nothing to refresh")
+            $Tuple2(actions, toString(updatedKLp))
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func getPoolConfigWrapperREADONLY () = $Tuple2(nil, getPoolConfig())
+
+
+
+@Callable(i)
+func getAccBalanceWrapperREADONLY (assetId) = $Tuple2(nil, getAccBalance(assetId))
+
+
+
+@Callable(i)
+func calcPricesWrapperREADONLY (amAmt,prAmt,lpAmt) = {
+    let prices = calcPrices(amAmt, prAmt, lpAmt)
+    $Tuple2(nil, [toString(prices[0]), toString(prices[1]), toString(prices[2])])
+    }
+
+
+
+@Callable(i)
+func toX18WrapperREADONLY (origVal,origScaleMult) = $Tuple2(nil, toString(toX18(origVal, origScaleMult)))
+
+
+
+@Callable(i)
+func fromX18WrapperREADONLY (val,resultScaleMult) = $Tuple2(nil, fromX18(parseBigIntValue(val), resultScaleMult))
+
+
+
+@Callable(i)
+func calcPriceBigIntWrapperREADONLY (prAmtX18,amAmtX18) = $Tuple2(nil, toString(calcPriceBigInt(parseBigIntValue(prAmtX18), parseBigIntValue(amAmtX18))))
+
+
+
+@Callable(i)
+func estimatePutOperationWrapperREADONLY (txId58,slippageTolerance,inAmAssetAmt,inAmAssetId,inPrAssetAmt,inPrAssetId,userAddress,isEvaluate,emitLp) = $Tuple2(nil, estimatePutOperation(txId58, slippageTolerance, inAmAssetAmt, inAmAssetId, inPrAssetAmt, inPrAssetId, userAddress, isEvaluate, emitLp))
+
+
+
+@Callable(i)
+func estimateGetOperationWrapperREADONLY (txId58,pmtAssetId,pmtLpAmt,userAddress) = {
+    let res = estimateGetOperation(txId58, pmtAssetId, pmtLpAmt, addressFromStringValue(userAddress))
+    $Tuple2(nil, $Tuple10(res._1, res._2, res._3, res._4, res._5, res._6, res._7, toString(res._8), res._9, res._10))
+    }
+
+
+
+@Callable(i)
+func statsREADONLY () = {
+    let cfg = getPoolConfig()
+    let lpAssetId = fromBase58String(cfg[idxPoolLPAssetId])
+    let amtAssetId = cfg[idxAmtAssetId]
+    let priceAssetId = cfg[idxPriceAssetId]
+    let iAmtAssetId = cfg[idxIAmtAssetId]
+    let iPriceAssetId = cfg[idxIPriceAssetId]
+    let amtAssetDcm = parseIntValue(cfg[idxAmtAssetDcm])
+    let priceAssetDcm = parseIntValue(cfg[idxPriceAssetDcm])
+    let poolLPBalance = valueOrErrorMessage(assetInfo(lpAssetId), (("Asset " + toBase58String(lpAssetId)) + " doesn't exist")).quantity
+    let accAmtAssetBalance = getAccBalance(amtAssetId)
+    let accPriceAssetBalance = getAccBalance(priceAssetId)
+    let pricesList = if ((poolLPBalance == 0))
+        then [zeroBigInt, zeroBigInt, zeroBigInt]
+        else calcPrices(accAmtAssetBalance, accPriceAssetBalance, poolLPBalance)
+    let curPrice = 0
+    let lpAmtAssetShare = fromX18(pricesList[1], scale8)
+    let lpPriceAssetShare = fromX18(pricesList[2], scale8)
+    let poolWeight = value(getInteger(factoryContract, keyPoolWeight(toString(this))))
+    $Tuple2(nil, makeString(["%d%d%d%d%d%d%d", toString(accAmtAssetBalance), toString(accPriceAssetBalance), toString(poolLPBalance), toString(curPrice), toString(lpAmtAssetShare), toString(lpPriceAssetShare), toString(poolWeight)], SEP))
+    }
+
+
+
+@Callable(i)
+func evaluatePutByAmountAssetREADONLY (inAmAssetAmt) = {
+    let cfg = getPoolConfig()
+    let lpAssetId = fromBase58String(cfg[idxPoolLPAssetId])
+    let amAssetIdStr = cfg[idxAmtAssetId]
+    let amAssetId = fromBase58String(amAssetIdStr)
+    let prAssetIdStr = cfg[idxPriceAssetId]
+    let prAssetId = fromBase58String(prAssetIdStr)
+    let amtAssetDcm = parseIntValue(cfg[idxAmtAssetDcm])
+    let priceAssetDcm = parseIntValue(cfg[idxPriceAssetDcm])
+    let poolStatus = cfg[idxPoolStatus]
+    let poolLPBalance = valueOrErrorMessage(assetInfo(lpAssetId), (("Asset " + toBase58String(lpAssetId)) + " doesn't exist")).quantity
+    let accAmtAssetBalance = getAccBalance(amAssetIdStr)
+    let accPriceAssetBalance = getAccBalance(prAssetIdStr)
+    let amtAssetAmtX18 = toX18(accAmtAssetBalance, amtAssetDcm)
+    let priceAssetAmtX18 = toX18(accPriceAssetBalance, priceAssetDcm)
+    let curPriceX18 = if ((poolLPBalance == 0))
+        then zeroBigInt
+        else calcPriceBigInt(priceAssetAmtX18, amtAssetAmtX18)
+    let inAmAssetAmtX18 = toX18(inAmAssetAmt, amtAssetDcm)
+    let inPrAssetAmtX18 = fraction(inAmAssetAmtX18, curPriceX18, scale18)
+    let inPrAssetAmt = fromX18(inPrAssetAmtX18, priceAssetDcm)
+    let estPut = estimatePutOperation("", 500000, inAmAssetAmt, amAssetId, inPrAssetAmt, prAssetId, "", true, false)
+    let calcLpAmt = estPut._1
+    let curPriceCalc = estPut._3
+    let amBalance = estPut._4
+    let prBalance = estPut._5
+    let lpEmission = estPut._6
+    $Tuple2(nil, makeString(["%d%d%d%d%d%d%d%d", toString(calcLpAmt), toString(fromX18(curPriceX18, scale8)), toString(amBalance), toString(prBalance), toString(lpEmission), poolStatus, toString(inAmAssetAmt), toString(inPrAssetAmt)], SEP))
+    }
+
+
+
+@Callable(i)
+func evaluatePutByPriceAssetREADONLY (inPrAssetAmt) = {
+    let cfg = getPoolConfig()
+    let lpAssetId = fromBase58String(cfg[idxPoolLPAssetId])
+    let amAssetIdStr = cfg[idxAmtAssetId]
+    let amAssetId = fromBase58String(amAssetIdStr)
+    let prAssetIdStr = cfg[idxPriceAssetId]
+    let prAssetId = fromBase58String(prAssetIdStr)
+    let amtAssetDcm = parseIntValue(cfg[idxAmtAssetDcm])
+    let priceAssetDcm = parseIntValue(cfg[idxPriceAssetDcm])
+    let poolStatus = cfg[idxPoolStatus]
+    let poolLPBalance = valueOrErrorMessage(assetInfo(lpAssetId), (("Asset " + toBase58String(lpAssetId)) + " doesn't exist")).quantity
+    let amBalanceRaw = getAccBalance(amAssetIdStr)
+    let prBalanceRaw = getAccBalance(prAssetIdStr)
+    let amBalanceRawX18 = toX18(amBalanceRaw, amtAssetDcm)
+    let prBalanceRawX18 = toX18(prBalanceRaw, priceAssetDcm)
+    let curPriceX18 = if ((poolLPBalance == 0))
+        then zeroBigInt
+        else calcPriceBigInt(prBalanceRawX18, amBalanceRawX18)
+    let inPrAssetAmtX18 = toX18(inPrAssetAmt, priceAssetDcm)
+    let inAmAssetAmtX18 = fraction(inPrAssetAmtX18, scale18, curPriceX18)
+    let inAmAssetAmt = fromX18(inAmAssetAmtX18, amtAssetDcm)
+    let estPut = estimatePutOperation("", 500000, inAmAssetAmt, amAssetId, inPrAssetAmt, prAssetId, "", true, false)
+    let calcLpAmt = estPut._1
+    let curPriceCalc = estPut._3
+    let amBalance = estPut._4
+    let prBalance = estPut._5
+    let lpEmission = estPut._6
+    $Tuple2(nil, makeString(["%d%d%d%d%d%d%d%d", toString(calcLpAmt), toString(fromX18(curPriceX18, scale8)), toString(amBalance), toString(prBalance), toString(lpEmission), poolStatus, toString(inAmAssetAmt), toString(inPrAssetAmt)], SEP))
+    }
+
+
+
+@Callable(i)
+func evaluateGetREADONLY (paymentLpAssetId,paymentLpAmt) = {
+    let res = estimateGetOperation("", paymentLpAssetId, paymentLpAmt, this)
+    let outAmAmt = res._1
+    let outPrAmt = res._2
+    let amBalance = res._5
+    let prBalance = res._6
+    let lpEmission = res._7
+    let curPrice = res._8
+    let poolStatus = parseIntValue(res._9)
+    $Tuple2(nil, makeString(["%d%d%d%d%d%d%d", toString(outAmAmt), toString(outPrAmt), toString(amBalance), toString(prBalance), toString(lpEmission), toString(curPrice), toString(poolStatus)], SEP))
+    }
+
+
+@Verifier(tx)
+func verify () = {
+    let targetPublicKey =     match managerPublicKeyOrUnit() {
+        case pk: ByteVector => 
+            pk
+        case _: Unit => 
+            tx.senderPublicKey
+        case _ => 
+            throw("Match error")
+    }
+    match tx {
+        case order: Order => 
+            let matcherPub = getMatcherPubOrFail()
+            let $t06941869646 = if (skipOrderValidation())
+                then $Tuple2(true, "")
+                else validateMatcherOrderAllowed(order)
+            let orderValid = $t06941869646._1
+            let orderValidInfo = $t06941869646._2
+            let matcherValid = sigVerify(order.bodyBytes, order.proofs[1], matcherPub)
+            if (if (orderValid)
+                then matcherValid
+                else false)
+                then true
+                else throwOrderError(orderValid, orderValidInfo, matcherValid)
+        case s: SetScriptTransaction => 
+            if (sigVerify(tx.bodyBytes, tx.proofs[0], targetPublicKey))
+                then true
+                else {
+                    let newHash = blake2b256(value(s.script))
+                    let allowedHash = fromBase64String(value(getString(factoryContract, keyAllowedLpScriptHash())))
+                    let currentHash = scriptHash(this)
+                    if ((allowedHash == newHash))
+                        then (currentHash != newHash)
+                        else false
+                    }
+        case _ => 
+            sigVerify(tx.bodyBytes, tx.proofs[0], targetPublicKey)
+    }
+    }

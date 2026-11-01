@@ -1,0 +1,937 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let SEPARATOR = "__"
+
+let WAVES = "WAVES"
+
+let KEY_MULTISIG = "MULTISIG"
+
+let KEY_STATUS = "STATUS"
+
+let KEY_INIT = "INIT"
+
+let KEY_PAUSED = "PAUSED"
+
+let KEY_PAUSER = "PAUSER"
+
+let KEY_MANAGER = "MANAGER"
+
+let KEY_REFERER = "REFERER"
+
+let KEY_EXECUTOR = "EXECUTOR"
+
+let KEY_ORACLE = "ORACLE"
+
+let KEY_CALLER_CONTRACT = "CALLER_CONTRACT"
+
+let KEY_PRICE = "PRICE"
+
+let KEY_USER_POSITION = "USER_POSITION"
+
+let KEY_USER_USD_BALANCE = "USER_USD_BALANCE"
+
+let KEY_USER_UNITS_PER_USD_BALANCE_INTEGRAL = "USER_UNITS_PER_USD_BALANCE_INTEGRAL"
+
+let KEY_USER_UNITS_PER_REFERAL_SHARE_INTEGRAL = "USER_UNITS_PER_REFERAL_SHARE_INTEGRAL"
+
+let KEY_USER_CHECKPOINT_AT = "USER_CHECKPOINT_AT"
+
+let KEY_USER_UNITS_BALANCE_DISTRIBUTED = "USER_UNITS_BALANCE_DISTRIBUTED"
+
+let KEY_USER_UNITS_SHARES_REFERAL = "USER_UNITS_SHARES_REFERAL"
+
+let KEY_USER_SHARES_REFERAL = "USER_SHARES_REFERAL"
+
+let KEY_START_BLOCK = "START_BLOCK"
+
+let KEY_FINISH_BLOCK = "FINISH_BLOCK"
+
+let KEY_TOTAL_UNITS_FOR_LP = "TOTAL_UNITS_FOR_LP"
+
+let KEY_TOTAL_UNITS_FOR_REFERAL = "TOTAL_UNITS_FOR_REFERAL"
+
+let KEY_TOTAL_USD_BALANCE = "TOTAL_USD_BALANCE"
+
+let KEY_UNITS_PER_USD_BALANCE_INTEGRAL = "UNITS_PER_USD_BALANCE_INTEGRAL"
+
+let KEY_CHECKPOINT_AT = "CHECKPOINT_AT"
+
+let KEY_UNITS_BALANCE_DISTRIBUTED = "UNITS_BALANCE_DISTRIBUTED"
+
+let KEY_TOKEN_BALANCE = "TOKEN_BALANCE"
+
+let KEY_USERS_COUNT = "USERS_COUNT"
+
+let KEY_UNITS_PER_REFERAL_SHARE_INTEGRAL = "UNITS_PER_REFERAL_SHARE_INTEGRAL"
+
+let KEY_UNITS_SHARES_REFERAL = "UNITS_SHARES_REFERAL"
+
+let KEY_TOTAL_SHARES_REFERAL = "TOTAL_SHARES_REFERAL"
+
+let KEY_SWAVES_CONTRACT = "SWAVES_CONTRACT"
+
+let KEY_SWAVES_ASSET = "ASSET"
+
+let FUNC_DEPOSIT = "deposit"
+
+let FUNC_GET_RATE = "getRate"
+
+let FUNC_WITHDRAW = "withdraw"
+
+let MAX_INT = 9223372036854775807
+
+let PERCENT_FACTOR = toBigInt(1000000000000)
+
+let ZERO_BIGINT = toBigInt(0)
+
+let ONE_BIGINT = toBigInt(1)
+
+let SWAVES_RATE_FACTOR = toBigInt(1000000000000)
+
+func _validateAddress (address_,err_) = match addressFromString(address_) {
+    case a: Address => 
+        true
+    case _ => 
+        throw(err_)
+}
+
+
+func _validateInt (val_,lowerBoundary_,upperBoundary_,err_) = if (if ((lowerBoundary_ > val_))
+    then true
+    else (val_ > upperBoundary_))
+    then throw(err_)
+    else true
+
+
+func _validateBigInt (val_,lowerBoundary_,upperBoundary_,err_) = if (if ((lowerBoundary_ > val_))
+    then true
+    else (val_ > upperBoundary_))
+    then throw(err_)
+    else true
+
+
+func _validatePaymentsSize (payments_,target_,err_) = if ((size(payments_) != target_))
+    then throw(err_)
+    else true
+
+
+func _validateWavesPayment (payment_,err_) = match payment_.assetId {
+    case a: ByteVector => 
+        throw(err_)
+    case _: Unit => 
+        true
+    case _ => 
+        throw("Match error")
+}
+
+
+func _validateEqBigInt (val1_,val2_,err_) = if ((val1_ != val2_))
+    then throw(err_)
+    else true
+
+
+func _validateAsset (asset_,err_) = match assetInfo(fromBase58String(asset_)) {
+    case a: Asset => 
+        true
+    case _ => 
+        throw(err_)
+}
+
+
+func _loadInit () = match getBoolean(KEY_INIT) {
+    case a: Boolean => 
+        a
+    case _ => 
+        false
+}
+
+
+func _saveInit (isInit_) = [BooleanEntry(KEY_INIT, isInit_)]
+
+
+func _loadPause () = match getBoolean(KEY_PAUSED) {
+    case a: Boolean => 
+        a
+    case _ => 
+        false
+}
+
+
+func _savePause (isPaused_) = [BooleanEntry(KEY_PAUSED, isPaused_)]
+
+
+func _loadPauser () = match getString(KEY_PAUSER) {
+    case a: String => 
+        addressFromStringValue(a)
+    case _ => 
+        Address(base58'')
+}
+
+
+func _savePauser (pauser_) = [StringEntry(KEY_PAUSER, toString(pauser_))]
+
+
+func _loadMultisig () = match getString(KEY_MULTISIG) {
+    case a: String => 
+        addressFromStringValue(a)
+    case _ => 
+        Address(base58'')
+}
+
+
+func _saveMultisig (multisig_) = [StringEntry(KEY_MULTISIG, toString(multisig_))]
+
+
+func _loadExecutor () = match getString(KEY_EXECUTOR) {
+    case a: String => 
+        addressFromStringValue(a)
+    case _ => 
+        Address(base58'')
+}
+
+
+func _saveExecutor (executor_) = [StringEntry(KEY_EXECUTOR, toString(executor_))]
+
+
+func _loadOracle () = match getString(KEY_ORACLE) {
+    case a: String => 
+        addressFromStringValue(a)
+    case _ => 
+        Address(base58'')
+}
+
+
+func _saveOracle (oracle_) = [StringEntry(KEY_ORACLE, toString(oracle_))]
+
+
+func _loadCallerContract () = match getString(KEY_CALLER_CONTRACT) {
+    case a: String => 
+        a
+    case _ => 
+        ""
+}
+
+
+func _saveCallerContract (caller_) = [StringEntry(KEY_CALLER_CONTRACT, caller_)]
+
+
+func _loadUserPosition (token_,user_) = match getString(makeString([KEY_USER_POSITION, token_, user_], SEPARATOR)) {
+    case a: String => 
+        let struct = split_51C(a, SEPARATOR)
+        $Tuple2(parseBigIntValue(struct[0]), parseBigIntValue(struct[1]))
+    case _ => 
+        $Tuple2(ZERO_BIGINT, ZERO_BIGINT)
+}
+
+
+func _saveUserPosition (token_,user_,position_) = [StringEntry(makeString([KEY_USER_POSITION, token_, user_], SEPARATOR), makeString_11C([toString(position_._1), toString(position_._2)], SEPARATOR))]
+
+
+func _loadUserUSDBalance (user_) = match getString(makeString([KEY_USER_USD_BALANCE, user_], SEPARATOR)) {
+    case a: String => 
+        parseBigIntValue(a)
+    case _ => 
+        ZERO_BIGINT
+}
+
+
+func _saveUserUSDBalance (user_,value_) = [StringEntry(makeString([KEY_USER_USD_BALANCE, user_], SEPARATOR), toString(value_))]
+
+
+func _loadUserSharesReferal (user_) = match getString(makeString([KEY_USER_SHARES_REFERAL, user_], SEPARATOR)) {
+    case a: String => 
+        parseBigIntValue(a)
+    case _ => 
+        ZERO_BIGINT
+}
+
+
+func _saveUserSharesReferal (user_,value_) = [StringEntry(makeString([KEY_USER_SHARES_REFERAL, user_], SEPARATOR), toString(value_))]
+
+
+func _loadUnitsPerUSDBalanceIntegral () = match getString(KEY_UNITS_PER_USD_BALANCE_INTEGRAL) {
+    case a: String => 
+        parseBigIntValue(a)
+    case _ => 
+        ZERO_BIGINT
+}
+
+
+func _saveUnitsPerUSDBalanceIntegral (value_) = [StringEntry(KEY_UNITS_PER_USD_BALANCE_INTEGRAL, toString(value_))]
+
+
+func _loadUserUnitsPerUSDBalanceIntegral (user_) = match getString(makeString([KEY_USER_UNITS_PER_USD_BALANCE_INTEGRAL, user_], SEPARATOR)) {
+    case a: String => 
+        parseBigIntValue(a)
+    case _ => 
+        ZERO_BIGINT
+}
+
+
+func _saveUserUnitsPerUSDBalanceIntegral (user_,value_) = [StringEntry(makeString([KEY_USER_UNITS_PER_USD_BALANCE_INTEGRAL, user_], SEPARATOR), toString(value_))]
+
+
+func _loadCheckpointAt () = match getString(KEY_CHECKPOINT_AT) {
+    case a: String => 
+        parseBigIntValue(a)
+    case _ => 
+        ZERO_BIGINT
+}
+
+
+func _saveCheckpointAt (value_) = [StringEntry(KEY_CHECKPOINT_AT, toString(value_))]
+
+
+func _loadUserCheckpointAt (user_) = match getString(makeString([KEY_USER_CHECKPOINT_AT, user_], SEPARATOR)) {
+    case a: String => 
+        parseBigIntValue(a)
+    case _ => 
+        ZERO_BIGINT
+}
+
+
+func _saveUserCheckpointAt (user_,value_) = [StringEntry(makeString([KEY_USER_CHECKPOINT_AT, user_], SEPARATOR), toString(value_))]
+
+
+func _loadStartBlock () = match getString(KEY_START_BLOCK) {
+    case a: String => 
+        parseBigIntValue(a)
+    case _ => 
+        ZERO_BIGINT
+}
+
+
+func _saveStartBlock (value_) = [StringEntry(KEY_START_BLOCK, toString(value_))]
+
+
+func _loadFinishBlock () = match getString(KEY_FINISH_BLOCK) {
+    case a: String => 
+        parseBigIntValue(a)
+    case _ => 
+        ZERO_BIGINT
+}
+
+
+func _saveFinishBlock (value_) = [StringEntry(KEY_FINISH_BLOCK, toString(value_))]
+
+
+func _loadUnitsBalanceDistributed () = match getString(KEY_UNITS_BALANCE_DISTRIBUTED) {
+    case a: String => 
+        parseBigIntValue(a)
+    case _ => 
+        ZERO_BIGINT
+}
+
+
+func _saveUnitsBalanceDistributed (value_) = [StringEntry(KEY_UNITS_BALANCE_DISTRIBUTED, toString(value_))]
+
+
+func _loadUserUnitsBalanceDistributed (user_) = match getString(makeString([KEY_USER_UNITS_BALANCE_DISTRIBUTED, user_], SEPARATOR)) {
+    case a: String => 
+        parseBigIntValue(a)
+    case _ => 
+        ZERO_BIGINT
+}
+
+
+func _saveUserUnitsBalanceDistributed (user_,value_) = [StringEntry(makeString([KEY_USER_UNITS_BALANCE_DISTRIBUTED, user_], SEPARATOR), toString(value_))]
+
+
+func _loadTotalUSDBalance () = match getString(KEY_TOTAL_USD_BALANCE) {
+    case a: String => 
+        parseBigIntValue(a)
+    case _ => 
+        ZERO_BIGINT
+}
+
+
+func _saveTotalUSDBalance (value_) = [StringEntry(KEY_TOTAL_USD_BALANCE, toString(value_))]
+
+
+func _loadSWavesContract () = match getString(KEY_SWAVES_CONTRACT) {
+    case a: String => 
+        addressFromStringValue(a)
+    case _ => 
+        Address(base58'')
+}
+
+
+func _saveSWavesContract (contract_) = [StringEntry(KEY_SWAVES_CONTRACT, toString(contract_))]
+
+
+func _loadSWavesAsset (contract_) = match getString(contract_, KEY_SWAVES_ASSET) {
+    case a: String => 
+        fromBase58String(a)
+    case _ => 
+        throw("_loadSWavesAsset: revert")
+}
+
+
+func _loadTokenBalance (token_) = match getString(makeString([KEY_TOKEN_BALANCE, token_], SEPARATOR)) {
+    case a: String => 
+        parseBigIntValue(a)
+    case _ => 
+        ZERO_BIGINT
+}
+
+
+func _saveTokenBalance (token_,value_) = [StringEntry(makeString([KEY_TOKEN_BALANCE, token_], SEPARATOR), toString(value_))]
+
+
+func _loadUsersCount () = match getString(KEY_USERS_COUNT) {
+    case a: String => 
+        parseBigIntValue(a)
+    case _ => 
+        ZERO_BIGINT
+}
+
+
+func _saveUsersCount (value_) = [StringEntry(KEY_USERS_COUNT, toString(value_))]
+
+
+func _loadUnitsPerReferalShareIntegral () = match getString(KEY_UNITS_PER_REFERAL_SHARE_INTEGRAL) {
+    case a: String => 
+        parseBigIntValue(a)
+    case _ => 
+        ZERO_BIGINT
+}
+
+
+func _saveUnitsPerReferalShareIntegral (value_) = [StringEntry(KEY_UNITS_PER_REFERAL_SHARE_INTEGRAL, toString(value_))]
+
+
+func _loadUnitsSharesReferal () = match getString(KEY_UNITS_SHARES_REFERAL) {
+    case a: String => 
+        parseBigIntValue(a)
+    case _ => 
+        ZERO_BIGINT
+}
+
+
+func _saveUnitsSharesReferal (value_) = [StringEntry(KEY_UNITS_SHARES_REFERAL, toString(value_))]
+
+
+func _loadTotalUnitsForLP () = match getString(KEY_TOTAL_UNITS_FOR_LP) {
+    case a: String => 
+        parseBigIntValue(a)
+    case _ => 
+        ZERO_BIGINT
+}
+
+
+func _saveTotalUnitsForLP (value_) = [StringEntry(KEY_TOTAL_UNITS_FOR_LP, toString(value_))]
+
+
+func _loadTotalUnitsForReferal () = match getString(KEY_TOTAL_UNITS_FOR_REFERAL) {
+    case a: String => 
+        parseBigIntValue(a)
+    case _ => 
+        ZERO_BIGINT
+}
+
+
+func _saveTotalUnitsForReferal (value_) = [StringEntry(KEY_TOTAL_UNITS_FOR_REFERAL, toString(value_))]
+
+
+func _loadTotalSharesReferal () = match getString(KEY_TOTAL_SHARES_REFERAL) {
+    case a: String => 
+        parseBigIntValue(a)
+    case _ => 
+        ZERO_BIGINT
+}
+
+
+func _saveTotalSharesReferal (value_) = [StringEntry(KEY_TOTAL_SHARES_REFERAL, toString(value_))]
+
+
+func _loadUserUnitsPerReferalShareIntegral (user_) = match getString(makeString([KEY_USER_UNITS_PER_REFERAL_SHARE_INTEGRAL, user_], SEPARATOR)) {
+    case a: String => 
+        parseBigIntValue(a)
+    case _ => 
+        ZERO_BIGINT
+}
+
+
+func _saveUserUnitsPerReferalShareIntegral (user_,value_) = [StringEntry(makeString([KEY_USER_UNITS_PER_REFERAL_SHARE_INTEGRAL, user_], SEPARATOR), toString(value_))]
+
+
+func _loadUserUnitsSharesReferal (user_) = match getString(makeString([KEY_USER_UNITS_SHARES_REFERAL, user_], SEPARATOR)) {
+    case a: String => 
+        parseBigIntValue(a)
+    case _ => 
+        ZERO_BIGINT
+}
+
+
+func _saveUserUnitsSharesReferal (user_,value_) = [StringEntry(makeString([KEY_USER_UNITS_SHARES_REFERAL, user_], SEPARATOR), toString(value_))]
+
+
+func _loadManager () = match getString(KEY_MANAGER) {
+    case a: String => 
+        addressFromStringValue(a)
+    case _ => 
+        Address(base58'')
+}
+
+
+func _saveManager (manager_) = [StringEntry(KEY_MANAGER, toString(manager_))]
+
+
+func _loadReferer (codehash_) = match getString(makeString([KEY_REFERER, codehash_], SEPARATOR)) {
+    case a: String => 
+        a
+    case _ => 
+        throw("_loadReferer: revert")
+}
+
+
+func _saveReferer (codehash_,address_) = [StringEntry(makeString([KEY_REFERER, codehash_], SEPARATOR), address_)]
+
+
+func _checkRefererExistence (codehash_) = match getString(makeString([KEY_REFERER, codehash_], SEPARATOR)) {
+    case a: String => 
+        true
+    case _ => 
+        false
+}
+
+
+func _onlyThisContract (caller_) = if ((caller_ != this))
+    then throw("_onlyThisContract: revert")
+    else true
+
+
+func _whenMultisigSet () = if ((_loadMultisig() == Address(base58'')))
+    then throw("_whenMultisigSet: revert")
+    else true
+
+
+func _whenNotInitialized () = if (_loadInit())
+    then throw("_whenNotInitialized: revert")
+    else true
+
+
+func _whenInitialized () = if (!(_loadInit()))
+    then throw("_whenInitialized: revert")
+    else true
+
+
+func _whenNotPaused () = if (_loadPause())
+    then throw("_whenNotPaused: revert")
+    else true
+
+
+func _whenPaused () = if (!(_loadPause()))
+    then throw("_whenPaused: revert")
+    else true
+
+
+func _onlyPauser (caller_) = if ((caller_ != _loadPauser()))
+    then throw("_onlyPauser: revert")
+    else true
+
+
+func _onlyManager (caller_) = if ((caller_ != _loadManager()))
+    then throw("_onlyManager: revert")
+    else true
+
+
+func _validateExecutor (val_,err_) = if ((val_ != _loadExecutor()))
+    then throw(err_)
+    else true
+
+
+func _validateCaller (val_,err_) = if ((val_ != _loadCallerContract()))
+    then throw(err_)
+    else true
+
+
+func _getTokenRate (token_) = match getString(_loadOracle(), makeString([KEY_PRICE, token_], SEPARATOR)) {
+    case a: String => 
+        parseBigIntValue(a)
+    case _ => 
+        throw(("_getTokenRate: no rate for token=" + token_))
+}
+
+
+func _checkpoint () = {
+    let prevUnitsPerUSDBalanceIntegral = _loadUnitsPerUSDBalanceIntegral()
+    let prevCheckpointAt = max([_loadStartBlock(), _loadCheckpointAt()])
+    let prevUnitsBalanceDistributed = _loadUnitsBalanceDistributed()
+    let prevUnitsPerReferalShareIntegral = _loadUnitsPerReferalShareIntegral()
+    let prevUnitsSharesReferal = _loadUnitsSharesReferal()
+    let currentBlock = min([toBigInt(height), _loadFinishBlock()])
+    if ((prevCheckpointAt >= currentBlock))
+        then $Tuple3(nil, prevUnitsPerUSDBalanceIntegral, prevUnitsPerReferalShareIntegral)
+        else {
+            let unitsBalanceToDistribute = fraction((_loadTotalUnitsForLP() - prevUnitsBalanceDistributed), (currentBlock - prevCheckpointAt), (_loadFinishBlock() - prevCheckpointAt))
+            let unitsPerUSDBalanceIntegral = (((PERCENT_FACTOR * unitsBalanceToDistribute) / _loadTotalUSDBalance()) + prevUnitsPerUSDBalanceIntegral)
+            let $t01745618009 = if ((_loadTotalSharesReferal() > ZERO_BIGINT))
+                then {
+                    let unitsSharesReferal = fraction((_loadTotalUnitsForReferal() - prevUnitsSharesReferal), (currentBlock - prevCheckpointAt), (_loadFinishBlock() - prevCheckpointAt))
+                    let unitsPerReferalShareIntegral = (((PERCENT_FACTOR * unitsSharesReferal) / _loadTotalSharesReferal()) + prevUnitsPerReferalShareIntegral)
+                    $Tuple2(unitsSharesReferal, unitsPerReferalShareIntegral)
+                    }
+                else $Tuple2(ZERO_BIGINT, ZERO_BIGINT)
+            let unitsSharesReferal = $t01745618009._1
+            let unitsPerReferalShareIntegral = $t01745618009._2
+            $Tuple3(((((_saveCheckpointAt(currentBlock) ++ _saveUnitsPerUSDBalanceIntegral(unitsPerUSDBalanceIntegral)) ++ _saveUnitsBalanceDistributed((unitsBalanceToDistribute + prevUnitsBalanceDistributed))) ++ _saveUnitsPerReferalShareIntegral(unitsPerReferalShareIntegral)) ++ _saveUnitsSharesReferal((unitsSharesReferal + prevUnitsSharesReferal))), unitsPerUSDBalanceIntegral, unitsPerReferalShareIntegral)
+            }
+    }
+
+
+func _userCheckpoint (user_,userUSDBalance_,userSharesReferal_) = {
+    let $t01859518707 = _checkpoint()
+    let checkpointActions = $t01859518707._1
+    let unitsPerUSDBalanceIntegral = $t01859518707._2
+    let unitsPerReferalShareIntegral = $t01859518707._3
+    let prevUserUnitsPerUSDBalanceIntegral = _loadUserUnitsPerUSDBalanceIntegral(user_)
+    let prevUserCheckpointAt = max([_loadStartBlock(), _loadUserCheckpointAt(user_)])
+    let prevUserUnitsBalanceDistributed = _loadUserUnitsBalanceDistributed(user_)
+    let prevUserUnitsPerReferalShareIntegral = _loadUserUnitsPerReferalShareIntegral(user_)
+    let prevUserUnitsSharesReferal = _loadUserUnitsSharesReferal(user_)
+    let currentBlock = min([toBigInt(height), _loadFinishBlock()])
+    if ((prevUserCheckpointAt >= currentBlock))
+        then $Tuple3(checkpointActions, prevUserUnitsBalanceDistributed, prevUserUnitsSharesReferal)
+        else {
+            let userUnitsBalanceDistributed = (((userUSDBalance_ * (unitsPerUSDBalanceIntegral - prevUserUnitsPerUSDBalanceIntegral)) / PERCENT_FACTOR) + prevUserUnitsBalanceDistributed)
+            let userUnitsSharesReferal = (((userSharesReferal_ * (unitsPerReferalShareIntegral - prevUserUnitsPerReferalShareIntegral)) / PERCENT_FACTOR) + prevUserUnitsSharesReferal)
+            $Tuple3((((((checkpointActions ++ _saveUserCheckpointAt(user_, currentBlock)) ++ _saveUserUnitsPerUSDBalanceIntegral(user_, unitsPerUSDBalanceIntegral)) ++ _saveUserUnitsBalanceDistributed(user_, userUnitsBalanceDistributed)) ++ _saveUserUnitsPerReferalShareIntegral(user_, unitsPerReferalShareIntegral)) ++ _saveUserUnitsSharesReferal(user_, userUnitsSharesReferal)), userUnitsBalanceDistributed, userUnitsSharesReferal)
+            }
+    }
+
+
+@Callable(i)
+func init (executor_,oracle_,pauser_,sWavesContract_) = {
+    let err = if (if (if (if (if (if (_onlyThisContract(i.caller))
+        then _whenNotInitialized()
+        else false)
+        then _whenMultisigSet()
+        else false)
+        then _validateAddress(executor_, "init: invalid executor")
+        else false)
+        then _validateAddress(oracle_, "init: invalid oracle")
+        else false)
+        then _validateAddress(pauser_, "init: invalid pauser")
+        else false)
+        then _validateAddress(sWavesContract_, "init: invalid sWavesContract")
+        else false
+    if ((err == err))
+        then $Tuple2(((((_saveInit(true) ++ _saveExecutor(addressFromStringValue(executor_))) ++ _saveOracle(addressFromStringValue(oracle_))) ++ _savePauser(addressFromStringValue(pauser_))) ++ _saveSWavesContract(addressFromStringValue(sWavesContract_))), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func depositWaves (referrer_) = {
+    let err = if (if (if (if (_whenInitialized())
+        then _whenNotPaused()
+        else false)
+        then _validatePaymentsSize(i.payments, 1, "depositWaves: no payment")
+        else false)
+        then _validateWavesPayment(i.payments[0], "depositWaves: invalid asset")
+        else false)
+        then _validateInt((i.payments[0].amount / 100), 1, MAX_INT, "depositWaves: invalid amount")
+        else false
+    if ((err == err))
+        then {
+            let amount = (i.payments[0].amount / 100)
+            let sender = toString(i.caller)
+            let token = WAVES
+            let rate = _getTokenRate(token)
+            let $t02661926699 = _loadUserPosition(token, sender)
+            let userTokenBalance = $t02661926699._1
+            let userTokenBalanceInUSD = $t02661926699._2
+            let userUSDBalance = _loadUserUSDBalance(sender)
+            let userSharesReferal = _loadUserSharesReferal(sender)
+            let $t02681626942 = _userCheckpoint(sender, userUSDBalance, userSharesReferal)
+            let checkpointActions = $t02681626942._1
+            let userUnitsBalance = $t02681626942._2
+            let userUnitsSharesReferal = $t02681626942._3
+            let newUserTokenBalance = (userTokenBalance + toBigInt(amount))
+            let newUserTokenBalanceInUSD = fraction(newUserTokenBalance, rate, PERCENT_FACTOR, DOWN)
+            let newUserUSDBalance = ((userUSDBalance - userTokenBalanceInUSD) + newUserTokenBalanceInUSD)
+            let totalBalanceUpdated = ((_loadTotalUSDBalance() - userTokenBalanceInUSD) + newUserTokenBalanceInUSD)
+            let usersCount = if ((userUSDBalance == ZERO_BIGINT))
+                then (_loadUsersCount() + ONE_BIGINT)
+                else _loadUsersCount()
+            let refererActions = if (if ((size(referrer_) > 0))
+                then _checkRefererExistence(referrer_)
+                else false)
+                then {
+                    let refererAddress = _loadReferer(referrer_)
+                    if ((refererAddress == sender))
+                        then throw("depositWaves: sender is referrer")
+                        else {
+                            let sharesToDistribute = fraction(toBigInt(amount), rate, PERCENT_FACTOR, DOWN)
+                            let sharesToUser = fraction(sharesToDistribute, toBigInt(20), toBigInt(100), DOWN)
+                            let sharesToReferer = (sharesToDistribute - sharesToUser)
+                            let newUserSharesReferal = (userSharesReferal + sharesToUser)
+                            let refererSharesReferal = _loadUserSharesReferal(refererAddress)
+                            let newRefererSharesReferal = (refererSharesReferal + sharesToReferer)
+                            let newTotalSharesReferal = (_loadTotalSharesReferal() + sharesToDistribute)
+                            let $t02842728598 = _userCheckpoint(refererAddress, _loadUserUSDBalance(refererAddress), refererSharesReferal)
+                            let refererCheckpointActions = $t02842728598._1
+                            let refererUnitsBalance = $t02842728598._2
+                            let refererUnitsSharesReferal = $t02842728598._3
+                            (((refererCheckpointActions ++ _saveUserSharesReferal(sender, newUserSharesReferal)) ++ _saveUserSharesReferal(refererAddress, newRefererSharesReferal)) ++ _saveTotalSharesReferal(newTotalSharesReferal))
+                            }
+                    }
+                else nil
+            let invocation = invoke(_loadSWavesContract(), FUNC_DEPOSIT, nil, [AttachedPayment(unit, i.payments[0].amount)])
+            if ((invocation == invocation))
+                then $Tuple2(((((((checkpointActions ++ refererActions) ++ _saveTotalUSDBalance(totalBalanceUpdated)) ++ _saveTokenBalance(WAVES, (_loadTokenBalance(WAVES) + toBigInt(amount)))) ++ _saveUserUSDBalance(sender, newUserUSDBalance)) ++ _saveUsersCount(usersCount)) ++ _saveUserPosition(token, sender, $Tuple2(newUserTokenBalance, newUserTokenBalanceInUSD))), userUnitsBalance)
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func withdrawWaves (amount_) = {
+    let err = if (if (if (_whenInitialized())
+        then _whenNotPaused()
+        else false)
+        then _validateInt((amount_ / 100), 1, MAX_INT, "withdrawWaves: invalid amount")
+        else false)
+        then if ((_loadFinishBlock() >= toBigInt(height)))
+            then throw("withdrawWaves: not allowed")
+            else true
+        else false
+    if ((err == err))
+        then {
+            let internalAmount = (amount_ / 100)
+            let sender = toString(i.caller)
+            let token = WAVES
+            let rate = _getTokenRate(token)
+            let $t02988229962 = _loadUserPosition(token, sender)
+            let userTokenBalance = $t02988229962._1
+            let userTokenBalanceInUSD = $t02988229962._2
+            let userUSDBalance = _loadUserUSDBalance(sender)
+            let userSharesReferal = _loadUserSharesReferal(sender)
+            let $t03007930205 = _userCheckpoint(sender, userUSDBalance, userSharesReferal)
+            let checkpointActions = $t03007930205._1
+            let userUnitsBalance = $t03007930205._2
+            let userUnitsSharesReferal = $t03007930205._3
+            let newUserTokenBalance = (userTokenBalance - toBigInt(internalAmount))
+            let err1 = _validateInt(toInt(newUserTokenBalance), 0, MAX_INT, "withdrawWaves: insufficient token amount")
+            if ((err1 == err1))
+                then {
+                    let newUserTokenBalanceInUSD = fraction(newUserTokenBalance, rate, PERCENT_FACTOR, DOWN)
+                    let newUserUSDBalance = ((userUSDBalance - userTokenBalanceInUSD) + newUserTokenBalanceInUSD)
+                    let totalBalanceUpdated = ((_loadTotalUSDBalance() - userTokenBalanceInUSD) + newUserTokenBalanceInUSD)
+                    let sWavesContract = _loadSWavesContract()
+                    let sWavesAsset = _loadSWavesAsset(sWavesContract)
+                    let invocation = invoke(sWavesContract, FUNC_GET_RATE, nil, nil)
+                    let swavesRate =                     match invocation {
+                        case a: String => 
+                            parseBigIntValue(a)
+                        case _ => 
+                            throw("withdrawWaves: sWaves getRate() revert")
+                    }
+                    let sWavesToWithdraw = toInt(fraction(toBigInt(amount_), SWAVES_RATE_FACTOR, swavesRate, CEILING))
+                    let invocation1 = invoke(sWavesContract, FUNC_WITHDRAW, nil, [AttachedPayment(sWavesAsset, sWavesToWithdraw)])
+                    if ((invocation1 == invocation1))
+                        then $Tuple2(((((([ScriptTransfer(i.caller, amount_, unit)] ++ checkpointActions) ++ _saveTotalUSDBalance(totalBalanceUpdated)) ++ _saveTokenBalance(WAVES, (_loadTokenBalance(WAVES) - toBigInt(internalAmount)))) ++ _saveUserUSDBalance(sender, newUserUSDBalance)) ++ _saveUserPosition(token, sender, $Tuple2(newUserTokenBalance, newUserTokenBalanceInUSD))), unit)
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func claimWavesReward (recipient_) = {
+    let err = if (if (if (if (_onlyThisContract(i.caller))
+        then _whenInitialized()
+        else false)
+        then _whenNotPaused()
+        else false)
+        then _validateAddress(recipient_, "claimWavesReward: invalid recipient")
+        else false)
+        then _validateInt(height, toInt(_loadFinishBlock()), MAX_INT, "claimWavesReward: drop not finished")
+        else false
+    if ((err == err))
+        then {
+            let sWavesContract = _loadSWavesContract()
+            let sWavesAsset = _loadSWavesAsset(sWavesContract)
+            let invocation = invoke(sWavesContract, FUNC_GET_RATE, nil, nil)
+            let rate =             match invocation {
+                case a: String => 
+                    parseBigIntValue(a)
+                case _ => 
+                    throw("claimWavesReward: sWaves getRate() revert")
+            }
+            let balanceOfSWaves = assetBalance(this, sWavesAsset)
+            let wavesCollateral = _loadTokenBalance(WAVES)
+            let sWavesCollateral = toInt(fraction(wavesCollateral, SWAVES_RATE_FACTOR, rate, CEILING))
+            let $t03255132884 = if ((balanceOfSWaves > sWavesCollateral))
+                then {
+                    let sWavesToWithdraw = (balanceOfSWaves - sWavesCollateral)
+                    let wavesFee = toInt(fraction(toBigInt(sWavesToWithdraw), rate, SWAVES_RATE_FACTOR, FLOOR))
+                    $Tuple2(sWavesToWithdraw, wavesFee)
+                    }
+                else $Tuple2(0, 0)
+            let sWavesToWithdraw = $t03255132884._1
+            let wavesFee = $t03255132884._2
+            let invocation1 = invoke(sWavesContract, FUNC_WITHDRAW, nil, [AttachedPayment(sWavesAsset, sWavesToWithdraw)])
+            if ((invocation1 == invocation1))
+                then $Tuple2([ScriptTransfer(addressFromStringValue(recipient_), fraction(wavesFee, 3, 4), unit), ScriptTransfer(_loadMultisig(), fraction(wavesFee, 1, 4), unit)], unit)
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func startRetrodrop (amountForLP_,amountForReferal_,blocksAt_) = {
+    let err = if (if (if (if (if (if (_onlyThisContract(i.caller))
+        then _whenInitialized()
+        else false)
+        then _whenNotPaused()
+        else false)
+        then _validateInt(amountForLP_, 0, MAX_INT, "startRetrodrop: invalid amountForLP")
+        else false)
+        then _validateInt(amountForReferal_, 0, MAX_INT, "startRetrodrop: invalid amountForReferal")
+        else false)
+        then _validateInt(blocksAt_, 1, MAX_INT, "startRetrodrop: invalid blocksAt")
+        else false)
+        then _validateEqBigInt(_loadStartBlock(), ZERO_BIGINT, "startRetrodrop: already started")
+        else false
+    if ((err == err))
+        then {
+            let startHeight = toBigInt(height)
+            let finishHeight = (startHeight + toBigInt(blocksAt_))
+            $Tuple2((((_saveStartBlock(startHeight) ++ _saveFinishBlock(finishHeight)) ++ _saveTotalUnitsForLP(toBigInt(amountForLP_))) ++ _saveTotalUnitsForReferal(toBigInt(amountForReferal_))), unit)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func checkpoint (user_) = {
+    let $t03502535164 = _userCheckpoint(user_, _loadUserUSDBalance(user_), _loadUserSharesReferal(user_))
+    let actions = $t03502535164._1
+    let userUnitsBalance = $t03502535164._2
+    let userUnitsSharesReferal = $t03502535164._3
+    $Tuple2(actions, $Tuple2(userUnitsBalance, userUnitsSharesReferal))
+    }
+
+
+
+@Callable(i)
+func getUnits (user_) = {
+    let $t03527735416 = _userCheckpoint(user_, _loadUserUSDBalance(user_), _loadUserSharesReferal(user_))
+    let actions = $t03527735416._1
+    let userUnitsBalance = $t03527735416._2
+    let userUnitsSharesReferal = $t03527735416._3
+    $Tuple2(nil, $Tuple2(userUnitsBalance, userUnitsSharesReferal))
+    }
+
+
+
+@Callable(i)
+func setReferer (codehash_,address_) = {
+    let err = if (_onlyManager(i.caller))
+        then _whenInitialized()
+        else false
+    if ((err == err))
+        then $Tuple2(_saveReferer(codehash_, address_), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setManager (manager_) = {
+    let err = if (if (_onlyThisContract(i.caller))
+        then _whenInitialized()
+        else false)
+        then _validateAddress(manager_, "setManager: invalid manager")
+        else false
+    if ((err == err))
+        then $Tuple2(_saveManager(addressFromStringValue(manager_)), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func updateCallerContract (callerContract_) = {
+    let err = if (_onlyThisContract(i.caller))
+        then _whenInitialized()
+        else false
+    if ((err == err))
+        then $Tuple2(_saveCallerContract(callerContract_), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func pause () = {
+    let err = if (if (_onlyPauser(i.caller))
+        then _whenInitialized()
+        else false)
+        then _whenNotPaused()
+        else false
+    if ((err == err))
+        then $Tuple2(_savePause(true), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func unpause () = {
+    let err = if (if (_onlyPauser(i.caller))
+        then _whenInitialized()
+        else false)
+        then _whenPaused()
+        else false
+    if ((err == err))
+        then $Tuple2(_savePause(false), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func updatePauser (pauser_) = {
+    let err = if (if (_onlyThisContract(i.caller))
+        then _whenInitialized()
+        else false)
+        then _validateAddress(pauser_, "updatePauser: invalid pauser")
+        else false
+    if ((err == err))
+        then $Tuple2(_savePauser(addressFromStringValue(pauser_)), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setMultisig (multisig_) = {
+    let err = if (_onlyThisContract(i.caller))
+        then _validateAddress(multisig_, "setMultisig: invalid multisig")
+        else false
+    if ((err == err))
+        then $Tuple2(_saveMultisig(addressFromStringValue(multisig_)), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Verifier(tx)
+func verify () = match getString(KEY_MULTISIG) {
+    case multisig: String => 
+        valueOrElse(getBoolean(addressFromStringValue(multisig), makeString([KEY_STATUS, toString(this), toBase58String(tx.id)], SEPARATOR)), false)
+    case _ => 
+        sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)
+}

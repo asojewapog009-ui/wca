@@ -1,0 +1,154 @@
+{-# STDLIB_VERSION 5 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let shinywggid = base58'A2hcw6RV23Fc8Y8FNfV35Sq5QeS9Tgp6n8hbrESiRvXX'
+
+let treasuryAddress = base58'3PDW5NBHrSqYhwB8KJidBfprM6n6KPCykBB'
+
+let assetsAddress = base58'3PRCCnKuNS3PdbcSYcKdmTecSXXR9SE3rVb'
+
+let marketplaceAddress = base58'3P5EAhvWXJpTW5XCmw4cTRLirr5hdV43wG9'
+
+let configurationAddress = base58'3PDREv1pvqS9r2Gi5CZDHrgsQLigA9xXYp3'
+
+let nationsAddress = base58'3PAvvCSVicC2Ugsj9zWrzYmu2b6uAuGc3Fo'
+
+let adminWallet = addressFromStringValue("3PHKGy65emtBy4xxeQwz49nzSV1cqcJdw4U")
+
+let dailyGameRewardsWallet = addressFromStringValue("3PHANHAVYa72vkHVGrLqzUkyKeeEDhDknXj")
+
+let dailyStakingRewardsWallet = addressFromStringValue("3PFQGA6DA66ny11vFAWPWrqprmivyyySDCv")
+
+func checkAdmin (caller) = if (if (if (if (if ((caller == adminWallet))
+    then true
+    else (caller == this))
+    then true
+    else (caller.bytes == assetsAddress))
+    then true
+    else (caller.bytes == treasuryAddress))
+    then true
+    else (caller.bytes == marketplaceAddress))
+    then true
+    else (caller.bytes == nationsAddress)
+
+
+func tryGetInteger (key) = match getInteger(this, key) {
+    case b: Int => 
+        b
+    case _ => 
+        0
+}
+
+
+func tryGetBoolean (key) = match getBoolean(this, key) {
+    case b: Boolean => 
+        b
+    case _ => 
+        false
+}
+
+
+func tryGetString (key) = match getString(this, key) {
+    case b: String => 
+        b
+    case _ => 
+        ""
+}
+
+
+func getALKey (Name,Level) = ((Name + "_lvl") + toString(Level))
+
+
+func confTryGetInteger (key) = match getInteger(Address(configurationAddress), key) {
+    case b: Int => 
+        b
+    case _ => 
+        0
+}
+
+
+func confTryGetString (key) = match getString(Address(configurationAddress), key) {
+    case b: String => 
+        b
+    case _ => 
+        ""
+}
+
+
+func confTryGetBoolean (key) = match getBoolean(Address(configurationAddress), key) {
+    case b: Boolean => 
+        b
+    case _ => 
+        false
+}
+
+
+func getTreasuryKey (nationid) = (nationid + "_Treasury")
+
+
+func treasuryTryGetInteger (key) = match getInteger(Address(treasuryAddress), key) {
+    case b: Int => 
+        b
+    case _ => 
+        0
+}
+
+
+func nationsTryGetInteger (key) = match getInteger(Address(nationsAddress), key) {
+    case b: Int => 
+        b
+    case _ => 
+        0
+}
+
+
+func nationsTryGetBoolean (key) = match getBoolean(Address(nationsAddress), key) {
+    case b: Boolean => 
+        b
+    case _ => 
+        false
+}
+
+
+func nationsTryGetString (key) = match getString(Address(nationsAddress), key) {
+    case b: String => 
+        b
+    case _ => 
+        ""
+}
+
+
+func getAssetOwnerKeyString (assetId) = (assetId + "_Owner")
+
+
+func assetsTryGetInteger (key) = match getInteger(Address(assetsAddress), key) {
+    case b: Int => 
+        b
+    case _ => 
+        0
+}
+
+
+@Callable(i)
+func discoverTreasure (treasureKey,toAddr) = if (!(checkAdmin(i.caller)))
+    then throw("You are not authorized to perform this operation")
+    else {
+        let owned = tryGetString((treasureKey + "_Redeem"))
+        if ((owned != ""))
+            then throw("This treasure has been assigned to another player")
+            else [StringEntry((treasureKey + "_Redeem"), toAddr)]
+        }
+
+
+
+@Callable(i)
+func redeemTreasure (treasureKey) = {
+    let owned = tryGetString((treasureKey + "_Redeem"))
+    if ((owned != toString(i.caller)))
+        then throw("This treasure has already been claimed")
+        else {
+            let treasureVal = tryGetInteger(treasureKey)
+[ScriptTransfer(i.caller, treasureVal, shinywggid), DeleteEntry((treasureKey + "_Redeem")), DeleteEntry(treasureKey)]
+            }
+    }
+

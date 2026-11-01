@@ -1,0 +1,302 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let SEP = "__"
+
+func wrapErr (msg) = makeString(["emission.ride:", toString(this), msg], " ")
+
+
+func throwErr (msg) = throw(wrapErr(msg))
+
+
+func getStringOrFail (address,key) = valueOrErrorMessage(getString(address, key), wrapErr((("mandatory this." + key) + " is not defined")))
+
+
+func keyFactoryAddress () = "%s%s__config__factoryAddress"
+
+
+let keyVotingVerifiedContract = "%s%s__config__votingVerifiedContract"
+
+let keyVotingEmissionCandidateContract = "%s%s__config__votingEmissionCandidateContract"
+
+let keyUserPoolsContract = "%s%s__config__userPoolsContract"
+
+let keyVotingEmissionRateContract = "%s%s__config__votingEmissionRateContract"
+
+let votingVerifiedContract = addressFromStringValue(getStringOrFail(this, keyVotingVerifiedContract))
+
+let votingEmissionCandidateContract = addressFromStringValue(getStringOrFail(this, keyVotingEmissionCandidateContract))
+
+let userPoolsContract = addressFromStringValue(getStringOrFail(this, keyUserPoolsContract))
+
+let votingEmissionRateContract = addressFromStringValue(getStringOrFail(this, keyVotingEmissionRateContract))
+
+let IdxFactoryCfgStakingDapp = 1
+
+let IdxFactoryCfgBoostingDapp = 2
+
+let IdxFactoryCfgIdoDapp = 3
+
+let IdxFactoryCfgTeamDapp = 4
+
+let IdxFactoryCfgEmissionDapp = 5
+
+let IdxFactoryCfgRestDapp = 6
+
+let IdxFactoryCfgSlippageDapp = 7
+
+let IdxFactoryCfgGwxRewardDapp = 10
+
+func keyFactoryCfg () = "%s__factoryConfig"
+
+
+func keyFactoryLp2AssetsMapping (lpAssetStr) = makeString(["%s%s%s", lpAssetStr, "mappings__lpAsset2PoolContract"], SEP)
+
+
+func keyFactoryLpList () = "%s__lpTokensList"
+
+
+func keyFactoryLpAssetToPoolContractAddress (lpAssetStr) = makeString(["%s%s%s", lpAssetStr, "mappings__lpAsset2PoolContract"], SEP)
+
+
+func keyFactoryPoolWeight (contractAddress) = makeString(["%s%s", "poolWeight", contractAddress], SEP)
+
+
+func readFactoryAddressOrFail () = addressFromStringValue(getStringOrFail(this, keyFactoryAddress()))
+
+
+func readLpList () = split(valueOrElse(getString(readFactoryAddressOrFail(), keyFactoryLpList()), ""), SEP)
+
+
+func readFactoryCfgOrFail (factory) = split(getStringOrFail(factory, keyFactoryCfg()), SEP)
+
+
+func getBoostingAddressOrFail (factoryCfg) = addressFromStringValue(factoryCfg[IdxFactoryCfgBoostingDapp])
+
+
+func getEmissionAddressOrFail (factoryCfg) = addressFromStringValue(factoryCfg[IdxFactoryCfgEmissionDapp])
+
+
+func getStakingAddressOrFail (factoryCfg) = addressFromStringValue(factoryCfg[IdxFactoryCfgStakingDapp])
+
+
+func getGwxRewardAddressOrFail (factoryCfg) = addressFromStringValue(factoryCfg[IdxFactoryCfgGwxRewardDapp])
+
+
+func keyConfig () = "%s__config"
+
+
+func keyRatePerBlockMaxCurrent () = "%s%s__ratePerBlockMax__current"
+
+
+func keyRatePerBlockMaxStartFrom (timestamp,block) = makeString(["%s%s%d%d__ratePerBlockMax__start", toString(timestamp), toString(block)], SEP)
+
+
+func keyRatePerBlockCurrent () = "%s%s__ratePerBlock__current"
+
+
+func keyRatePerBlockNext () = "%s%s__ratePerBlock__next"
+
+
+func keyRatePerBlockStartFrom (timestamp,block) = makeString(["%s%s%d%d__ratePerBlock__start", toString(timestamp), toString(block)], SEP)
+
+
+func keyEmissionStartBlock () = "%s%s__emission__startBlock"
+
+
+func keyEmissionDurationInBlocks () = "%s%s__emission__duration"
+
+
+func keyEmissionEndBlock () = "%s%s__emission__endBlock"
+
+
+func keyBoostCoeff () = "%s__boostCoeff"
+
+
+let boostCoeffDefault = 3
+
+let boostCoeff = valueOrElse(getInteger(this, keyBoostCoeff()), boostCoeffDefault)
+
+func keyGwxHoldersRewardCurrent () = "%s%s__gwxHoldersReward__current"
+
+
+func keyGwxHoldersRewardNext () = "%s%s__gwxHoldersReward__next"
+
+
+func keyManagerPublicKey () = "%s__managerPublicKey"
+
+
+func keyManagerVaultAddress () = "%s__managerVaultAddress"
+
+
+func getManagerVaultAddressOrThis () = match getString(keyManagerVaultAddress()) {
+    case s: String => 
+        addressFromStringValue(s)
+    case _ => 
+        this
+}
+
+
+func managerPublicKeyOrUnit () = {
+    let managerVaultAddress = getManagerVaultAddressOrThis()
+    match getString(managerVaultAddress, keyManagerPublicKey()) {
+        case s: String => 
+            fromBase58String(s)
+        case _: Unit => 
+            unit
+        case _ => 
+            throw("Match error")
+    }
+    }
+
+
+func mustManager (i) = {
+    let pd = throwErr("Permission denied")
+    match managerPublicKeyOrUnit() {
+        case pk: ByteVector => 
+            if ((i.callerPublicKey == pk))
+                then true
+                else pd
+        case _: Unit => 
+            if ((i.caller == this))
+                then true
+                else pd
+        case _ => 
+            throw("Match error")
+    }
+    }
+
+
+@Callable(i)
+func constructor (factoryAddress,ratePerBlockMax,ratePerBlock,emissionStartBlock,emissionDuration,emissionStartTimestamp,wxAssetIdStr) = {
+    let checkCaller = mustManager(i)
+    if ((checkCaller == checkCaller))
+        then [IntegerEntry(keyRatePerBlockMaxStartFrom(emissionStartTimestamp, emissionStartBlock), ratePerBlockMax), IntegerEntry(keyRatePerBlockMaxCurrent(), ratePerBlockMax), IntegerEntry(keyRatePerBlockStartFrom(emissionStartTimestamp, emissionStartBlock), ratePerBlock), IntegerEntry(keyRatePerBlockCurrent(), ratePerBlock), IntegerEntry(keyEmissionStartBlock(), emissionStartBlock), IntegerEntry(keyEmissionDurationInBlocks(), emissionDuration), IntegerEntry(keyEmissionEndBlock(), (emissionStartBlock + emissionDuration)), StringEntry(keyFactoryAddress(), factoryAddress), StringEntry(keyConfig(), ("%s__" + wxAssetIdStr))]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func constructorV2 (votingVerifiedContractPrm) = {
+    let checkCaller = mustManager(i)
+    if ((checkCaller == checkCaller))
+        then $Tuple2([StringEntry(keyVotingVerifiedContract, votingVerifiedContractPrm)], unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func emit (amount) = if ((0 >= amount))
+    then $Tuple2(nil, nil)
+    else {
+        let factoryContract = readFactoryAddressOrFail()
+        let factoryCfg = readFactoryCfgOrFail(factoryContract)
+        let stakingContract = getStakingAddressOrFail(factoryCfg)
+        let gwxRewardsContract = getGwxRewardAddressOrFail(factoryCfg)
+        let caller = i.caller
+        if (if ((caller != stakingContract))
+            then (caller != gwxRewardsContract)
+            else false)
+            then throwErr("permissions denied")
+            else {
+                let wxAssetIdStr = split(getStringOrFail(this, keyConfig()), SEP)[1]
+                let wxAssetId = fromBase58String(wxAssetIdStr)
+                $Tuple2([ScriptTransfer(caller, amount, wxAssetId)], [wxAssetId])
+                }
+        }
+
+
+
+@Callable(i)
+func burn () = {
+    let factoryContract = readFactoryAddressOrFail()
+    let factoryCfg = readFactoryCfgOrFail(factoryContract)
+    let boostingContract = getBoostingAddressOrFail(factoryCfg)
+    if ((size(i.payments) != 1))
+        then throwErr("exact one payment is allowed")
+        else {
+            let pmt = i.payments[0]
+            let assetId = value(pmt.assetId)
+            let pmtAmount = pmt.amount
+            let wxAssetId = fromBase58String(split(getStringOrFail(this, keyConfig()), SEP)[1])
+            if ((assetId != wxAssetId))
+                then throwErr("invalid wxAssetId is passed")
+                else if (!(containsElement([boostingContract, votingVerifiedContract, votingEmissionCandidateContract, userPoolsContract], i.caller)))
+                    then throwErr("permissions denied")
+                    else [Burn(assetId, pmtAmount), StringEntry(("%s%s%s__history__burn__" + toBase58String(i.transactionId)), makeString(["%d%d%d", toString(height), toString(lastBlock.timestamp), toString(pmtAmount)], SEP))]
+            }
+    }
+
+
+
+@Callable(i)
+func gwxHoldersRewardUpdate () = {
+    let factoryContract = readFactoryAddressOrFail()
+    let factoryCfg = readFactoryCfgOrFail(factoryContract)
+    let gwxRewardsContract = getGwxRewardAddressOrFail(factoryCfg)
+    let checkCaller = if ((i.caller == gwxRewardsContract))
+        then true
+        else mustManager(i)
+    if ((checkCaller == checkCaller))
+        then {
+            let gwxHolderRewardCurrent = valueOrElse(getInteger(keyGwxHoldersRewardCurrent()), 0)
+            let gwxHolderRewardNext = valueOrElse(getInteger(keyGwxHoldersRewardNext()), gwxHolderRewardCurrent)
+            let shouldBeUpdated = (gwxHolderRewardCurrent != gwxHolderRewardNext)
+            let actions = if (shouldBeUpdated)
+                then [IntegerEntry(keyGwxHoldersRewardCurrent(), gwxHolderRewardNext), DeleteEntry(keyGwxHoldersRewardNext())]
+                else nil
+            $Tuple2(actions, shouldBeUpdated)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func getBoostCoeffREADONLY () = $Tuple2(nil, boostCoeff)
+
+
+
+@Callable(i)
+func changeRatePerBlock (newRatePerBlock) = {
+    let check = if (if ((i.caller == votingEmissionRateContract))
+        then true
+        else mustManager(i))
+        then true
+        else throwErr("should be invoked by votingEmissionRateContract")
+    if ((check == check))
+        then {
+            let factoryContract = readFactoryAddressOrFail()
+            let factoryCfg = readFactoryCfgOrFail(factoryContract)
+            let boostingContract = getBoostingAddressOrFail(factoryCfg)
+            let boostingInvoke = reentrantInvoke(boostingContract, "onBoostEmissionUpdate", nil, nil)
+            if ((boostingInvoke == boostingInvoke))
+                then {
+                    let blockTimestamp =                     match blockInfoByHeight(height) {
+                        case bi: BlockInfo => 
+                            bi.timestamp
+                        case _ => 
+                            throwErr("BlockInfo.timestamp error")
+                    }
+[IntegerEntry(keyRatePerBlockStartFrom(blockTimestamp, height), newRatePerBlock), IntegerEntry(keyRatePerBlockCurrent(), newRatePerBlock)]
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Verifier(tx)
+func verify () = {
+    let targetPublicKey =     match managerPublicKeyOrUnit() {
+        case pk: ByteVector => 
+            pk
+        case _: Unit => 
+            tx.senderPublicKey
+        case _ => 
+            throw("Match error")
+    }
+    sigVerify(tx.bodyBytes, tx.proofs[0], targetPublicKey)
+    }

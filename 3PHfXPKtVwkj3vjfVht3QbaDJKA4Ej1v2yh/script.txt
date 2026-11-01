@@ -1,0 +1,39 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let kAdminPubKey1 = "admin_pub_1"
+
+let kAdminPubKey2 = "admin_pub_2"
+
+let kAdminPubKey3 = "admin_pub_3"
+
+let oracle = Address(base58'3PEbqViERCoKnmcSULh6n2aiMvUdSQdCsom')
+
+func getBase58FromOracle (key) = match getString(oracle, key) {
+    case string: String => 
+        fromBase58String(string)
+    case nothing => 
+        throw((key + "is empty"))
+}
+
+
+let adminPubKey1 = getBase58FromOracle(kAdminPubKey1)
+
+let adminPubKey2 = getBase58FromOracle(kAdminPubKey2)
+
+let adminPubKey3 = getBase58FromOracle(kAdminPubKey3)
+
+
+@Verifier(tx)
+func verify () = {
+    let adminPubKey1Signed = if (sigVerify(tx.bodyBytes, tx.proofs[0], adminPubKey1))
+        then 1
+        else 0
+    let adminPubKey2Signed = if (sigVerify(tx.bodyBytes, tx.proofs[1], adminPubKey2))
+        then 1
+        else 0
+    let adminPubKey3Signed = if (sigVerify(tx.bodyBytes, tx.proofs[2], adminPubKey3))
+        then 1
+        else 0
+    (((adminPubKey1Signed + adminPubKey2Signed) + adminPubKey3Signed) >= 2)
+    }

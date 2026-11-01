@@ -1,0 +1,893 @@
+{-# STDLIB_VERSION 5 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let T = 3
+
+let assetIds = [base58'CE5cxMvz7865CyFZPFUmDiL4KRkYXP6b6oYgN3vmWdV5', base58'5m5stLsMZSPomwxTTjJGMMEnjMafRMfap5vZyaLwgMKD', base58'DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p']
+
+let AssetsWeights = [30, 30, 40]
+
+let AssetsWeightsDecimals = 2
+
+let PoolTokenDecimals = pow(2, 0, 3, 0, 0, FLOOR)
+
+let Decimals = [8, 8, 6]
+
+let Scales = [100000000, 100000000, 1000000]
+
+let Fee = 200
+
+let Scale = 10000
+
+let FeeScale = 10000
+
+let feeAggregator = Address(base58'3PDaWPwa1Ap8rhxbCNYvfs2b174rHgwEN8T')
+
+func tryGetInteger (key) = match getInteger(this, key) {
+    case b: Int => 
+        b
+    case _ => 
+        0
+}
+
+
+func tryGetBinary (key) = match getBinary(this, key) {
+    case b: ByteVector => 
+        b
+    case _ => 
+        base58''
+}
+
+
+func getCurrentTokenBalance (tokenType) = {
+    let tokenId = toBase58String(assetIds[tokenType])
+    tryGetInteger((("global_" + tokenId) + "_balance"))
+    }
+
+
+func calculatePIssued (amount,tokenId) = {
+    let Psupply = tryGetInteger("global_poolToken_amount")
+    let Balance = tryGetInteger((("global_" + toBase58String(tokenId)) + "_balance"))
+    fraction(amount, Psupply, Balance, DOWN)
+    }
+
+
+func getMinPIssued (payments) = {
+    func handler (accum,current) =     {
+        let PIssued = calculatePIssued(current.amount, value(current.assetId))
+        if (if ((accum == 0))
+            then true
+            else (accum > PIssued))
+            then PIssued
+            else accum
+        }
+
+    let minPIssed = {
+        let $list15951625 = payments
+        let $size15951625 = size($list15951625)
+        let $acc015951625 = 0
+        if (($size15951625 == 0))
+            then $acc015951625
+            else {
+                let $acc115951625 = handler($acc015951625, $list15951625[0])
+                if (($size15951625 == 1))
+                    then $acc115951625
+                    else {
+                        let $acc215951625 = handler($acc115951625, $list15951625[1])
+                        if (($size15951625 == 2))
+                            then $acc215951625
+                            else {
+                                let $acc315951625 = handler($acc215951625, $list15951625[2])
+                                if (($size15951625 == 3))
+                                    then $acc315951625
+                                    else {
+                                        let $acc415951625 = handler($acc315951625, $list15951625[3])
+                                        if (($size15951625 == 4))
+                                            then $acc415951625
+                                            else {
+                                                let $acc515951625 = handler($acc415951625, $list15951625[4])
+                                                if (($size15951625 == 5))
+                                                    then $acc515951625
+                                                    else {
+                                                        let $acc615951625 = handler($acc515951625, $list15951625[5])
+                                                        if (($size15951625 == 6))
+                                                            then $acc615951625
+                                                            else {
+                                                                let $acc715951625 = handler($acc615951625, $list15951625[6])
+                                                                if (($size15951625 == 7))
+                                                                    then $acc715951625
+                                                                    else {
+                                                                        let $acc815951625 = handler($acc715951625, $list15951625[7])
+                                                                        if (($size15951625 == 8))
+                                                                            then $acc815951625
+                                                                            else {
+                                                                                let $acc915951625 = handler($acc815951625, $list15951625[8])
+                                                                                if (($size15951625 == 9))
+                                                                                    then $acc915951625
+                                                                                    else {
+                                                                                        let $acc1015951625 = handler($acc915951625, $list15951625[9])
+                                                                                        if (($size15951625 == 10))
+                                                                                            then $acc1015951625
+                                                                                            else {
+                                                                                                let $acc1115951625 = handler($acc1015951625, $list15951625[10])
+                                                                                                throw("List size exceed 10")
+                                                                                                }
+                                                                                        }
+                                                                                }
+                                                                        }
+                                                                }
+                                                        }
+                                                }
+                                        }
+                                }
+                        }
+                }
+        }
+    minPIssed
+    }
+
+
+func checkTokensValidity (payments) = {
+    func handler1 (accum,payment) =     (accum ++ [value(payment.assetId)])
+
+    let ids = {
+        let $list18291861 = payments
+        let $size18291861 = size($list18291861)
+        let $acc018291861 = nil
+        if (($size18291861 == 0))
+            then $acc018291861
+            else {
+                let $acc118291861 = handler1($acc018291861, $list18291861[0])
+                if (($size18291861 == 1))
+                    then $acc118291861
+                    else {
+                        let $acc218291861 = handler1($acc118291861, $list18291861[1])
+                        if (($size18291861 == 2))
+                            then $acc218291861
+                            else {
+                                let $acc318291861 = handler1($acc218291861, $list18291861[2])
+                                if (($size18291861 == 3))
+                                    then $acc318291861
+                                    else {
+                                        let $acc418291861 = handler1($acc318291861, $list18291861[3])
+                                        if (($size18291861 == 4))
+                                            then $acc418291861
+                                            else {
+                                                let $acc518291861 = handler1($acc418291861, $list18291861[4])
+                                                if (($size18291861 == 5))
+                                                    then $acc518291861
+                                                    else {
+                                                        let $acc618291861 = handler1($acc518291861, $list18291861[5])
+                                                        if (($size18291861 == 6))
+                                                            then $acc618291861
+                                                            else {
+                                                                let $acc718291861 = handler1($acc618291861, $list18291861[6])
+                                                                if (($size18291861 == 7))
+                                                                    then $acc718291861
+                                                                    else {
+                                                                        let $acc818291861 = handler1($acc718291861, $list18291861[7])
+                                                                        if (($size18291861 == 8))
+                                                                            then $acc818291861
+                                                                            else {
+                                                                                let $acc918291861 = handler1($acc818291861, $list18291861[8])
+                                                                                if (($size18291861 == 9))
+                                                                                    then $acc918291861
+                                                                                    else {
+                                                                                        let $acc1018291861 = handler1($acc918291861, $list18291861[9])
+                                                                                        if (($size18291861 == 10))
+                                                                                            then $acc1018291861
+                                                                                            else {
+                                                                                                let $acc1118291861 = handler1($acc1018291861, $list18291861[10])
+                                                                                                throw("List size exceed 10")
+                                                                                                }
+                                                                                        }
+                                                                                }
+                                                                        }
+                                                                }
+                                                        }
+                                                }
+                                        }
+                                }
+                        }
+                }
+        }
+    func handler2 (accum,assetId) =     if ((indexOf(ids, assetId) != unit))
+        then (accum + 1)
+        else throw(("asset not attached: " + toBase58String(assetId)))
+
+    let checks = {
+        let $list20512082 = assetIds
+        let $size20512082 = size($list20512082)
+        let $acc020512082 = 0
+        if (($size20512082 == 0))
+            then $acc020512082
+            else {
+                let $acc120512082 = handler2($acc020512082, $list20512082[0])
+                if (($size20512082 == 1))
+                    then $acc120512082
+                    else {
+                        let $acc220512082 = handler2($acc120512082, $list20512082[1])
+                        if (($size20512082 == 2))
+                            then $acc220512082
+                            else {
+                                let $acc320512082 = handler2($acc220512082, $list20512082[2])
+                                if (($size20512082 == 3))
+                                    then $acc320512082
+                                    else {
+                                        let $acc420512082 = handler2($acc320512082, $list20512082[3])
+                                        if (($size20512082 == 4))
+                                            then $acc420512082
+                                            else {
+                                                let $acc520512082 = handler2($acc420512082, $list20512082[4])
+                                                if (($size20512082 == 5))
+                                                    then $acc520512082
+                                                    else {
+                                                        let $acc620512082 = handler2($acc520512082, $list20512082[5])
+                                                        if (($size20512082 == 6))
+                                                            then $acc620512082
+                                                            else {
+                                                                let $acc720512082 = handler2($acc620512082, $list20512082[6])
+                                                                if (($size20512082 == 7))
+                                                                    then $acc720512082
+                                                                    else {
+                                                                        let $acc820512082 = handler2($acc720512082, $list20512082[7])
+                                                                        if (($size20512082 == 8))
+                                                                            then $acc820512082
+                                                                            else {
+                                                                                let $acc920512082 = handler2($acc820512082, $list20512082[8])
+                                                                                if (($size20512082 == 9))
+                                                                                    then $acc920512082
+                                                                                    else {
+                                                                                        let $acc1020512082 = handler2($acc920512082, $list20512082[9])
+                                                                                        if (($size20512082 == 10))
+                                                                                            then $acc1020512082
+                                                                                            else {
+                                                                                                let $acc1120512082 = handler2($acc1020512082, $list20512082[10])
+                                                                                                throw("List size exceed 10")
+                                                                                                }
+                                                                                        }
+                                                                                }
+                                                                        }
+                                                                }
+                                                        }
+                                                }
+                                        }
+                                }
+                        }
+                }
+        }
+    true
+    }
+
+
+func handlePoolTokensAdd (PIssued,payments,userAddress) = {
+    func getTokenPaymentAmount (tokenId) =     {
+        func handler (accum,payment) =         if ((payment.assetId == tokenId))
+            then payment.amount
+            else accum
+
+        let $list23872417 = payments
+        let $size23872417 = size($list23872417)
+        let $acc023872417 = 0
+        if (($size23872417 == 0))
+            then $acc023872417
+            else {
+                let $acc123872417 = handler($acc023872417, $list23872417[0])
+                if (($size23872417 == 1))
+                    then $acc123872417
+                    else {
+                        let $acc223872417 = handler($acc123872417, $list23872417[1])
+                        if (($size23872417 == 2))
+                            then $acc223872417
+                            else {
+                                let $acc323872417 = handler($acc223872417, $list23872417[2])
+                                if (($size23872417 == 3))
+                                    then $acc323872417
+                                    else {
+                                        let $acc423872417 = handler($acc323872417, $list23872417[3])
+                                        if (($size23872417 == 4))
+                                            then $acc423872417
+                                            else {
+                                                let $acc523872417 = handler($acc423872417, $list23872417[4])
+                                                if (($size23872417 == 5))
+                                                    then $acc523872417
+                                                    else {
+                                                        let $acc623872417 = handler($acc523872417, $list23872417[5])
+                                                        if (($size23872417 == 6))
+                                                            then $acc623872417
+                                                            else {
+                                                                let $acc723872417 = handler($acc623872417, $list23872417[6])
+                                                                if (($size23872417 == 7))
+                                                                    then $acc723872417
+                                                                    else {
+                                                                        let $acc823872417 = handler($acc723872417, $list23872417[7])
+                                                                        if (($size23872417 == 8))
+                                                                            then $acc823872417
+                                                                            else {
+                                                                                let $acc923872417 = handler($acc823872417, $list23872417[8])
+                                                                                if (($size23872417 == 9))
+                                                                                    then $acc923872417
+                                                                                    else {
+                                                                                        let $acc1023872417 = handler($acc923872417, $list23872417[9])
+                                                                                        if (($size23872417 == 10))
+                                                                                            then $acc1023872417
+                                                                                            else {
+                                                                                                let $acc1123872417 = handler($acc1023872417, $list23872417[10])
+                                                                                                throw("List size exceed 10")
+                                                                                                }
+                                                                                        }
+                                                                                }
+                                                                        }
+                                                                }
+                                                        }
+                                                }
+                                        }
+                                }
+                        }
+                }
+        }
+
+    func handleTokenChange (accum,tokenId) =     {
+        let Bk = tryGetInteger((("global_" + toBase58String(tokenId)) + "_balance"))
+        let PSupply = tryGetInteger("global_poolToken_amount")
+        let tokenDecimals = tryGetInteger((("static_" + toBase58String(tokenId)) + "_scale"))
+        let Dk = fraction((fraction((PSupply + PIssued), tokenDecimals, PSupply, DOWN) - tokenDecimals), Bk, tokenDecimals, DOWN)
+        (accum ++ [IntegerEntry((("global_" + toBase58String(tokenId)) + "_balance"), (Bk + Dk))])
+        }
+
+    func handleTokenChange2 (accum,tokenId) =     {
+        let Bk = tryGetInteger((("global_" + toBase58String(tokenId)) + "_balance"))
+        let PSupply = tryGetInteger("global_poolToken_amount")
+        let tokenDecimals = tryGetInteger((("static_" + toBase58String(tokenId)) + "_scale"))
+        let Dk = fraction((fraction((PSupply + PIssued), tokenDecimals, PSupply, DOWN) - tokenDecimals), Bk, tokenDecimals, DOWN)
+        let paymentAmount = getTokenPaymentAmount(tokenId)
+        let toReturn = ((if ((paymentAmount != 0))
+            then paymentAmount
+            else 0) - Dk)
+        (accum ++ [ScriptTransfer(userAddress, toReturn, tokenId)])
+        }
+
+    ({
+        let $list36403681 = assetIds
+        let $size36403681 = size($list36403681)
+        let $acc036403681 = nil
+        if (($size36403681 == 0))
+            then $acc036403681
+            else {
+                let $acc136403681 = handleTokenChange($acc036403681, $list36403681[0])
+                if (($size36403681 == 1))
+                    then $acc136403681
+                    else {
+                        let $acc236403681 = handleTokenChange($acc136403681, $list36403681[1])
+                        if (($size36403681 == 2))
+                            then $acc236403681
+                            else {
+                                let $acc336403681 = handleTokenChange($acc236403681, $list36403681[2])
+                                if (($size36403681 == 3))
+                                    then $acc336403681
+                                    else {
+                                        let $acc436403681 = handleTokenChange($acc336403681, $list36403681[3])
+                                        if (($size36403681 == 4))
+                                            then $acc436403681
+                                            else {
+                                                let $acc536403681 = handleTokenChange($acc436403681, $list36403681[4])
+                                                if (($size36403681 == 5))
+                                                    then $acc536403681
+                                                    else {
+                                                        let $acc636403681 = handleTokenChange($acc536403681, $list36403681[5])
+                                                        if (($size36403681 == 6))
+                                                            then $acc636403681
+                                                            else {
+                                                                let $acc736403681 = handleTokenChange($acc636403681, $list36403681[6])
+                                                                if (($size36403681 == 7))
+                                                                    then $acc736403681
+                                                                    else {
+                                                                        let $acc836403681 = handleTokenChange($acc736403681, $list36403681[7])
+                                                                        if (($size36403681 == 8))
+                                                                            then $acc836403681
+                                                                            else {
+                                                                                let $acc936403681 = handleTokenChange($acc836403681, $list36403681[8])
+                                                                                if (($size36403681 == 9))
+                                                                                    then $acc936403681
+                                                                                    else {
+                                                                                        let $acc1036403681 = handleTokenChange($acc936403681, $list36403681[9])
+                                                                                        if (($size36403681 == 10))
+                                                                                            then $acc1036403681
+                                                                                            else {
+                                                                                                let $acc1136403681 = handleTokenChange($acc1036403681, $list36403681[10])
+                                                                                                throw("List size exceed 10")
+                                                                                                }
+                                                                                        }
+                                                                                }
+                                                                        }
+                                                                }
+                                                        }
+                                                }
+                                        }
+                                }
+                        }
+                }
+        } ++ {
+        let $list36883730 = assetIds
+        let $size36883730 = size($list36883730)
+        let $acc036883730 = nil
+        if (($size36883730 == 0))
+            then $acc036883730
+            else {
+                let $acc136883730 = handleTokenChange2($acc036883730, $list36883730[0])
+                if (($size36883730 == 1))
+                    then $acc136883730
+                    else {
+                        let $acc236883730 = handleTokenChange2($acc136883730, $list36883730[1])
+                        if (($size36883730 == 2))
+                            then $acc236883730
+                            else {
+                                let $acc336883730 = handleTokenChange2($acc236883730, $list36883730[2])
+                                if (($size36883730 == 3))
+                                    then $acc336883730
+                                    else {
+                                        let $acc436883730 = handleTokenChange2($acc336883730, $list36883730[3])
+                                        if (($size36883730 == 4))
+                                            then $acc436883730
+                                            else {
+                                                let $acc536883730 = handleTokenChange2($acc436883730, $list36883730[4])
+                                                if (($size36883730 == 5))
+                                                    then $acc536883730
+                                                    else {
+                                                        let $acc636883730 = handleTokenChange2($acc536883730, $list36883730[5])
+                                                        if (($size36883730 == 6))
+                                                            then $acc636883730
+                                                            else {
+                                                                let $acc736883730 = handleTokenChange2($acc636883730, $list36883730[6])
+                                                                if (($size36883730 == 7))
+                                                                    then $acc736883730
+                                                                    else {
+                                                                        let $acc836883730 = handleTokenChange2($acc736883730, $list36883730[7])
+                                                                        if (($size36883730 == 8))
+                                                                            then $acc836883730
+                                                                            else {
+                                                                                let $acc936883730 = handleTokenChange2($acc836883730, $list36883730[8])
+                                                                                if (($size36883730 == 9))
+                                                                                    then $acc936883730
+                                                                                    else {
+                                                                                        let $acc1036883730 = handleTokenChange2($acc936883730, $list36883730[9])
+                                                                                        if (($size36883730 == 10))
+                                                                                            then $acc1036883730
+                                                                                            else {
+                                                                                                let $acc1136883730 = handleTokenChange2($acc1036883730, $list36883730[10])
+                                                                                                throw("List size exceed 10")
+                                                                                                }
+                                                                                        }
+                                                                                }
+                                                                        }
+                                                                }
+                                                        }
+                                                }
+                                        }
+                                }
+                        }
+                }
+        })
+    }
+
+
+func handlePoolTokensRedeem (PRedeemed,userAddress) = {
+    func handleTokenRedeem (accum,tokenId) =     {
+        let Bk = tryGetInteger((("global_" + toBase58String(tokenId)) + "_balance"))
+        let PSupply = tryGetInteger("global_poolToken_amount")
+        let tokenDecimals = tryGetInteger((("static_" + toBase58String(tokenId)) + "_scale"))
+        let amount = fraction((tokenDecimals - fraction((PSupply - PRedeemed), tokenDecimals, PSupply, DOWN)), Bk, tokenDecimals, DOWN)
+        (accum ++ [IntegerEntry((("global_" + toBase58String(tokenId)) + "_balance"), (Bk - amount))])
+        }
+
+    func handleTokenRedeem2 (accum,tokenId) =     {
+        let Bk = tryGetInteger((("global_" + toBase58String(tokenId)) + "_balance"))
+        let PSupply = tryGetInteger("global_poolToken_amount")
+        let tokenDecimals = tryGetInteger((("static_" + toBase58String(tokenId)) + "_scale"))
+        let amount = fraction((tokenDecimals - fraction((PSupply - PRedeemed), tokenDecimals, PSupply, DOWN)), Bk, tokenDecimals, DOWN)
+        (accum ++ [ScriptTransfer(userAddress, amount, tokenId)])
+        }
+
+    ({
+        let $list48364877 = assetIds
+        let $size48364877 = size($list48364877)
+        let $acc048364877 = nil
+        if (($size48364877 == 0))
+            then $acc048364877
+            else {
+                let $acc148364877 = handleTokenRedeem($acc048364877, $list48364877[0])
+                if (($size48364877 == 1))
+                    then $acc148364877
+                    else {
+                        let $acc248364877 = handleTokenRedeem($acc148364877, $list48364877[1])
+                        if (($size48364877 == 2))
+                            then $acc248364877
+                            else {
+                                let $acc348364877 = handleTokenRedeem($acc248364877, $list48364877[2])
+                                if (($size48364877 == 3))
+                                    then $acc348364877
+                                    else {
+                                        let $acc448364877 = handleTokenRedeem($acc348364877, $list48364877[3])
+                                        if (($size48364877 == 4))
+                                            then $acc448364877
+                                            else {
+                                                let $acc548364877 = handleTokenRedeem($acc448364877, $list48364877[4])
+                                                if (($size48364877 == 5))
+                                                    then $acc548364877
+                                                    else {
+                                                        let $acc648364877 = handleTokenRedeem($acc548364877, $list48364877[5])
+                                                        if (($size48364877 == 6))
+                                                            then $acc648364877
+                                                            else {
+                                                                let $acc748364877 = handleTokenRedeem($acc648364877, $list48364877[6])
+                                                                if (($size48364877 == 7))
+                                                                    then $acc748364877
+                                                                    else {
+                                                                        let $acc848364877 = handleTokenRedeem($acc748364877, $list48364877[7])
+                                                                        if (($size48364877 == 8))
+                                                                            then $acc848364877
+                                                                            else {
+                                                                                let $acc948364877 = handleTokenRedeem($acc848364877, $list48364877[8])
+                                                                                if (($size48364877 == 9))
+                                                                                    then $acc948364877
+                                                                                    else {
+                                                                                        let $acc1048364877 = handleTokenRedeem($acc948364877, $list48364877[9])
+                                                                                        if (($size48364877 == 10))
+                                                                                            then $acc1048364877
+                                                                                            else {
+                                                                                                let $acc1148364877 = handleTokenRedeem($acc1048364877, $list48364877[10])
+                                                                                                throw("List size exceed 10")
+                                                                                                }
+                                                                                        }
+                                                                                }
+                                                                        }
+                                                                }
+                                                        }
+                                                }
+                                        }
+                                }
+                        }
+                }
+        } ++ {
+        let $list48834925 = assetIds
+        let $size48834925 = size($list48834925)
+        let $acc048834925 = nil
+        if (($size48834925 == 0))
+            then $acc048834925
+            else {
+                let $acc148834925 = handleTokenRedeem2($acc048834925, $list48834925[0])
+                if (($size48834925 == 1))
+                    then $acc148834925
+                    else {
+                        let $acc248834925 = handleTokenRedeem2($acc148834925, $list48834925[1])
+                        if (($size48834925 == 2))
+                            then $acc248834925
+                            else {
+                                let $acc348834925 = handleTokenRedeem2($acc248834925, $list48834925[2])
+                                if (($size48834925 == 3))
+                                    then $acc348834925
+                                    else {
+                                        let $acc448834925 = handleTokenRedeem2($acc348834925, $list48834925[3])
+                                        if (($size48834925 == 4))
+                                            then $acc448834925
+                                            else {
+                                                let $acc548834925 = handleTokenRedeem2($acc448834925, $list48834925[4])
+                                                if (($size48834925 == 5))
+                                                    then $acc548834925
+                                                    else {
+                                                        let $acc648834925 = handleTokenRedeem2($acc548834925, $list48834925[5])
+                                                        if (($size48834925 == 6))
+                                                            then $acc648834925
+                                                            else {
+                                                                let $acc748834925 = handleTokenRedeem2($acc648834925, $list48834925[6])
+                                                                if (($size48834925 == 7))
+                                                                    then $acc748834925
+                                                                    else {
+                                                                        let $acc848834925 = handleTokenRedeem2($acc748834925, $list48834925[7])
+                                                                        if (($size48834925 == 8))
+                                                                            then $acc848834925
+                                                                            else {
+                                                                                let $acc948834925 = handleTokenRedeem2($acc848834925, $list48834925[8])
+                                                                                if (($size48834925 == 9))
+                                                                                    then $acc948834925
+                                                                                    else {
+                                                                                        let $acc1048834925 = handleTokenRedeem2($acc948834925, $list48834925[9])
+                                                                                        if (($size48834925 == 10))
+                                                                                            then $acc1048834925
+                                                                                            else {
+                                                                                                let $acc1148834925 = handleTokenRedeem2($acc1048834925, $list48834925[10])
+                                                                                                throw("List size exceed 10")
+                                                                                                }
+                                                                                        }
+                                                                                }
+                                                                        }
+                                                                }
+                                                        }
+                                                }
+                                        }
+                                }
+                        }
+                }
+        })
+    }
+
+
+func calculateOutAmount (AmountIn,assetIn,assetOut) = {
+    let IndexIn = value(indexOf(assetIds, assetIn))
+    let IndexOut = value(indexOf(assetIds, assetOut))
+    if ((IndexIn == IndexOut))
+        then throw("inalid tokens pair")
+        else {
+            let BalanceIn = tryGetInteger((("global_" + toBase58String(assetIn)) + "_balance"))
+            let BalanceOut = tryGetInteger((("global_" + toBase58String(assetOut)) + "_balance"))
+            fraction(BalanceOut, (Scales[IndexOut] - pow(((BalanceIn * Scales[IndexIn]) / (BalanceIn + AmountIn)), Decimals[IndexIn], fraction(AssetsWeights[IndexIn], 10000, AssetsWeights[IndexOut]), 4, Decimals[IndexOut], FLOOR)), Scales[IndexOut], DOWN)
+            }
+    }
+
+
+@Callable(i)
+func preInit () = [IntegerEntry((("static_" + toBase58String(assetIds[0])) + "_scale"), Scales[0]), IntegerEntry((("static_" + toBase58String(assetIds[1])) + "_scale"), Scales[1]), IntegerEntry((("static_" + toBase58String(assetIds[2])) + "_scale"), Scales[2])]
+
+
+
+@Callable(i)
+func init () = {
+    func prepareList () =     {
+        func handler (accum,n) =         (accum ++ [IntegerEntry((("global_" + toBase58String(value(n.assetId))) + "_balance"), n.amount)])
+
+        let $list63016334 = i.payments
+        let $size63016334 = size($list63016334)
+        let $acc063016334 = nil
+        if (($size63016334 == 0))
+            then $acc063016334
+            else {
+                let $acc163016334 = handler($acc063016334, $list63016334[0])
+                if (($size63016334 == 1))
+                    then $acc163016334
+                    else {
+                        let $acc263016334 = handler($acc163016334, $list63016334[1])
+                        if (($size63016334 == 2))
+                            then $acc263016334
+                            else {
+                                let $acc363016334 = handler($acc263016334, $list63016334[2])
+                                if (($size63016334 == 3))
+                                    then $acc363016334
+                                    else {
+                                        let $acc463016334 = handler($acc363016334, $list63016334[3])
+                                        if (($size63016334 == 4))
+                                            then $acc463016334
+                                            else {
+                                                let $acc563016334 = handler($acc463016334, $list63016334[4])
+                                                if (($size63016334 == 5))
+                                                    then $acc563016334
+                                                    else {
+                                                        let $acc663016334 = handler($acc563016334, $list63016334[5])
+                                                        if (($size63016334 == 6))
+                                                            then $acc663016334
+                                                            else {
+                                                                let $acc763016334 = handler($acc663016334, $list63016334[6])
+                                                                if (($size63016334 == 7))
+                                                                    then $acc763016334
+                                                                    else {
+                                                                        let $acc863016334 = handler($acc763016334, $list63016334[7])
+                                                                        if (($size63016334 == 8))
+                                                                            then $acc863016334
+                                                                            else {
+                                                                                let $acc963016334 = handler($acc863016334, $list63016334[8])
+                                                                                if (($size63016334 == 9))
+                                                                                    then $acc963016334
+                                                                                    else {
+                                                                                        let $acc1063016334 = handler($acc963016334, $list63016334[9])
+                                                                                        if (($size63016334 == 10))
+                                                                                            then $acc1063016334
+                                                                                            else {
+                                                                                                let $acc1163016334 = handler($acc1063016334, $list63016334[10])
+                                                                                                throw("List size exceed 10")
+                                                                                                }
+                                                                                        }
+                                                                                }
+                                                                        }
+                                                                }
+                                                        }
+                                                }
+                                        }
+                                }
+                        }
+                }
+        }
+
+    func calculatePoolTokensAmount (payments) =     {
+        func handler (accum,pmt) =         {
+            let assetId = value(pmt.assetId)
+            func handler2 (accum,n) =             if ((n == assetId))
+                then value(indexOf(assetIds, n))
+                else accum
+
+            let Token = {
+                let $list66566687 = assetIds
+                let $size66566687 = size($list66566687)
+                let $acc066566687 = 1
+                if (($size66566687 == 0))
+                    then $acc066566687
+                    else {
+                        let $acc166566687 = handler2($acc066566687, $list66566687[0])
+                        if (($size66566687 == 1))
+                            then $acc166566687
+                            else {
+                                let $acc266566687 = handler2($acc166566687, $list66566687[1])
+                                if (($size66566687 == 2))
+                                    then $acc266566687
+                                    else {
+                                        let $acc366566687 = handler2($acc266566687, $list66566687[2])
+                                        if (($size66566687 == 3))
+                                            then $acc366566687
+                                            else {
+                                                let $acc466566687 = handler2($acc366566687, $list66566687[3])
+                                                if (($size66566687 == 4))
+                                                    then $acc466566687
+                                                    else {
+                                                        let $acc566566687 = handler2($acc466566687, $list66566687[4])
+                                                        if (($size66566687 == 5))
+                                                            then $acc566566687
+                                                            else {
+                                                                let $acc666566687 = handler2($acc566566687, $list66566687[5])
+                                                                if (($size66566687 == 6))
+                                                                    then $acc666566687
+                                                                    else {
+                                                                        let $acc766566687 = handler2($acc666566687, $list66566687[6])
+                                                                        if (($size66566687 == 7))
+                                                                            then $acc766566687
+                                                                            else {
+                                                                                let $acc866566687 = handler2($acc766566687, $list66566687[7])
+                                                                                if (($size66566687 == 8))
+                                                                                    then $acc866566687
+                                                                                    else {
+                                                                                        let $acc966566687 = handler2($acc866566687, $list66566687[8])
+                                                                                        if (($size66566687 == 9))
+                                                                                            then $acc966566687
+                                                                                            else {
+                                                                                                let $acc1066566687 = handler2($acc966566687, $list66566687[9])
+                                                                                                if (($size66566687 == 10))
+                                                                                                    then $acc1066566687
+                                                                                                    else {
+                                                                                                        let $acc1166566687 = handler2($acc1066566687, $list66566687[10])
+                                                                                                        throw("List size exceed 10")
+                                                                                                        }
+                                                                                                }
+                                                                                        }
+                                                                                }
+                                                                        }
+                                                                }
+                                                        }
+                                                }
+                                        }
+                                }
+                        }
+                }
+            (accum * pow(pmt.amount, Decimals[Token], AssetsWeights[Token], AssetsWeightsDecimals, 2, FLOOR))
+            }
+
+        let $list68006830 = payments
+        let $size68006830 = size($list68006830)
+        let $acc068006830 = 1
+        if (($size68006830 == 0))
+            then $acc068006830
+            else {
+                let $acc168006830 = handler($acc068006830, $list68006830[0])
+                if (($size68006830 == 1))
+                    then $acc168006830
+                    else {
+                        let $acc268006830 = handler($acc168006830, $list68006830[1])
+                        if (($size68006830 == 2))
+                            then $acc268006830
+                            else {
+                                let $acc368006830 = handler($acc268006830, $list68006830[2])
+                                if (($size68006830 == 3))
+                                    then $acc368006830
+                                    else {
+                                        let $acc468006830 = handler($acc368006830, $list68006830[3])
+                                        if (($size68006830 == 4))
+                                            then $acc468006830
+                                            else {
+                                                let $acc568006830 = handler($acc468006830, $list68006830[4])
+                                                if (($size68006830 == 5))
+                                                    then $acc568006830
+                                                    else {
+                                                        let $acc668006830 = handler($acc568006830, $list68006830[5])
+                                                        if (($size68006830 == 6))
+                                                            then $acc668006830
+                                                            else {
+                                                                let $acc768006830 = handler($acc668006830, $list68006830[6])
+                                                                if (($size68006830 == 7))
+                                                                    then $acc768006830
+                                                                    else {
+                                                                        let $acc868006830 = handler($acc768006830, $list68006830[7])
+                                                                        if (($size68006830 == 8))
+                                                                            then $acc868006830
+                                                                            else {
+                                                                                let $acc968006830 = handler($acc868006830, $list68006830[8])
+                                                                                if (($size68006830 == 9))
+                                                                                    then $acc968006830
+                                                                                    else {
+                                                                                        let $acc1068006830 = handler($acc968006830, $list68006830[9])
+                                                                                        if (($size68006830 == 10))
+                                                                                            then $acc1068006830
+                                                                                            else {
+                                                                                                let $acc1168006830 = handler($acc1068006830, $list68006830[10])
+                                                                                                throw("List size exceed 10")
+                                                                                                }
+                                                                                        }
+                                                                                }
+                                                                        }
+                                                                }
+                                                        }
+                                                }
+                                        }
+                                }
+                        }
+                }
+        }
+
+    if ((tryGetInteger("global_wasInited") > 0))
+        then throw("pool already inited")
+        else {
+            let initialPoolTokens = calculatePoolTokensAmount(i.payments)
+            let poolTokenIssue = Issue("Puzzle3", "Puzzle Swap Pool Token", initialPoolTokens, PoolTokenDecimals, true, unit, 0)
+            let poolTokenId = calculateAssetId(poolTokenIssue)
+            (prepareList() ++ [poolTokenIssue, IntegerEntry("global_poolToken_amount", initialPoolTokens), IntegerEntry("global_wasInited", 1), BinaryEntry("global_poolToken_id", poolTokenId), ScriptTransfer(i.caller, initialPoolTokens, poolTokenId)])
+            }
+    }
+
+
+
+@Callable(i)
+func addLiquidity () = if ((size(i.payments) != T))
+    then throw(("you need to attach all pool tokens. amount of pool tokens: " + toString(T)))
+    else if (!(checkTokensValidity(i.payments)))
+        then throw("wrong assets attached")
+        else {
+            let PIssued = getMinPIssued(i.payments)
+            let result = handlePoolTokensAdd(PIssued, i.payments, i.caller)
+            let reissue = Reissue(tryGetBinary("global_poolToken_id"), PIssued, true)
+            (result ++ [reissue, ScriptTransfer(i.caller, PIssued, tryGetBinary("global_poolToken_id")), IntegerEntry("global_poolToken_amount", (tryGetInteger("global_poolToken_amount") + PIssued))])
+            }
+
+
+
+@Callable(i)
+func removeLiquidity () = {
+    let pmt = i.payments[0]
+    if ((pmt.assetId != tryGetBinary("global_poolToken_id")))
+        then throw("please attach pool share token")
+        else {
+            let PRedeemed = pmt.amount
+            let result = handlePoolTokensRedeem(PRedeemed, i.caller)
+            (result ++ [Burn(tryGetBinary("global_poolToken_id"), PRedeemed), IntegerEntry("global_poolToken_amount", (tryGetInteger("global_poolToken_amount") - PRedeemed))])
+            }
+    }
+
+
+
+@Callable(i)
+func swap (assetOut,minimum) = {
+    let pmt = value(i.payments[0])
+    let AmountIn = value(i.payments[0].amount)
+    let AssetIn = value(pmt.assetId)
+    let AssetOut = fromBase58String(assetOut)
+    let AmountOut = calculateOutAmount(AmountIn, AssetIn, AssetOut)
+    if ((minimum > AmountOut))
+        then throw(("amount to recieve it lower than given one: " + toString(AmountOut)))
+        else if (((Scales[value(indexOf(assetIds, AssetIn))] / 10000) > AmountIn))
+            then throw("sum to exchange is too small")
+            else if ((0 > (tryGetInteger((("global_" + toBase58String(AssetOut)) + "_balance")) - AmountOut)))
+                then throw("contract is out of reserves")
+                else {
+                    let feeAmount = fraction(AmountOut, Fee, FeeScale)
+                    let cleanAmountOut = (AmountOut - feeAmount)
+[ScriptTransfer(feeAggregator, feeAmount, AssetOut), IntegerEntry((("global_" + toBase58String(AssetOut)) + "_balance"), (tryGetInteger((("global_" + toBase58String(AssetOut)) + "_balance")) - cleanAmountOut)), IntegerEntry((("global_" + toBase58String(AssetIn)) + "_balance"), (tryGetInteger((("global_" + toBase58String(AssetIn)) + "_balance")) + AmountIn)), ScriptTransfer(i.caller, cleanAmountOut, AssetOut)]
+                    }
+    }
+
+
+@Verifier(tx)
+func verify () = sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)

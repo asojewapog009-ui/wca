@@ -1,0 +1,267 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let OLD_STAKING_DEADLINE = 1733346000000
+
+let chain = take(drop(this.bytes, 1), 1)
+
+let defaultRestAddressStr = match chain {
+    case _ => 
+        if ((base58'2W' == $match0))
+            then "3PQCuvFbvh4LkPUnrnU1z3jnbA1p9m3WNhv"
+            else if ((base58'2T' == $match0))
+                then "3MumkGGztCKAXpWDqxkddofqXSUbqQkvSJy"
+                else throw("Unknown chain")
+}
+
+let acres2AddressStr = match chain {
+    case _ => 
+        if ((base58'2W' == $match0))
+            then "3P4UH3T9nXpMNpUmSmQjPmEz3G85t3zn6eA"
+            else if ((base58'2T' == $match0))
+                then "3NBPx1Fciu3JQNEGZ21jSnTdutLNGGBUSXh"
+                else throw("Unknown chain")
+}
+
+let SEP = "__"
+
+let MULT8 = 100000000
+
+func getStringOrFail (address,key) = valueOrErrorMessage(getString(address, key), makeString(["mandatory ", toString(address), ".", key, " is not defined"], ""))
+
+
+let IdxCfgStakingDapp = 1
+
+let IdxCfgEconomyDapp = 2
+
+let IdxCfgWlgDapp = 4
+
+let IdxCfgAcresDapp = 8
+
+func keyRestCfg () = "%s__restConfig"
+
+
+func keyRestAddress () = "%s__restAddr"
+
+
+func readRestCfgOrFail (rest) = split_4C(getStringOrFail(rest, keyRestCfg()), SEP)
+
+
+func getContractAddressOrFail (restCfg,idx) = valueOrErrorMessage(addressFromString(restCfg[idx]), ("Rest cfg doesn't contain address at index " + toString(idx)))
+
+
+let restContract = addressFromStringValue(valueOrElse(getString(this, keyRestAddress()), defaultRestAddressStr))
+
+let restCfg = readRestCfgOrFail(restContract)
+
+let stakingContract = getContractAddressOrFail(restCfg, IdxCfgStakingDapp)
+
+let economyContract = getContractAddressOrFail(restCfg, IdxCfgEconomyDapp)
+
+let wlgContract = getContractAddressOrFail(restCfg, IdxCfgWlgDapp)
+
+let acresContract = getContractAddressOrFail(restCfg, IdxCfgAcresDapp)
+
+let acresIssuedAmountKey = "acresIssuedAmount"
+
+let acresAssetIdKey = "acresAssetId"
+
+let acresAssetId = valueOrErrorMessage(getBinary(acresContract, acresAssetIdKey), "ACRES is not issued yet")
+
+func keyAcresStakedTimeByUser (addr) = ("acresStakedTimeByUser_" + addr)
+
+
+let IdxEffTotal = 0
+
+func keyResProportions () = "resTypesProportions"
+
+
+func keyStakedPiecesByOwner (ownerAddr) = ("stakedPiecesByOwner_" + ownerAddr)
+
+
+func asInt (v) = match v {
+    case n: Int => 
+        n
+    case _ => 
+        throw("fail to cast into Int")
+}
+
+
+func asTwoIntsTuple (val) = match val {
+    case t2: (Int, Int) => 
+        t2
+    case _ => 
+        throw("fail to cast into (Int, Int)")
+}
+
+
+func getVotingPower (userAddrStrOrEmpty) = {
+    let props = split(valueOrElse(getString(stakingContract, keyResProportions()), "0_0_0_0_0_0"), "_")
+    func adder (acc,item) =     (acc + parseIntValue(item))
+
+    let totalPower = {
+        let $l = props
+        let $s = size($l)
+        let $acc0 = 0
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else adder($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 6")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6)
+        }
+    let usersPower = valueOrElse(getInteger(stakingContract, keyStakedPiecesByOwner(userAddrStrOrEmpty)), 0)
+[totalPower, usersPower]
+    }
+
+
+func fixedPoint (val,decimals) = {
+    let tenPow = pow(10, 0, decimals, 0, 0, DOWN)
+    let lowPart = toString((val % tenPow))
+    let zeroes = drop(toString(tenPow), (1 + size(lowPart)))
+    (((toString((val / tenPow)) + ".") + zeroes) + lowPart)
+    }
+
+
+func finalTime () = min([lastBlock.timestamp, OLD_STAKING_DEADLINE])
+
+
+let DAILYRESBYPIECE = 3456000
+
+let USDT2ACRES_MULTIPLIER = 10
+
+let MILLION6 = 100000000000000
+
+let DAYMILLIS = 86400000
+
+func keyAcresStakedAmountByUser (addr) = ("acresStakedAmountByUser_" + addr)
+
+
+func keyAcresLockedAmountByUser (addr) = ("acresLockedAmountByUser_" + addr)
+
+
+func keyAcresLockedEtaByUser (addr) = ("acresLockedEtaByUser_" + addr)
+
+
+let acresStakedTotalKey = "acresStakedAmountTotal"
+
+let BLACKLISTED1 = "3P2NGX4Q5nge1MCauwQW5aqYLdkccSGj1Ep_3P2xFAHW9yhyNohYozWd4HFhEXZu3bsNSoR_3P2yKaZ2gvn9Xe5tti81a7P9LZhHgjvToV9_3P37zQ3cf2ecu55RmJqEiGSivdzN9avt3m9_3P4az6dtzsvGCWFAxa94UdevKzXyEwxEiFG_3P4kZU6X3TTLFcSUe55JSy8BySqitcPgMBz_3P5hCxBEh3NgNizZhNBreyBSqtbhJYLkKPD_3P7HLvucy11yxyMJUwjzXFHHKMEDwi1EwfC_3P8JuaqH9PTQAv8D5HBGgQfKauLTYt2NQft_3P9gTDB4rtDEVbpX3asU63H4Zinh2EnTmZE_3P9iN3qrtfJicUVy7amZeVsetVD3vUMk8be_3PCa2BsAa6JBLirszQfV5r9fJrujfhwtwfP_3PD3i4XN8KtygcFx4ry5M7UGqdfH8VYvtRT_3PDEMnnJNc2kx9cPEmvVvhXUr8SvhANKhsa_3PDGE9tKQizaeZFeDDq5aYSv89nwYbfirpZ_3PDMKQTCrUPZECVXEJJ8m1sHtutSu1naSf1_3PGh2Qu6Yvx8GTCRRVNvBUVZLdaidYSaxo5_3PKkmAtbSK5D2hQdo1RfEg8eXyMbDcRUc92_3PLMnbxzssP8W8E8XjJ1RLBBg8UZL8Cz3P2_3PMuxo4PCAox9s4a7R1eszh4iqqu8gS7jHv_3PNrMtEQChw87WZU1JAJ7aGHykCa8TjnDNK_3PPuBXfWoBy3EEory7c7vgi9Usjka7o5tBj_3PQwyeyEhT4Y6aGAL6tg73aQWJtV1zRt3nR_3PRGDShuMGb84MJtTJvtTg8qDfswkYWcm3e"
+
+let PROMO1_AMOUNT = 4970178
+
+func isBlacklistedPromo1 (addr) = contains(BLACKLISTED1, addr)
+
+
+func claimAcresInternal (addr,acresAmount,lastClaimTime) = {
+    let deltaTime = (finalTime() - lastClaimTime)
+    let availRes = fraction(deltaTime, (DAILYRESBYPIECE * acresAmount), (DAYMILLIS * MULT8))
+    let canGetUsdt = asInt(invoke(economyContract, "sellResourcesWorldREADONLY", [availRes], nil))
+    let gotUsdt = max([0, canGetUsdt])
+    (gotUsdt * USDT2ACRES_MULTIPLIER)
+    }
+
+
+func claimInternal (addr,acresAmount,lastClaimTime) = {
+    let deltaTime = (finalTime() - lastClaimTime)
+    if ((0 > deltaTime))
+        then throw(((("Saved timestamp is in future, saved = " + toString(lastClaimTime)) + ", final = ") + toString(finalTime())))
+        else {
+            let availRes = fraction(deltaTime, (DAILYRESBYPIECE * acresAmount), (DAYMILLIS * MULT8))
+            let canGetUsdt = asInt(invoke(economyContract, "sellResourcesWorldREADONLY", [availRes], nil))
+            let gotUsdt = if ((0 >= canGetUsdt))
+                then 0
+                else asTwoIntsTuple(invoke(economyContract, "sellResourcesWorld", [addr, availRes], nil))._1
+            (gotUsdt * USDT2ACRES_MULTIPLIER)
+            }
+    }
+
+
+@Callable(i)
+func constructorV1 (restAddr,unstakedPieces) = if ((i.caller != this))
+    then throw("Permission denied")
+    else if (isDefined(getBinary(acresAssetIdKey)))
+        then throw("Already initialized")
+        else {
+            let nftAcres = (getVotingPower("")[IdxEffTotal] + unstakedPieces)
+            let issuedAmount = (MILLION6 - (nftAcres * MULT8))
+            let issue = Issue("ACRES", "WavesLands land acres investment token", issuedAmount, 8, false, unit, 0)
+            let assetId = calculateAssetId(issue)
+[issue, IntegerEntry(acresIssuedAmountKey, issuedAmount), BinaryEntry(acresAssetIdKey, assetId), StringEntry(keyRestAddress(), restAddr)]
+            }
+
+
+
+@Callable(i)
+func unstakeAcresCallback (amount,address) = if ((toString(i.caller) != acres2AddressStr))
+    then throw("Permission denied")
+    else if ((0 >= amount))
+        then throw("Amount should be positive")
+        else {
+            let timeKey = keyAcresStakedTimeByUser(address)
+            let amountKey = keyAcresStakedAmountByUser(address)
+            let oldAcresAmount = valueOrElse(getInteger(amountKey), 0)
+            if ((amount > oldAcresAmount))
+                then throw(((("You have only " + fixedPoint(oldAcresAmount, 8)) + " ACRES staked, tried to unstake ") + fixedPoint(amount, 8)))
+                else {
+                    let lockedAmount = valueOrElse(getInteger(keyAcresLockedAmountByUser(address)), 0)
+                    let lockedETA = valueOrElse(getInteger(keyAcresLockedEtaByUser(address)), 0)
+                    let now = lastBlock.timestamp
+                    let unstakableAmount = if (isBlacklistedPromo1(address))
+                        then ((oldAcresAmount - lockedAmount) - PROMO1_AMOUNT)
+                        else (oldAcresAmount - lockedAmount)
+                    if (if ((lockedETA > now))
+                        then (amount > unstakableAmount)
+                        else false)
+                        then throw(((("Only " + fixedPoint(unstakableAmount, 8)) + " ACRES can be unstaked now, wait until ") + toString(lockedETA)))
+                        else {
+                            let oldTotal = valueOrElse(getInteger(acresStakedTotalKey), 0)
+                            let wlgResult = invoke(wlgContract, "onStakeUnstakeLandOld", [address], nil)
+                            let claimedAcres = claimInternal(address, oldAcresAmount, valueOrElse(getInteger(timeKey), 0))
+                            $Tuple2([IntegerEntry(timeKey, lastBlock.timestamp), IntegerEntry(amountKey, (oldAcresAmount - amount)), IntegerEntry(acresStakedTotalKey, (oldTotal - amount)), ScriptTransfer(i.caller, (amount + claimedAcres), acresAssetId)], $Tuple2((amount + claimedAcres), wlgResult))
+                            }
+                    }
+            }
+
+
+
+@Callable(i)
+func unstakeAllAcresREADONLY (address) = {
+    let amount = valueOrElse(getInteger(keyAcresStakedAmountByUser(address)), 0)
+    let claimedAcres = claimAcresInternal(address, amount, valueOrElse(getInteger(keyAcresStakedTimeByUser(address)), 0))
+    $Tuple2(nil, $Tuple2(amount, claimedAcres))
+    }
+
+
+
+@Callable(i)
+func requestAcresCallback (amount) = {
+    let caller = i.caller
+    if (if ((toString(caller) != acres2AddressStr))
+        then (caller != stakingContract)
+        else false)
+        then throw("Permission denied")
+        else $Tuple2([ScriptTransfer(caller, amount, acresAssetId)], amount)
+    }
+
+
+
+@Callable(i)
+func sendAcresFor (addr,amount) = if ((i.caller != wlgContract))
+    then throw("Permission denied")
+    else $Tuple2([ScriptTransfer(addressFromStringValue(addr), amount, acresAssetId)], amount)
+
+
+
+@Callable(i)
+func claimAcresREADONLY (address) = {
+    let timeKey = keyAcresStakedTimeByUser(address)
+    let amountKey = keyAcresStakedAmountByUser(address)
+    let acresAmount = valueOrElse(getInteger(amountKey), 0)
+    let lastTime = valueOrElse(getInteger(timeKey), 0)
+    let claimedAcres = claimAcresInternal(address, acresAmount, lastTime)
+    $Tuple2(nil, [claimedAcres, lastTime])
+    }
+

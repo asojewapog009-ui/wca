@@ -1,0 +1,54 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let importLp = 483797624
+
+let adminAddress = Address(base58'3PP2vDtqUrukqs4EoZs1YzfudJJ3sBGCHaJ')
+
+@Callable(i)
+func a () = {
+    let vestingHeight = ((height / 1440) * 1440)
+    let balance = valueOrElse(getInteger(Address(base58'3PRBVq52csUvTx77NYwLTULrt2e9jdsHfRB'), makeString(["global_imported", "3PGCkrHBxFMi7tz1xqnxgBpeNvn5E4M4g8S", toString(vestingHeight)], "_")), 0)
+    if ((i.caller != adminAddress))
+        then throw("Access Denied")
+        else if ((vestingHeight != height))
+            then throw("Failed")
+            else if (((balance + importLp) >= 3557546517))
+                then throw("Failed")
+                else {
+                    let r = invoke(Address(base58'3PAZv9tgK1PX7dKR7b4kchq5qdpUS3G5sYT'), "replenishWithAtoken", nil, [AttachedPayment(base58'FSRHtSyXRXQjzQLRtmaqFpBDDCNjY8PU8KNtwoGXVBmr', importLp)])
+                    if ((r == r))
+                        then nil
+                        else throw("Strict value is not equal to itself.")
+                    }
+    }
+
+
+
+@Callable(i)
+func b () = if ((i.caller != adminAddress))
+    then throw("Access Denied")
+    else {
+        let r = invoke(Address(base58'3PCbvPVQfSvVu88ip8Fm5YjwJhjEYk1Txhk'), "convertToUSDN", nil, nil)
+        if ((r == r))
+            then nil
+            else throw("Strict value is not equal to itself.")
+        }
+
+
+
+@Callable(i)
+func c () = if ((i.caller != adminAddress))
+    then throw("Access Denied")
+    else {
+        let r = invoke(Address(base58'3PCbvPVQfSvVu88ip8Fm5YjwJhjEYk1Txhk'), "withdrawVestedAllUSDN", [false, true], nil)
+        if ((r == r))
+            then [ScriptTransfer(adminAddress, {
+                let @ = r
+                if ($isInstanceOf(@, "Int"))
+                    then @
+                    else throw(($getType(@) + " couldn't be cast to Int"))
+                }, base58'DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p')]
+            else throw("Strict value is not equal to itself.")
+        }
+

@@ -1,0 +1,11 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+
+
+@Callable(i)
+func swap (assetOut,minOut) = nil
+
+
+@Verifier(tx)
+func verify () = sigVerify(tx.bodyBytes, tx.proofs[0], base58'38YGSxYE6tUY7aF4sMFQxeX6idRAbRiE4cb5DKJrAhcw')

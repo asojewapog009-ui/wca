@@ -1,0 +1,135 @@
+{-# STDLIB_VERSION 5 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+func writeConstString (key,value) = if (!(isDefined(getString(this, key))))
+    then StringEntry(key, value)
+    else throw(("already initialized: " + key))
+
+
+let configStore = "config"
+
+func userEbRewardStore (user) = ("userEbReward_" + user)
+
+
+func userEbRewardClaimedStore (user) = ("userEbRewardClaimed_" + user)
+
+
+let ebRewardUnlockStartHeight = valueOrElse(getInteger(this, "ebRewardUnlockStartHeight"), -1)
+
+let ebRewardUnlockEndHeight = valueOrElse(getInteger(this, "ebRewardUnlockEndHeight"), -1)
+
+let configAddress = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(this, configStore), "ebrewards: no configAddress")), "invalid config address")
+
+let maybeOracleAddress = match getString(configAddress, "oracle_address") {
+    case s: String => 
+        addressFromString(s)
+    case _ => 
+        unit
+}
+
+let HEIGHT = height
+
+let mainAddress = valueOrErrorMessage(addressFromString(split(valueOrErrorMessage(getString(configAddress, "main"), "no main in config"), "|")[0]), "invalid main address")
+
+let adminAddress = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "admin"), "no main in config")), "invalid admin address")
+
+let viresMinter = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "vires_minter"), "eb-rewards: no viresMinter")), "invalid viresMinter")
+
+let viresIdStr = valueOrErrorMessage(getString(viresMinter, "assetId"), "eb:no viresAssetId")
+
+let viresAssetId = valueOrErrorMessage(fromBase58String(viresIdStr), "invalid viresAssetId")
+
+func mainOnly (i) = if (contains(getStringValue(configAddress, "main"), toString(i.caller)))
+    then true
+    else throw("only main can do")
+
+
+func adminOnly (i) = if ((i.caller != adminAddress))
+    then throw("only admin can do")
+    else true
+
+
+func opAllowed (op) = match invoke(configAddress, "opAllowed", [viresIdStr, op], nil) {
+    case b: Boolean => 
+        if (b)
+            then true
+            else throw("not allowed")
+    case _ => 
+        throw("opAllowed: unexpected result type")
+}
+
+
+func userEbRewardBalance (user) = {
+    let totalVesting = valueOrElse(getInteger(userEbRewardStore(user)), 0)
+    let alreadyClaimed = valueOrElse(getInteger(userEbRewardClaimedStore(user)), 0)
+    let eligible = if (if ((ebRewardUnlockStartHeight == -1))
+        then true
+        else (ebRewardUnlockEndHeight == -1))
+        then 0
+        else if ((ebRewardUnlockStartHeight > HEIGHT))
+            then 0
+            else if ((HEIGHT > ebRewardUnlockEndHeight))
+                then totalVesting
+                else fraction(totalVesting, (HEIGHT - ebRewardUnlockStartHeight), (ebRewardUnlockEndHeight - ebRewardUnlockStartHeight))
+    $Tuple3(totalVesting, alreadyClaimed, eligible)
+    }
+
+
+@Callable(i)
+func adviseUser (user) = {
+    let $t029663038 = userEbRewardBalance(user)
+    let totalVesting = $t029663038._1
+    let alreadyClaimed = $t029663038._2
+    let eligible = $t029663038._3
+    let available = (eligible - alreadyClaimed)
+    $Tuple2(nil, ((((((("ebTotalVesting: " + toString(totalVesting)) + ", ebTotalEligible: ") + toString(eligible)) + ", ebAlreadyClaimed: ") + toString(alreadyClaimed)) + ", ebAvailable: ") + toString(available)))
+    }
+
+
+
+@Callable(i)
+func init (config) = [writeConstString(configStore, config)]
+
+
+
+@Callable(i)
+func setStart (startHeight,endHeight) = {
+    let checks = adminOnly(i)
+    if ((checks == checks))
+        then [IntegerEntry("ebRewardUnlockStartHeight", startHeight), IntegerEntry("ebRewardUnlockEndHeight", endHeight)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func claimEbRewardFor (user,amount) = {
+    let checks = if (mainOnly(i))
+        then opAllowed("claim_vires_eb")
+        else false
+    if ((checks == checks))
+        then {
+            let caller = toString(i.caller)
+            let $t037803852 = userEbRewardBalance(user)
+            let totalVesting = $t037803852._1
+            let alreadyClaimed = $t037803852._2
+            let eligible = $t037803852._3
+            let available = (eligible - alreadyClaimed)
+            if ((available == 0))
+                then $Tuple2(nil, 0)
+                else if ((0 > available))
+                    then throw("no eb rewards available")
+                    else {
+                        let actualAmount = if ((amount == -1))
+                            then available
+                            else amount
+                        if ((0 >= actualAmount))
+                            then throw("invalid amount")
+                            else if ((actualAmount > available))
+                                then throw(("claiming too much eb rewards: max=" + toString(available)))
+                                else $Tuple2([ScriptTransfer(i.caller, actualAmount, viresAssetId), IntegerEntry(userEbRewardClaimedStore(user), (alreadyClaimed + actualAmount))], actualAmount)
+                        }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+

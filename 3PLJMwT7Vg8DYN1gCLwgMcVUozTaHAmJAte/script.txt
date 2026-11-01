@@ -1,0 +1,799 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let SEPARATOR = "__"
+
+let KEY_INIT = "INIT"
+
+let KEY_MULTISIG = "MULTISIG"
+
+let KEY_STATUS = "STATUS"
+
+let KEY_PAUSED = "PAUSED"
+
+let KEY_PAUSER = "PAUSER"
+
+let KEY_EXECUTOR = "EXECUTOR"
+
+let KEY_ROOT_ADAPTER = "ROOT_ADAPTER"
+
+let KEY_CALLER_CONTRACT = "CALLER_CONTRACT"
+
+let KEY_CHAIN = "CHAIN"
+
+let KEY_BINDING = "BINDING"
+
+let KEY_FEE = "FEE"
+
+let KEY_FEE_RECIPIENT = "FEE_RECIPIENT"
+
+let KEY_REFERRER_FEE_PERCENT = "REFERRER_FEE_PERCENT"
+
+let KEY_CROSSCHAIN_POOL_CONTRACTS = "CROSSCHAIN_POOL_CONTRACTS"
+
+let KEY_BRIDGE_ASSET_CONTRACT = "BRIDGE_ASSET_CONTRACT"
+
+let FUNC_MINT = "mint"
+
+let FUNC_DEPOSIT = "deposit"
+
+let FUNC_RELEASE_TOKENS = "releaseTokens"
+
+let FUNC_GET_ASSET_ID = "getAssetId"
+
+let FUNC_GET_DECIMALS = "getDecimals"
+
+let WAVES = "WAVES"
+
+let WAVES_DECIMALS = 8
+
+let DECIMALS = 6
+
+let PERCENT_FACTOR = 1000000
+
+let MAX_REFERRER_FEE = 200000
+
+let MAX_INT = 9223372036854775807
+
+func _validateAddress (address_,err_) = match addressFromString(address_) {
+    case a: Address => 
+        true
+    case _ => 
+        throw(err_)
+}
+
+
+func _validateAsset (assetId_,err_) = match assetInfo(fromBase58String(assetId_)) {
+    case a: Asset => 
+        true
+    case _ => 
+        throw(err_)
+}
+
+
+func _validateInt (val_,lowerBoundary_,upperBoundary_,err_) = if (if ((lowerBoundary_ > val_))
+    then true
+    else (val_ > upperBoundary_))
+    then throw(err_)
+    else true
+
+
+func _validateBool (val_,target_,err_) = if ((val_ != target_))
+    then throw(err_)
+    else true
+
+
+func _validatePaymentsSize (payments_,target_,err_) = if ((size(payments_) != target_))
+    then throw(err_)
+    else true
+
+
+func _validateReferrer (referrer_,err_) = if ((referrer_ != ""))
+    then _validateAddress(referrer_, err_)
+    else true
+
+
+func _normalizeDecimals (amount_,sourceDecimals_,targetDecimals_) = if ((sourceDecimals_ >= targetDecimals_))
+    then (amount_ / pow(10, 0, (sourceDecimals_ - targetDecimals_), 0, 0, DOWN))
+    else (amount_ * pow(10, 0, (targetDecimals_ - sourceDecimals_), 0, 0, DOWN))
+
+
+func _loadInit () = match getBoolean(KEY_INIT) {
+    case a: Boolean => 
+        a
+    case _ => 
+        false
+}
+
+
+func _saveInit (isInit_) = [BooleanEntry(KEY_INIT, isInit_)]
+
+
+func _loadPause () = match getBoolean(KEY_PAUSED) {
+    case a: Boolean => 
+        a
+    case _ => 
+        false
+}
+
+
+func _savePause (isPaused_) = [BooleanEntry(KEY_PAUSED, isPaused_)]
+
+
+func _loadPauser () = match getString(KEY_PAUSER) {
+    case a: String => 
+        addressFromStringValue(a)
+    case _ => 
+        Address(base58'')
+}
+
+
+func _savePauser (pauser_) = [StringEntry(KEY_PAUSER, toString(pauser_))]
+
+
+func _loadMultisig () = match getString(KEY_MULTISIG) {
+    case a: String => 
+        addressFromStringValue(a)
+    case _ => 
+        Address(base58'')
+}
+
+
+func _saveMultisig (multisig_) = [StringEntry(KEY_MULTISIG, toString(multisig_))]
+
+
+func _loadExecutor () = match getString(KEY_EXECUTOR) {
+    case a: String => 
+        addressFromStringValue(a)
+    case _ => 
+        Address(base58'')
+}
+
+
+func _saveExecutor (executor_) = [StringEntry(KEY_EXECUTOR, toString(executor_))]
+
+
+func _loadCallerContract () = match getString(KEY_CALLER_CONTRACT) {
+    case a: String => 
+        a
+    case _ => 
+        ""
+}
+
+
+func _saveCallerContract (caller_) = [StringEntry(KEY_CALLER_CONTRACT, caller_)]
+
+
+func _loadChain (chainId_) = match getBoolean(makeString([KEY_CHAIN, toString(chainId_)], SEPARATOR)) {
+    case a: Boolean => 
+        a
+    case _ => 
+        false
+}
+
+
+func _saveChain (chainId_,val_) = [BooleanEntry(makeString([KEY_CHAIN, toString(chainId_)], SEPARATOR), val_)]
+
+
+func _loadBinding (executionChainId_,assetId_) = match getString(makeString([KEY_BINDING, toString(executionChainId_), toBase58String(assetId_)], SEPARATOR)) {
+    case a: String => 
+        let struct = split(a, SEPARATOR)
+        $Tuple8(addressFromStringValue(struct[0]), struct[1], parseIntValue(struct[2]), parseIntValue(struct[3]), parseIntValue(struct[4]), parseIntValue(struct[5]), parseIntValue(struct[6]), if ((struct[7] == "1"))
+            then true
+            else false)
+    case _ => 
+        $Tuple8(Address(base58''), "", 0, 0, 0, 0, 0, false)
+}
+
+
+func _saveBinding (executionChainId_,assetId_,binding_) = [StringEntry(makeString([KEY_BINDING, toString(executionChainId_), toBase58String(assetId_)], SEPARATOR), makeString([toString(binding_._1), binding_._2, toString(binding_._3), toString(binding_._4), toString(binding_._5), toString(binding_._6), toString(binding_._7), if (binding_._8)
+    then "1"
+    else "0"], SEPARATOR))]
+
+
+func _loadFee (assetId_) = match getInteger(makeString([KEY_FEE, toBase58String(assetId_)], SEPARATOR)) {
+    case a: Int => 
+        a
+    case _ => 
+        0
+}
+
+
+func _saveFee (assetId_,val_) = [IntegerEntry(makeString([KEY_FEE, toBase58String(assetId_)], SEPARATOR), val_)]
+
+
+func _loadRootAdapter () = match getString(KEY_ROOT_ADAPTER) {
+    case a: String => 
+        addressFromStringValue(a)
+    case _ => 
+        Address(base58'')
+}
+
+
+func _saveRootAdapter (adapter_) = [StringEntry(KEY_ROOT_ADAPTER, toString(adapter_))]
+
+
+func _loadFeeRecipient () = match getString(KEY_FEE_RECIPIENT) {
+    case a: String => 
+        addressFromStringValue(a)
+    case _ => 
+        Address(base58'')
+}
+
+
+func _saveFeeRecipient (val_) = [StringEntry(KEY_FEE_RECIPIENT, toString(val_))]
+
+
+func _loadReferrerFeePercent (executionChainId_,referrer_) = match getInteger(makeString([KEY_REFERRER_FEE_PERCENT, toString(executionChainId_), toString(referrer_)], SEPARATOR)) {
+    case a: Int => 
+        a
+    case _ => 
+        0
+}
+
+
+func _saveReferrerFeePercent (executionChainId_,referrer_,val_) = [IntegerEntry(makeString([KEY_REFERRER_FEE_PERCENT, toString(executionChainId_), toString(referrer_)], SEPARATOR), val_)]
+
+
+func _loadCrosschainPoolContracts () = match getString(KEY_CROSSCHAIN_POOL_CONTRACTS) {
+    case a: String => 
+        if ((size(a) > 0))
+            then split_51C(a, SEPARATOR)
+            else nil
+    case _ => 
+        nil
+}
+
+
+func _saveCrosschainPoolContracts (contracts_) = [StringEntry(KEY_CROSSCHAIN_POOL_CONTRACTS, makeString_11C(contracts_, SEPARATOR))]
+
+
+func _loadBridgeAssetContract (crosschainPoolContract_) = match getString(makeString([KEY_BRIDGE_ASSET_CONTRACT, toString(crosschainPoolContract_)], SEPARATOR)) {
+    case a: String => 
+        addressFromStringValue(a)
+    case _ => 
+        Address(base58'')
+}
+
+
+func _saveBridgeAssetContract (crosschainPoolContract_,bridgeAssetContract_) = [StringEntry(makeString([KEY_BRIDGE_ASSET_CONTRACT, toString(crosschainPoolContract_)], SEPARATOR), toString(bridgeAssetContract_))]
+
+
+func _onlyThisContract (caller_) = if ((caller_ != this))
+    then throw("_onlyThisContract: revert")
+    else true
+
+
+func _whenMultisigSet () = if ((_loadMultisig() == Address(base58'')))
+    then throw("_whenMultisigSet: revert")
+    else true
+
+
+func _whenNotInitialized () = if (_loadInit())
+    then throw("_whenNotInitialized: revert")
+    else true
+
+
+func _whenInitialized () = if (!(_loadInit()))
+    then throw("_whenInitialized: revert")
+    else true
+
+
+func _whenNotPaused () = if (_loadPause())
+    then throw("_whenNotPaused: revert")
+    else true
+
+
+func _whenPaused () = if (!(_loadPause()))
+    then throw("_whenPaused: revert")
+    else true
+
+
+func _onlyPauser (caller_) = if ((caller_ != _loadPauser()))
+    then throw("_onlyPauser: revert")
+    else true
+
+
+func _asInt (val_) = match val_ {
+    case a: Int => 
+        a
+    case _ => 
+        throw("_asInt: revert")
+}
+
+
+func _asBytes (val_) = match val_ {
+    case a: ByteVector => 
+        a
+    case _ => 
+        throw("_asBytes: revert")
+}
+
+
+func _asString (val_) = match val_ {
+    case a: String => 
+        a
+    case _ => 
+        throw("_asString: revert")
+}
+
+
+func _validateExecutor (val_,err_) = if ((val_ != _loadExecutor()))
+    then throw(err_)
+    else true
+
+
+func _validateCaller (val_,err_) = if ((val_ != _loadCallerContract()))
+    then throw(err_)
+    else true
+
+
+func _validateChain (executionChainId_,err_) = if (!(_loadChain(executionChainId_)))
+    then throw(err_)
+    else true
+
+
+@Callable(i)
+func init (executor_,adapter_,pauser_,feeRecipient_) = {
+    let err = if (if (if (if (if (if (_onlyThisContract(i.caller))
+        then _whenNotInitialized()
+        else false)
+        then _whenMultisigSet()
+        else false)
+        then _validateAddress(executor_, "init: invalid executor")
+        else false)
+        then _validateAddress(adapter_, "init: invalid adapter")
+        else false)
+        then _validateAddress(pauser_, "init: invalid pauser")
+        else false)
+        then _validateAddress(feeRecipient_, "init: invalid feeRecipient")
+        else false
+    if ((err == err))
+        then $Tuple2(((((_saveInit(true) ++ _saveExecutor(addressFromStringValue(executor_))) ++ _saveRootAdapter(addressFromStringValue(adapter_))) ++ _savePauser(addressFromStringValue(pauser_))) ++ _saveFeeRecipient(addressFromStringValue(feeRecipient_))), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func mintTokens (callerContract_,assetContract_,amount_,recipient_,gaslessReward_,referrer_,referrerFee_) = {
+    let amount = valueOrErrorMessage(parseInt(amount_), "mint: amount is not Int")
+    let gaslessReward = valueOrErrorMessage(parseInt(gaslessReward_), "mint: gaslessReward is not Int")
+    let referrerFee = valueOrErrorMessage(parseInt(referrerFee_), "mint: referrerFee is not Int")
+    let err = if (if (if (if (if (if (if (if (_whenInitialized())
+        then _whenNotPaused()
+        else false)
+        then _validateAddress(assetContract_, "mint: invalid asset contract")
+        else false)
+        then _validateExecutor(i.caller, "mint: invalid executor")
+        else false)
+        then _validateCaller(callerContract_, "mint: invalid caller")
+        else false)
+        then _validateAddress(recipient_, "mint: invalid recipient address")
+        else false)
+        then _validateInt(amount, 0, MAX_INT, "mint: invalid amount")
+        else false)
+        then _validateInt(gaslessReward, 0, MAX_INT, "mint: invalid gaslessReward")
+        else false)
+        then _validateInt(referrerFee, 0, MAX_INT, "mint: invalid referrer fee")
+        else false
+    if ((err == err))
+        then {
+            let $t01192512214 = if (containsElement(_loadCrosschainPoolContracts(), assetContract_))
+                then $Tuple2(true, _loadBridgeAssetContract(addressFromStringValue(assetContract_)))
+                else $Tuple2(false, addressFromStringValue(assetContract_))
+            let isCrosschainPoolAsset = $t01192512214._1
+            let bridgeAssetContract = $t01192512214._2
+            let assetId = _asBytes(invoke(bridgeAssetContract, FUNC_GET_ASSET_ID, nil, nil))
+            if ((assetId == assetId))
+                then {
+                    let decimals = _asInt(invoke(bridgeAssetContract, FUNC_GET_DECIMALS, nil, nil))
+                    if ((decimals == decimals))
+                        then {
+                            let normalizedAmount = _normalizeDecimals(amount, DECIMALS, decimals)
+                            let normalizedGasless = _normalizeDecimals(gaslessReward, DECIMALS, decimals)
+                            let $t01255112988 =                             match addressFromString(referrer_) {
+                                case refererAddress: Address => 
+                                    let normalizedReferrerFee = _normalizeDecimals(referrerFee, DECIMALS, decimals)
+                                    $Tuple2(normalizedReferrerFee, [ScriptTransfer(refererAddress, normalizedReferrerFee, assetId)])
+                                case _ => 
+                                    $Tuple2(0, nil)
+                            }
+                            let normalizedReferrerFee = $t01255112988._1
+                            let referrerActions = $t01255112988._2
+                            let mintInvocation = invoke(bridgeAssetContract, FUNC_MINT, [(normalizedAmount + normalizedReferrerFee), toString(this)], nil)
+                            if ((mintInvocation == mintInvocation))
+                                then {
+                                    let $t01312713465 = if (if ((normalizedGasless > 0))
+                                        then (addressFromStringValue(recipient_) != i.originCaller)
+                                        else false)
+                                        then $Tuple2([ScriptTransfer(i.originCaller, normalizedGasless, assetId)], normalizedGasless)
+                                        else $Tuple2(nil, 0)
+                                    let gaslessActions = $t01312713465._1
+                                    let normalizedGaslessUsed = $t01312713465._2
+                                    let actions = if (isCrosschainPoolAsset)
+                                        then {
+                                            let poolAssetId = fromBase58String(_asString(invoke(addressFromStringValue(assetContract_), FUNC_GET_ASSET_ID, nil, nil)))
+                                            if ((poolAssetId == poolAssetId))
+                                                then {
+                                                    let balanceBefore = assetBalance(this, poolAssetId)
+                                                    if ((balanceBefore == balanceBefore))
+                                                        then {
+                                                            let depositInvocation = invoke(addressFromStringValue(assetContract_), FUNC_DEPOSIT, [0], [AttachedPayment(assetId, (normalizedAmount - normalizedGaslessUsed))])
+                                                            if ((depositInvocation == depositInvocation))
+                                                                then {
+                                                                    let balanceAfter = assetBalance(this, poolAssetId)
+                                                                    if ((balanceAfter == balanceAfter))
+                                                                        then [ScriptTransfer(addressFromStringValue(recipient_), (balanceAfter - balanceBefore), poolAssetId)]
+                                                                        else throw("Strict value is not equal to itself.")
+                                                                    }
+                                                                else throw("Strict value is not equal to itself.")
+                                                            }
+                                                        else throw("Strict value is not equal to itself.")
+                                                    }
+                                                else throw("Strict value is not equal to itself.")
+                                            }
+                                        else [ScriptTransfer(addressFromStringValue(recipient_), (normalizedAmount - normalizedGaslessUsed), assetId)]
+                                    $Tuple2(((actions ++ gaslessActions) ++ referrerActions), unit)
+                                    }
+                                else throw("Strict value is not equal to itself.")
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func burnTokens (executionChainId_,recipient_,gaslessReward_) = {
+    let err = if (if (if (if (if (_whenInitialized())
+        then _whenNotPaused()
+        else false)
+        then _validateChain(executionChainId_, "burnTokens: invalid execution chain")
+        else false)
+        then _validatePaymentsSize(i.payments, 1, "burnTokens: no payment")
+        else false)
+        then _validateInt(gaslessReward_, 0, MAX_INT, "burnTokens: invalid gaslessReward")
+        else false)
+        then _validateInt(i.payments[0].amount, 0, MAX_INT, "burnTokens: invalid payment amount")
+        else false
+    if ((err == err))
+        then {
+            let amount = i.payments[0].amount
+            let assetId =             match i.payments[0].assetId {
+                case a: ByteVector => 
+                    a
+                case _ => 
+                    throw("burnTokens: invalid asset")
+            }
+            let binding = _loadBinding(executionChainId_, assetId)
+            let assetContract = binding._1
+            let executionAsset = binding._2
+            let minAmount = binding._3
+            let minFee = binding._4
+            let thresholdFee = binding._5
+            let beforePercentFee = binding._6
+            let afterPercentFee = binding._7
+            let enabled = binding._8
+            let err1 = if (if (_validateAddress(toString(assetContract), "burnTokens: no such binding"))
+                then _validateInt(amount, minAmount, MAX_INT, "burnTokens: less than min")
+                else false)
+                then _validateBool(enabled, true, "burnTokens: token is disabled")
+                else false
+            if ((err1 == err1))
+                then {
+                    let assetDecimals = _asInt(invoke(assetContract, FUNC_GET_DECIMALS, nil, nil))
+                    if ((assetDecimals == assetDecimals))
+                        then {
+                            let percent = if ((amount > thresholdFee))
+                                then afterPercentFee
+                                else beforePercentFee
+                            let fee = (minFee + fraction(amount, percent, PERCENT_FACTOR))
+                            let err2 = _validateInt(amount, (fee + 1), MAX_INT, "burnTokens: fee more than amount")
+                            if ((err2 == err2))
+                                then {
+                                    let amountToSend = (amount - fee)
+                                    let err3 = _validateInt(amountToSend, (gaslessReward_ + 1), MAX_INT, "burnTokens: reward more than amount")
+                                    if ((err3 == err3))
+                                        then {
+                                            let updateFee = (_loadFee(assetId) + fee)
+                                            let normalizedAmount = _normalizeDecimals(amountToSend, assetDecimals, DECIMALS)
+                                            let normalizedGasless = _normalizeDecimals(gaslessReward_, assetDecimals, DECIMALS)
+                                            let invocation = invoke(_loadRootAdapter(), FUNC_RELEASE_TOKENS, [executionChainId_, executionAsset, normalizedAmount, recipient_, normalizedGasless], nil)
+                                            if ((invocation == invocation))
+                                                then $Tuple2((_saveFee(assetId, updateFee) ++ [Burn(assetId, amountToSend)]), unit)
+                                                else throw("Strict value is not equal to itself.")
+                                            }
+                                        else throw("Strict value is not equal to itself.")
+                                    }
+                                else throw("Strict value is not equal to itself.")
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func burnTokensV2 (executionChainId_,recipient_,referrer_,gaslessReward_) = {
+    let err = if (if (if (if (if (if (_whenInitialized())
+        then _whenNotPaused()
+        else false)
+        then _validateChain(executionChainId_, "burnTokensV2: invalid execution chain")
+        else false)
+        then _validatePaymentsSize(i.payments, 1, "burnTokensV2: no payment")
+        else false)
+        then _validateInt(gaslessReward_, 0, MAX_INT, "burnTokensV2: invalid gaslessReward")
+        else false)
+        then _validateInt(i.payments[0].amount, 0, MAX_INT, "burnTokensV2: invalid payment amount")
+        else false)
+        then _validateReferrer(referrer_, "burnTokensV2: invalid referrer")
+        else false
+    if ((err == err))
+        then {
+            let amount = i.payments[0].amount
+            let assetId =             match i.payments[0].assetId {
+                case a: ByteVector => 
+                    a
+                case _ => 
+                    throw("burnTokensV2: invalid asset")
+            }
+            let binding = _loadBinding(executionChainId_, assetId)
+            let assetContract = binding._1
+            let executionAsset = binding._2
+            let minAmount = binding._3
+            let minFee = binding._4
+            let thresholdFee = binding._5
+            let beforePercentFee = binding._6
+            let afterPercentFee = binding._7
+            let enabled = binding._8
+            let err1 = if (if (_validateAddress(toString(assetContract), "burnTokensV2: no such binding"))
+                then _validateInt(amount, minAmount, MAX_INT, "burnTokensV2: less than min")
+                else false)
+                then _validateBool(enabled, true, "burnTokensV2: token is disabled")
+                else false
+            if ((err1 == err1))
+                then {
+                    let assetDecimals = _asInt(invoke(assetContract, FUNC_GET_DECIMALS, nil, nil))
+                    if ((assetDecimals == assetDecimals))
+                        then {
+                            let percent = if ((amount > thresholdFee))
+                                then afterPercentFee
+                                else beforePercentFee
+                            let fee = (minFee + fraction(amount, percent, PERCENT_FACTOR))
+                            let err2 = _validateInt(amount, (fee + 1), MAX_INT, "burnTokensV2: fee more than amount")
+                            if ((err2 == err2))
+                                then {
+                                    let $t01831518720 = if ((referrer_ != ""))
+                                        then {
+                                            let referrer = addressFromStringValue(referrer_)
+                                            let referrerFeeAmount = fraction(_loadReferrerFeePercent(executionChainId_, referrer), fee, PERCENT_FACTOR)
+                                            $Tuple2(referrerFeeAmount, [ScriptTransfer(referrer, referrerFeeAmount, assetId)])
+                                            }
+                                        else $Tuple2(0, nil)
+                                    let referrerFee = $t01831518720._1
+                                    let referrerActions = $t01831518720._2
+                                    let amountToSend = (amount - fee)
+                                    let err3 = _validateInt(amountToSend, (gaslessReward_ + 1), MAX_INT, "burnTokensV2: reward more than amount")
+                                    if ((err3 == err3))
+                                        then {
+                                            let updateFee = ((_loadFee(assetId) + fee) - referrerFee)
+                                            let normalizedAmount = _normalizeDecimals(amountToSend, assetDecimals, DECIMALS)
+                                            let normalizedGasless = _normalizeDecimals(gaslessReward_, assetDecimals, DECIMALS)
+                                            let invocation = invoke(_loadRootAdapter(), FUNC_RELEASE_TOKENS, [executionChainId_, executionAsset, normalizedAmount, recipient_, normalizedGasless], nil)
+                                            if ((invocation == invocation))
+                                                then $Tuple2(((_saveFee(assetId, updateFee) ++ referrerActions) ++ [Burn(assetId, amountToSend)]), unit)
+                                                else throw("Strict value is not equal to itself.")
+                                            }
+                                        else throw("Strict value is not equal to itself.")
+                                    }
+                                else throw("Strict value is not equal to itself.")
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func transferFee (executionChainId_,assetId_) = {
+    let err = if (if (_whenInitialized())
+        then _whenNotPaused()
+        else false)
+        then _validateAsset(assetId_, "transferFee: invalid asset")
+        else false
+    if ((err == err))
+        then {
+            let assetId = fromBase58String(assetId_)
+            let binding = _loadBinding(executionChainId_, assetId)
+            let assetContract = binding._1
+            let enabled = binding._8
+            let err1 = if (_validateAddress(toString(assetContract), "transferFee: no such binding"))
+                then _validateBool(enabled, true, "transferFee: token is disabled")
+                else false
+            if ((err1 == err1))
+                then $Tuple2((_saveFee(assetId, 0) ++ [ScriptTransfer(_loadFeeRecipient(), _loadFee(assetId), assetId)]), unit)
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func updateCallerContract (callerContract_) = {
+    let err = if (_onlyThisContract(i.caller))
+        then _whenInitialized()
+        else false
+    if ((err == err))
+        then $Tuple2(_saveCallerContract(callerContract_), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func updateExecutionChain (executionChainId_,enabled_) = {
+    let err = if (if (_onlyThisContract(i.caller))
+        then _whenInitialized()
+        else false)
+        then _validateInt(executionChainId_, 0, MAX_INT, "updateExecutionChain: invalid executionChainId")
+        else false
+    if ((err == err))
+        then $Tuple2(_saveChain(executionChainId_, enabled_), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func updateFeeRecipient (feeRecipient_) = {
+    let err = if (if (_onlyThisContract(i.caller))
+        then _whenInitialized()
+        else false)
+        then _validateAddress(feeRecipient_, "updateFeeRecipient: invalid feeRecipient")
+        else false
+    if ((err == err))
+        then $Tuple2(_saveFeeRecipient(addressFromStringValue(feeRecipient_)), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func updateReferrer (executionChainId_,referrer_,fee_) = {
+    let err = if (if (if (if (_onlyThisContract(i.caller))
+        then _whenInitialized()
+        else false)
+        then _validateChain(executionChainId_, "updateReferrer: invalid execution chain")
+        else false)
+        then _validateAddress(referrer_, "updateReferrer: invalid referrer")
+        else false)
+        then _validateInt(fee_, 0, MAX_REFERRER_FEE, "updateReferrer: invalid fee")
+        else false
+    if ((err == err))
+        then $Tuple2(_saveReferrerFeePercent(executionChainId_, addressFromStringValue(referrer_), fee_), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func updateBindingInfo (executionChainId_,assetContract_,executionAsset_,minAmount_,minFee_,thresholdFee_,beforePercentFee_,afterPercentFee_,enabled_) = {
+    let err = if (if (if (if (if (if (if (if (_onlyThisContract(i.caller))
+        then _whenInitialized()
+        else false)
+        then _validateAddress(assetContract_, "updateBindingInfo: invalid asset contract")
+        else false)
+        then _validateInt(executionChainId_, 0, MAX_INT, "updateBindingInfo: invalid executionChainId")
+        else false)
+        then _validateInt(minAmount_, 0, MAX_INT, "updateBindingInfo: invalid minAmount")
+        else false)
+        then _validateInt(minFee_, 0, MAX_INT, "updateBindingInfo: invalid minFee")
+        else false)
+        then _validateInt(thresholdFee_, 0, MAX_INT, "updateBindingInfo: invalid thresholdFee")
+        else false)
+        then _validateInt(beforePercentFee_, 0, MAX_INT, "updateBindingInfo: invalid beforePercentFee")
+        else false)
+        then _validateInt(afterPercentFee_, 0, MAX_INT, "updateBindingInfo: invalid afterPercentFee")
+        else false
+    if ((err == err))
+        then {
+            let assetId = _asBytes(invoke(addressFromStringValue(assetContract_), FUNC_GET_ASSET_ID, nil, nil))
+            if ((assetId == assetId))
+                then {
+                    let binding = $Tuple8(addressFromStringValue(assetContract_), executionAsset_, minAmount_, minFee_, thresholdFee_, beforePercentFee_, afterPercentFee_, enabled_)
+                    $Tuple2(_saveBinding(executionChainId_, assetId, binding), unit)
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func addCrosschainPoolContract (crosschainPoolContract_,bridgeAssetContract_) = {
+    let err = if (if (if (_onlyThisContract(i.caller))
+        then _whenInitialized()
+        else false)
+        then _validateAddress(crosschainPoolContract_, "addCrosschainPoolContract: invalid crosschainPoolContract")
+        else false)
+        then _validateAddress(bridgeAssetContract_, "addCrosschainPoolContract: invalid bridgeAssetContract")
+        else false
+    if ((err == err))
+        then $Tuple2((_saveCrosschainPoolContracts((_loadCrosschainPoolContracts() :+ crosschainPoolContract_)) ++ _saveBridgeAssetContract(addressFromStringValue(crosschainPoolContract_), addressFromStringValue(bridgeAssetContract_))), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func pause () = {
+    let err = if (if (_onlyPauser(i.caller))
+        then _whenInitialized()
+        else false)
+        then _whenNotPaused()
+        else false
+    if ((err == err))
+        then $Tuple2(_savePause(true), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func unpause () = {
+    let err = if (if (_onlyPauser(i.caller))
+        then _whenInitialized()
+        else false)
+        then _whenPaused()
+        else false
+    if ((err == err))
+        then $Tuple2(_savePause(false), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func updatePauser (pauser_) = {
+    let err = if (if (_onlyThisContract(i.caller))
+        then _whenInitialized()
+        else false)
+        then _validateAddress(pauser_, "updatePauser: invalid pauser")
+        else false
+    if ((err == err))
+        then $Tuple2(_savePauser(addressFromStringValue(pauser_)), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setMultisig (multisig_) = {
+    let err = if (_onlyThisContract(i.caller))
+        then _validateAddress(multisig_, "setMultisig: invalid multisig")
+        else false
+    if ((err == err))
+        then $Tuple2(_saveMultisig(addressFromStringValue(multisig_)), unit)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Verifier(tx)
+func verify () = match getString(KEY_MULTISIG) {
+    case multisig: String => 
+        valueOrElse(getBoolean(addressFromStringValue(multisig), makeString([KEY_STATUS, toString(this), toBase58String(tx.id)], SEPARATOR)), false)
+    case _ => 
+        sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)
+}

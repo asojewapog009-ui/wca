@@ -1,0 +1,642 @@
+{-# STDLIB_VERSION 7 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+func tryGetStringExternal (address,key) = match getString(address, key) {
+    case a: String => 
+        a
+    case _ => 
+        ""
+}
+
+
+func tryGetIntegerExternal (address,key) = match getInteger(address, key) {
+    case b: Int => 
+        b
+    case _ => 
+        0
+}
+
+
+func tryGetBoolean (key) = match getBoolean(key) {
+    case b: Boolean => 
+        b
+    case _ => 
+        false
+}
+
+
+func tryGetString (key) = tryGetStringExternal(this, key)
+
+
+func asBoolean (value) = match value {
+    case boolean: Boolean => 
+        boolean
+    case _ => 
+        throw("BDA: wrong type, expected: Boolean")
+}
+
+
+func staticKey_oracleAddress () = "static_oracleAddress"
+
+
+func staticKey_ducklingPrice () = "static_ducklingPrice"
+
+
+func staticKey_eggAssetId () = "static_eggAssetId"
+
+
+func staticKey_spiceAssetId () = "static_spiceAssetId"
+
+
+func staticKey_rebirthAddress () = "static_rebirthAddress"
+
+
+func staticKey_incubatorAddress () = "static_incubatorAddress"
+
+
+func staticKey_couponsAddress () = "static_couponsAddress"
+
+
+func staticKey_burnAddress () = "static_burnAddress"
+
+
+func staticKey_refContractAddress () = "static_refContractAddress"
+
+
+func staticKey_backendPubKey () = "static_backendPubKey"
+
+
+func staticKey_extraFee () = "static_extraFee"
+
+
+func staticKey_feeAggregator () = "static_feeAggregator"
+
+
+func staticKey_turtleStakingAddress () = "static_turtleStakingAddress"
+
+
+func staticKey_mutantFarmingAddress () = "static_mutantFarmingAddress"
+
+
+func staticKey_canineRebirthAddress () = "static_canineRebirthAddress"
+
+
+func staticKey_felineRebirthAddress () = "static_felineRebirthAddress"
+
+
+func staticKey_bullIncubatorAddress () = "static_bullIncubatorAddress"
+
+
+func getOracle () = Address(fromBase58String(tryGetString(staticKey_oracleAddress())))
+
+
+func getDucklingPrice () = tryGetIntegerExternal(getOracle(), staticKey_ducklingPrice())
+
+
+func getEggAssetId () = fromBase58String(tryGetStringExternal(getOracle(), staticKey_eggAssetId()))
+
+
+func getSpiceAssetId () = fromBase58String(tryGetStringExternal(getOracle(), staticKey_spiceAssetId()))
+
+
+func getRebirthAddress () = Address(fromBase58String(tryGetStringExternal(getOracle(), staticKey_rebirthAddress())))
+
+
+func getIncubatorAddress () = Address(fromBase58String(tryGetStringExternal(getOracle(), staticKey_incubatorAddress())))
+
+
+func getCouponsAddress () = Address(fromBase58String(tryGetStringExternal(getOracle(), staticKey_couponsAddress())))
+
+
+func getBurnAddress () = Address(fromBase58String(tryGetStringExternal(getOracle(), staticKey_burnAddress())))
+
+
+func getRefContractAddress () = Address(fromBase58String(tryGetStringExternal(getOracle(), staticKey_refContractAddress())))
+
+
+func getFeeAggregator () = Address(fromBase58String(tryGetStringExternal(getOracle(), staticKey_feeAggregator())))
+
+
+func getTurtleStakingAddress () = Address(fromBase58String(tryGetStringExternal(getOracle(), staticKey_turtleStakingAddress())))
+
+
+func getMutantFarmingAddress () = Address(fromBase58String(tryGetStringExternal(getOracle(), staticKey_mutantFarmingAddress())))
+
+
+func getCanineRebirthAddress () = Address(fromBase58String(tryGetStringExternal(getOracle(), staticKey_canineRebirthAddress())))
+
+
+func getFelineRebirthAddress () = Address(fromBase58String(tryGetStringExternal(getOracle(), staticKey_felineRebirthAddress())))
+
+
+func getBullIncubatorAddress () = Address(fromBase58String(tryGetStringExternal(getOracle(), staticKey_bullIncubatorAddress())))
+
+
+let backendPubKey = fromBase58String(getStringValue(getOracle(), staticKey_backendPubKey()))
+
+let DUCKLINGPRICE = 100000000
+
+let percentGrowthPrecision = 10000000000000000
+
+let oneSpicePrecsion = 100000000000000
+
+let KGlobalIssuedTimestamp = "global_issued_timestamp"
+
+let DUCKLINGPRICEOLD = 80000000
+
+let percentGrowthPrecisionOld = 10000000000000000
+
+func checkAdditionalPayment (payment) = if (isDefined(payment.assetId))
+    then throw("BDCAP: Please attach waves")
+    else {
+        let feeAmount = getIntegerValue(getOracle(), staticKey_extraFee())
+        if ((payment.amount != feeAmount))
+            then throw((("BDCAP: Please attach exactly " + toString(feeAmount)) + " amount of wavelets"))
+            else [ScriptTransfer(getFeeAggregator(), feeAmount, unit)]
+        }
+
+
+func keyTotalFeedOld (ducklingId) = (("duckling_" + ducklingId) + "_feed")
+
+
+func keyTotalFeed (ducklingId) = (("duckling_" + ducklingId) + "_feed_spice")
+
+
+func keyTotalFeedUser (address) = (("user_" + address) + "_feed")
+
+
+func keyAddressNonce (address) = (("address_" + address) + "_nonce")
+
+
+func keyDucklingLevel (ducklingId) = (("duckling_" + ducklingId) + "_level")
+
+
+func keyDucklingGrown (ducklingId) = (("duckling_" + ducklingId) + "_grown")
+
+
+func keyStartPercentage (ducklingId) = (("duckling_" + ducklingId) + "_startPercentage")
+
+
+func keyOwner (ducklingId) = (("duckling_" + ducklingId) + "_owner")
+
+
+func keyBlacklisted (ducklingId) = (("duckling_" + ducklingId) + "_blacklisted")
+
+
+func keyAmountOfAdultDuckling () = "adult_ducklings"
+
+
+func tryGetInteger (key) = {
+    let val =     match getInteger(this, key) {
+        case b: Int => 
+            b
+        case _ => 
+            0
+    }
+    val
+    }
+
+
+func getBool (key) = match getBoolean(this, key) {
+    case b: Boolean => 
+        b
+    case _ => 
+        false
+}
+
+
+func isTestEnv () = getBool("TESTENV")
+
+
+func getDucklingPercentage (ducklingId) = {
+    let percentageDuckling = tryGetInteger(keyStartPercentage(ducklingId))
+    let base = if ((percentageDuckling != 0))
+        then percentageDuckling
+        else 5
+    toBigInt((base * oneSpicePrecsion))
+    }
+
+
+func getCurrentLevelBigInt (ducklingId) = {
+    let kDuckLevel = keyDucklingLevel(ducklingId)
+    match getString(kDuckLevel) {
+        case s: String => 
+            parseBigIntValue(s)
+        case _ => 
+            match getBoolean((("duckling_" + ducklingId) + "_issuedByFeedCall")) {
+                case b: Boolean => 
+                    if (if ((b == true))
+                        then (tryGetInteger(keyStartPercentage(ducklingId)) == 0)
+                        else false)
+                        then toBigInt(0)
+                        else getDucklingPercentage(ducklingId)
+                case _ => 
+                    getDucklingPercentage(ducklingId)
+            }
+    }
+    }
+
+
+func calculateNewDucklingLevel (ducklingId,paymentAmount) = {
+    let currentTs = lastBlock.timestamp
+    let growth = (fraction(toBigInt(paymentAmount), toBigInt(percentGrowthPrecision), toBigInt(DUCKLINGPRICE)) / toBigInt(100))
+    let currentLevel = getCurrentLevelBigInt(ducklingId)
+    let newLevel = (currentLevel + growth)
+    let result = toString(newLevel)
+    $Tuple2(result, [("currentLevel=" + toString(currentLevel)), ("newLevel=" + toString(newLevel)), ("growth=" + toString(growth))])
+    }
+
+
+func getBackendProof (maxFeedAmount,userNonce,address) = makeString([toString(maxFeedAmount), toString(userNonce), address], ";")
+
+
+func getBackendProofV2 (maxFeedAmount,userNonce,address,ducklingId,targetLevel) = makeString([toString(maxFeedAmount), toString(userNonce), address, ducklingId, toString(targetLevel)], ";")
+
+
+@Callable(i)
+func configureOracle (oracle) = if ((i.caller != this))
+    then throw("BCO: admin only")
+    else [StringEntry(staticKey_oracleAddress(), oracle)]
+
+
+
+@Callable(i)
+func calculateDucklingPriceTwoDecimals () = {
+    let x = tryGetInteger(keyAmountOfAdultDuckling())
+    let price = max([(1900 + pow(x, 0, 6, 1, 2, HALFUP)), 10000])
+    $Tuple2([StringEntry("DEBUG_PRICE", toString(price))], price)
+    }
+
+
+
+@Callable(i)
+func buyDuckling (refererAddress) = {
+    let feeValidate = checkAdditionalPayment(i.payments[0])
+    if ((feeValidate == feeValidate))
+        then {
+            let exactPrice = getDucklingPrice()
+            if ((50000000 > exactPrice))
+                then throw("BBD: Invalid price from oracle!")
+                else {
+                    let amountPaidByCoupons = {
+                        let @ = invoke(getCouponsAddress(), "useCoupons", [exactPrice], nil)
+                        if ($isInstanceOf(@, "Int"))
+                            then @
+                            else throw(($getType(@) + " couldn't be cast to Int"))
+                        }
+                    if ((amountPaidByCoupons == amountPaidByCoupons))
+                        then {
+                            let leftToPay = (exactPrice - amountPaidByCoupons)
+                            let payment = if ((leftToPay != 0))
+                                then {
+                                    let firstPayment = value(i.payments[1])
+                                    if ((firstPayment.assetId != getEggAssetId()))
+                                        then throw(("BBD: You can attach only EGG tokens with the following asset id: " + toBase58String(getEggAssetId())))
+                                        else if ((firstPayment.amount != leftToPay))
+                                            then throw(("BBD: To buy a perch you currently need the following amount of EGGlets: " + toString(leftToPay)))
+                                            else {
+                                                let refererRewardForPerch = fraction(leftToPay, 5, 100)
+                                                let refCall = asBoolean(invoke(getRefContractAddress(), "refPayment", [refererAddress], [AttachedPayment(getEggAssetId(), refererRewardForPerch)]))
+                                                if ((refCall == refCall))
+                                                    then {
+                                                        let toBurn = if (refCall)
+                                                            then (leftToPay - refererRewardForPerch)
+                                                            else leftToPay
+                                                        let burnCall = invoke(getBurnAddress(), "burnAttachedPayments", nil, [AttachedPayment(getEggAssetId(), toBurn)])
+                                                        if ((burnCall == burnCall))
+                                                            then leftToPay
+                                                            else throw("Strict value is not equal to itself.")
+                                                        }
+                                                    else throw("Strict value is not equal to itself.")
+                                                }
+                                    }
+                                else 0
+                            if ((payment == payment))
+                                then {
+                                    let ducklingAssetId = invoke(this, "issueFreeDuckling", [toString(i.originCaller), toBase58String(i.transactionId), 0], nil)
+                                    if ((ducklingAssetId == ducklingAssetId))
+                                        then feeValidate
+                                        else throw("Strict value is not equal to itself.")
+                                    }
+                                else throw("Strict value is not equal to itself.")
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func issueFreeDuckling (address,txIdStr,percentage) = if (if (if (if (if (if ((i.caller != this))
+    then (i.caller != getRebirthAddress())
+    else false)
+    then (i.caller != getCanineRebirthAddress())
+    else false)
+    then (i.caller != getFelineRebirthAddress())
+    else false)
+    then (i.caller != getBullIncubatorAddress())
+    else false)
+    then (i.caller != getCouponsAddress())
+    else false)
+    then throw("BIFD: You can't issue free duckling")
+    else {
+        let asset = Issue("BABY-11111111-GZ", "", 1, 0, false, unit, height)
+        let assetId = calculateAssetId(asset)
+        $Tuple2([StringEntry((((address + "_") + txIdStr) + "_di"), toBase58String(assetId)), IntegerEntry("stats_amount", (tryGetInteger("stats_amount") + 1)), IntegerEntry(keyStartPercentage(toBase58String(assetId)), percentage), StringEntry(keyOwner(toBase58String(assetId)), address), asset, ScriptTransfer(value(addressFromString(address)), 1, assetId)], toBase58String(assetId))
+        }
+
+
+
+@Callable(i)
+func feedDuckling (ducklingId,backendSignature,maxFeedAmount,userNonce) = {
+    let feeValidate = checkAdditionalPayment(i.payments[1])
+    if ((feeValidate == feeValidate))
+        then {
+            let addressString = toString(i.caller)
+            let backendProof = getBackendProof(maxFeedAmount, userNonce, addressString)
+            let kAddressNonce = keyAddressNonce(addressString)
+            let currentNonce = tryGetInteger(kAddressNonce)
+            let realDucklingId = if (!(sigVerify_8Kb(toBytes(backendProof), fromBase58String(backendSignature), backendPubKey)))
+                then throw("BFD: Invalid proof from backend")
+                else if (if ((size(i.payments) != 2))
+                    then true
+                    else (value(i.payments[0]).assetId != getSpiceAssetId()))
+                    then throw("BFD: Bad payment attached (asset[s] or amount)")
+                    else if (getBool(keyDucklingGrown(ducklingId)))
+                        then throw("BFD: Duckling is already grown")
+                        else if ((userNonce != (currentNonce + 1)))
+                            then throw(((("BFD: User Nonce should be " + toString(currentNonce)) + " + 1, while received ") + toString(userNonce)))
+                            else {
+                                let blackListed = tryGetBoolean(keyBlacklisted(ducklingId))
+                                if (blackListed)
+                                    then throw("BFD: Can not feed blacklisted duckling!")
+                                    else if ((ducklingId == ""))
+                                        then throw("BFD: Please buy a duckling first!")
+                                        else {
+                                            let ducklingIdCheck = value(assetInfo(fromBase58String(ducklingId)))
+                                            if ((assetBalance(i.caller, ducklingIdCheck.id) != 1))
+                                                then throw("BFD: You're not the owner of the duckling")
+                                                else if ((ducklingIdCheck.issuer != this))
+                                                    then throw("BFD: Cant find duckling with such id")
+                                                    else toBase58String(ducklingIdCheck.id)
+                                            }
+                                }
+            let currentPayment = value(i.payments[0]).amount
+            let kNewLevel = keyDucklingLevel(realDucklingId)
+            let kTotalFeed = keyTotalFeed(realDucklingId)
+            let kTotalFeedUser = keyTotalFeedUser(addressString)
+            let totalFeed = tryGetInteger(kTotalFeed)
+            let totalFeedUser = tryGetInteger(kTotalFeedUser)
+            let kFeedTxStats = ((("duckling_" + realDucklingId) + "_stat_") + toString(lastBlock.timestamp))
+            if ((currentPayment > maxFeedAmount))
+                then throw(("BFD: Cannot feed duckling for such amount, max feed amount is: " + toString(maxFeedAmount)))
+                else {
+                    let calculateResults = calculateNewDucklingLevel(realDucklingId, currentPayment)
+                    let ducklingOwner = tryGetString(keyOwner(realDucklingId))
+                    let topup = invoke(getTurtleStakingAddress(), "topUpReward", nil, [AttachedPayment(getSpiceAssetId(), (currentPayment / 2))])
+                    if ((topup == topup))
+                        then {
+                            let topup2 = invoke(getMutantFarmingAddress(), "topUpReward", ["SPICE", 0], [AttachedPayment(getSpiceAssetId(), (currentPayment / 10))])
+                            if ((topup2 == topup2))
+                                then {
+                                    let recordAction = if ((currentPayment >= 1000000000))
+                                        then invoke(getCouponsAddress(), "recordAction", ["FEEDDUCKLING10"], nil)
+                                        else nil
+                                    if ((recordAction == recordAction))
+                                        then if (if ((ducklingOwner != toString(i.caller)))
+                                            then !(isTestEnv())
+                                            else false)
+                                            then ([BooleanEntry(keyBlacklisted(realDucklingId), true)] ++ feeValidate)
+                                            else ([IntegerEntry(kAddressNonce, (currentNonce + 1)), IntegerEntry(kTotalFeed, (totalFeed + currentPayment)), IntegerEntry(kTotalFeedUser, (totalFeedUser + currentPayment)), IntegerEntry(kFeedTxStats, currentPayment), StringEntry(kNewLevel, calculateResults._1), StringEntry((kFeedTxStats + "_debug"), makeString(calculateResults._2, ";")), Burn(getSpiceAssetId(), ((currentPayment / 2) - (currentPayment / 10)))] ++ feeValidate)
+                                        else throw("Strict value is not equal to itself.")
+                                    }
+                                else throw("Strict value is not equal to itself.")
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func feedDucklingV2 (ducklingId,backendSignature,maxFeedAmount,userNonce,targetLevel) = {
+    let feeValidate = checkAdditionalPayment(i.payments[1])
+    if ((feeValidate == feeValidate))
+        then {
+            let addressString = toString(i.caller)
+            let backendProof = getBackendProofV2(maxFeedAmount, userNonce, addressString, ducklingId, targetLevel)
+            let kAddressNonce = keyAddressNonce(addressString)
+            let currentNonce = tryGetInteger(kAddressNonce)
+            let realDucklingId = if (!(sigVerify_8Kb(toBytes(backendProof), fromBase58String(backendSignature), backendPubKey)))
+                then throw("BFD2: Invalid proof from backend")
+                else if (if ((size(i.payments) != 2))
+                    then true
+                    else (value(i.payments[0]).assetId != getSpiceAssetId()))
+                    then throw("BFD2: Bad payment attached (asset[s] or amount)")
+                    else if (getBool(keyDucklingGrown(ducklingId)))
+                        then throw("BFD2: Duckling is already grown")
+                        else if ((userNonce != (currentNonce + 1)))
+                            then throw(((("BFD2: User Nonce should be " + toString(currentNonce)) + " + 1, while received ") + toString(userNonce)))
+                            else {
+                                let blackListed = tryGetBoolean(keyBlacklisted(ducklingId))
+                                if (blackListed)
+                                    then throw("BFD2: Can not feed blacklisted duckling!")
+                                    else if ((ducklingId == ""))
+                                        then throw("BFD2: Please buy a duckling first!")
+                                        else if ((0 >= targetLevel))
+                                            then throw("BFD2: Invalid target level")
+                                            else {
+                                                let ducklingIdCheck = value(assetInfo(fromBase58String(ducklingId)))
+                                                if ((assetBalance(i.caller, ducklingIdCheck.id) != 1))
+                                                    then throw("BFD2: You're not the owner of the duckling")
+                                                    else if ((ducklingIdCheck.issuer != this))
+                                                        then throw("BFD2: Cant find duckling with such id")
+                                                        else toBase58String(ducklingIdCheck.id)
+                                                }
+                                }
+            let currentPayment = value(i.payments[0]).amount
+            let kNewLevel = keyDucklingLevel(realDucklingId)
+            let kTotalFeed = keyTotalFeed(realDucklingId)
+            let kTotalFeedUser = keyTotalFeedUser(addressString)
+            let totalFeed = tryGetInteger(kTotalFeed)
+            let totalFeedUser = tryGetInteger(kTotalFeedUser)
+            let kFeedTxStats = ((("duckling_" + realDucklingId) + "_stat_") + toString(lastBlock.timestamp))
+            if ((currentPayment > maxFeedAmount))
+                then throw(("BFD2: Cannot feed duckling for such amount, max feed amount is: " + toString(maxFeedAmount)))
+                else {
+                    let calculateResults = calculateNewDucklingLevel(realDucklingId, currentPayment)
+                    let normalizedTargetLevel = toBigInt(fraction(targetLevel, oneSpicePrecsion, 100))
+                    let newLevel = parseBigIntValue(calculateResults._1)
+                    if ((newLevel > normalizedTargetLevel))
+                        then throw(("BFD2: Feeding would exceed target level " + toString(targetLevel)))
+                        else {
+                            let ducklingOwner = tryGetString(keyOwner(realDucklingId))
+                            let topup = invoke(getTurtleStakingAddress(), "topUpReward", nil, [AttachedPayment(getSpiceAssetId(), (currentPayment / 2))])
+                            if ((topup == topup))
+                                then {
+                                    let topup2 = invoke(getMutantFarmingAddress(), "topUpReward", ["SPICE", 0], [AttachedPayment(getSpiceAssetId(), (currentPayment / 10))])
+                                    if ((topup2 == topup2))
+                                        then {
+                                            let recordAction = if ((currentPayment >= 1000000000))
+                                                then invoke(getCouponsAddress(), "recordAction", ["FEEDDUCKLING10"], nil)
+                                                else nil
+                                            if ((recordAction == recordAction))
+                                                then if (if ((ducklingOwner != toString(i.caller)))
+                                                    then !(isTestEnv())
+                                                    else false)
+                                                    then ([BooleanEntry(keyBlacklisted(realDucklingId), true)] ++ feeValidate)
+                                                    else ([IntegerEntry(kAddressNonce, (currentNonce + 1)), IntegerEntry(kTotalFeed, (totalFeed + currentPayment)), IntegerEntry(kTotalFeedUser, (totalFeedUser + currentPayment)), IntegerEntry(kFeedTxStats, currentPayment), StringEntry(kNewLevel, calculateResults._1), StringEntry((kFeedTxStats + "_debug"), makeString(calculateResults._2, ";")), Burn(getSpiceAssetId(), ((currentPayment / 2) - (currentPayment / 10)))] ++ feeValidate)
+                                                else throw("Strict value is not equal to itself.")
+                                            }
+                                        else throw("Strict value is not equal to itself.")
+                                    }
+                                else throw("Strict value is not equal to itself.")
+                            }
+                    }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func fixLevels (ducklingIds) = if (if ((i.callerPublicKey != base58'GDxBbsDRmeY39quNrDsTXKJzFWbQVtjxHseF4ikxZ7n9'))
+    then (i.caller != this)
+    else false)
+    then throw("BFL: Not authorized")
+    else {
+        let ducklingIdsList = value(split(ducklingIds, ","))
+        func handleId (acc,id) =         {
+            let kTotalFeed = keyTotalFeed(id)
+            let totalFeed = tryGetInteger(kTotalFeed)
+            let kTotalFeedOld = keyTotalFeedOld(id)
+            let totalFeedOld = tryGetInteger(kTotalFeedOld)
+            let kNewLevel = keyDucklingLevel(id)
+            let startingLevel =             match getBoolean((("duckling_" + id) + "_issuedByFeedCall")) {
+                case b: Boolean => 
+                    if (if ((b == true))
+                        then (tryGetInteger(keyStartPercentage(id)) == 0)
+                        else false)
+                        then toBigInt(0)
+                        else getDucklingPercentage(id)
+                case _ => 
+                    getDucklingPercentage(id)
+            }
+            let growth = fraction(toBigInt((totalFeed / 100)), toBigInt(percentGrowthPrecision), toBigInt(DUCKLINGPRICE))
+            let growthOld = if ((totalFeedOld != 0))
+                then fraction(toBigInt(totalFeedOld), toBigInt(percentGrowthPrecisionOld), toBigInt(DUCKLINGPRICEOLD))
+                else toBigInt(0)
+            (acc ++ [StringEntry(kNewLevel, toString(((startingLevel + growth) + growthOld))), StringEntry("DEBUG", ((((toString(startingLevel) + " ") + toString(growth)) + " ") + toString(growthOld)))])
+            }
+
+        let $l = ducklingIdsList
+        let $s = size($l)
+        let $acc0 = nil
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else handleId($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 20")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18), 19), 20)
+        }
+
+
+
+@Callable(i)
+func turnDucklingIntoDuck () = {
+    let feeValidate = checkAdditionalPayment(i.payments[1])
+    if ((feeValidate == feeValidate))
+        then {
+            let address = toString(i.caller)
+            let txId = toBase58String(i.transactionId)
+            let lastIssuedDucklingTs = tryGetInteger(KGlobalIssuedTimestamp)
+            let fiveMinInMs = if (isTestEnv())
+                then 0
+                else ((1 * 30) * 1000)
+            let timeDiff = (lastBlock.timestamp - (lastIssuedDucklingTs + fiveMinInMs))
+            if (if ((lastIssuedDucklingTs > 0))
+                then (0 > timeDiff)
+                else false)
+                then throw((("BTD: Can issue ducklings only once per 30s, please wait for " + toString(fraction(timeDiff, 1, 1000))) + " sec."))
+                else if ((size(i.payments) != 2))
+                    then throw("BTD: Bad payment attached (asset[s] or amount)")
+                    else if ((i.payments[0].amount != 1))
+                        then throw("BTD: Please attach a nft!")
+                        else {
+                            let pmt = value(assetInfo(value(value(i.payments[0]).assetId)))
+                            let blackListed = tryGetBoolean(keyBlacklisted(toBase58String(pmt.id)))
+                            if (blackListed)
+                                then throw("BTD: Can not convert blacklisted duckling!")
+                                else {
+                                    let adultPriceCall = {
+                                        let @ = invoke(this, "calculateDucklingPriceTwoDecimals", nil, nil)
+                                        if ($isInstanceOf(@, "Int"))
+                                            then @
+                                            else throw(($getType(@) + " couldn't be cast to Int"))
+                                        }
+                                    if ((adultPriceCall == adultPriceCall))
+                                        then {
+                                            let normalizedPrice = fraction(adultPriceCall, oneSpicePrecsion, 100)
+                                            if ((toBigInt(normalizedPrice) > getCurrentLevelBigInt(toBase58String(pmt.id))))
+                                                then throw("BTD: Duckling is not grown yet...")
+                                                else if ((pmt.issuer != this))
+                                                    then throw("BTD: Can use only ducklings from this dApp")
+                                                    else {
+                                                        let call = invoke(getIncubatorAddress(), "startDuckHatching", [""], nil)
+                                                        if ((call == call))
+                                                            then {
+                                                                let kDucklingGrown = keyDucklingGrown(toBase58String(pmt.id))
+                                                                ([BooleanEntry(kDucklingGrown, true), IntegerEntry(KGlobalIssuedTimestamp, lastBlock.timestamp), IntegerEntry(keyAmountOfAdultDuckling(), (tryGetInteger(keyAmountOfAdultDuckling()) + 1))] ++ feeValidate)
+                                                                }
+                                                            else throw("Strict value is not equal to itself.")
+                                                        }
+                                            }
+                                        else throw("Strict value is not equal to itself.")
+                                    }
+                            }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Verifier(tx)
+func verify () = if (isTestEnv())
+    then sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)
+    else {
+        let firstUser = base58'6TdaXEfhnjYquvPf3yV7MFxt2CbgFmaqsvGwkKfXtKi4'
+        let secondUser = base58'7DsP2WaMLocbHuUxux7pbXRjTrrZ1TFQPsi5QumS3gr8'
+        let thirdUser = base58'BpFWP3p3JgYrrP45xfrKzeMcWMEXoinj4FVPPkUiA8D3'
+        let firstUserSigned = if (sigVerify(tx.bodyBytes, tx.proofs[0], firstUser))
+            then 1
+            else if (sigVerify(tx.bodyBytes, tx.proofs[1], firstUser))
+                then 1
+                else if (sigVerify(tx.bodyBytes, tx.proofs[2], firstUser))
+                    then 1
+                    else 0
+        let secondUserSigned = if (sigVerify(tx.bodyBytes, tx.proofs[0], secondUser))
+            then 1
+            else if (sigVerify(tx.bodyBytes, tx.proofs[1], secondUser))
+                then 1
+                else if (sigVerify(tx.bodyBytes, tx.proofs[2], secondUser))
+                    then 1
+                    else 0
+        let thirdUserSigned = if (sigVerify(tx.bodyBytes, tx.proofs[0], thirdUser))
+            then 1
+            else if (sigVerify(tx.bodyBytes, tx.proofs[1], thirdUser))
+                then 1
+                else if (sigVerify(tx.bodyBytes, tx.proofs[2], thirdUser))
+                    then 1
+                    else 0
+        let signaturesCount = ((firstUserSigned + secondUserSigned) + thirdUserSigned)
+        match tx {
+            case _ => 
+                (signaturesCount >= 1)
+        }
+        }

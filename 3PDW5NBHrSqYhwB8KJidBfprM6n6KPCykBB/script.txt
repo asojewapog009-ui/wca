@@ -1,0 +1,321 @@
+{-# STDLIB_VERSION 5 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let shinywggid = base58'A2hcw6RV23Fc8Y8FNfV35Sq5QeS9Tgp6n8hbrESiRvXX'
+
+let treasuryAddress = base58'3PDW5NBHrSqYhwB8KJidBfprM6n6KPCykBB'
+
+let assetsAddress = base58'3PRCCnKuNS3PdbcSYcKdmTecSXXR9SE3rVb'
+
+let marketplaceAddress = base58'3P5EAhvWXJpTW5XCmw4cTRLirr5hdV43wG9'
+
+let configurationAddress = base58'3PDREv1pvqS9r2Gi5CZDHrgsQLigA9xXYp3'
+
+let nationsAddress = base58'3PAvvCSVicC2Ugsj9zWrzYmu2b6uAuGc3Fo'
+
+let dailyGameRewardsAddress = base58'3PHANHAVYa72vkHVGrLqzUkyKeeEDhDknXj'
+
+let adminWallet = addressFromStringValue("3PHKGy65emtBy4xxeQwz49nzSV1cqcJdw4U")
+
+let dailyGameRewardsWallet = addressFromStringValue("3PNHQ9fMFcMxDW5emBikKK3Nfwgb1qvxj1J")
+
+let dailyStakingRewardsWallet = addressFromStringValue("3PFQGA6DA66ny11vFAWPWrqprmivyyySDCv")
+
+func checkAdmin (caller) = if (if (if (if (if ((caller == adminWallet))
+    then true
+    else (caller == this))
+    then true
+    else (caller.bytes == assetsAddress))
+    then true
+    else (caller.bytes == treasuryAddress))
+    then true
+    else (caller.bytes == marketplaceAddress))
+    then true
+    else (caller.bytes == nationsAddress)
+
+
+func tryGetInteger (key) = match getInteger(this, key) {
+    case b: Int => 
+        b
+    case _ => 
+        0
+}
+
+
+func tryGetBoolean (key) = match getBoolean(this, key) {
+    case b: Boolean => 
+        b
+    case _ => 
+        false
+}
+
+
+func tryGetString (key) = match getString(this, key) {
+    case b: String => 
+        b
+    case _ => 
+        ""
+}
+
+
+func getALKey (Name,Level) = ((Name + "_lvl") + toString(Level))
+
+
+func confTryGetInteger (key) = match getInteger(Address(configurationAddress), key) {
+    case b: Int => 
+        b
+    case _ => 
+        0
+}
+
+
+func confTryGetString (key) = match getString(Address(configurationAddress), key) {
+    case b: String => 
+        b
+    case _ => 
+        ""
+}
+
+
+func confTryGetBoolean (key) = match getBoolean(Address(configurationAddress), key) {
+    case b: Boolean => 
+        b
+    case _ => 
+        false
+}
+
+
+func getTreasuryKey (nationid) = (nationid + "_Treasury")
+
+
+func treasuryTryGetInteger (key) = match getInteger(Address(treasuryAddress), key) {
+    case b: Int => 
+        b
+    case _ => 
+        0
+}
+
+
+func nationsTryGetInteger (key) = match getInteger(Address(nationsAddress), key) {
+    case b: Int => 
+        b
+    case _ => 
+        0
+}
+
+
+func nationsTryGetBoolean (key) = match getBoolean(Address(nationsAddress), key) {
+    case b: Boolean => 
+        b
+    case _ => 
+        false
+}
+
+
+func nationsTryGetString (key) = match getString(Address(nationsAddress), key) {
+    case b: String => 
+        b
+    case _ => 
+        ""
+}
+
+
+func getAssetOwnerKeyString (assetId) = (assetId + "_Owner")
+
+
+func assetsTryGetInteger (key) = match getInteger(Address(assetsAddress), key) {
+    case b: Int => 
+        b
+    case _ => 
+        0
+}
+
+
+func internalDeposit (addressStr,amountIn) = {
+    let amount = tryGetInteger((addressStr + "_Deposit"))
+[IntegerEntry((addressStr + "_Deposit"), (amount + amountIn))]
+    }
+
+
+func internalPay (addressStr,amount) = {
+    let deposited = tryGetInteger((addressStr + "_Deposit"))
+    if ((0 > (deposited - amount)))
+        then throw("Not enough deposit.")
+        else if (((deposited - amount) == 0))
+            then [DeleteEntry((addressStr + "_Deposit"))]
+            else [IntegerEntry((addressStr + "_Deposit"), (deposited - amount))]
+    }
+
+
+func internalReserve (addressStr,amount) = {
+    let reservedAmount = tryGetInteger((addressStr + "_Reserved"))
+    IntegerEntry((addressStr + "_Reserved"), (reservedAmount + amount))
+    }
+
+
+func internalTransfer (fromAddress,toAddress,amount) = (internalPay(fromAddress, amount) ++ internalDeposit(toAddress, amount))
+
+
+func insertRedeem (accum,nextValue) = {
+    let val = split(nextValue, "_")
+    let addr = val[0]
+    let amnt = val[1]
+    (accum :+ internalReserve(addr, parseIntValue(amnt)))
+    }
+
+
+@Callable(i)
+func Deposit () = {
+    let addressStr = toString(i.originCaller)
+    let pmt = i.payments[0]
+    if ((pmt == pmt))
+        then {
+            let amountIn = value(i.payments[0].amount)
+            if ((amountIn == amountIn))
+                then {
+                    let assetIn = pmt.assetId
+                    if ((assetIn == assetIn))
+                        then if ((assetIn != shinywggid))
+                            then throw("Only $HEG payments allowed")
+                            else {
+                                let amount = tryGetInteger((addressStr + "_Deposit"))
+                                $Tuple2(internalDeposit(addressStr, amountIn), (amount + amountIn))
+                                }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func NoPaymentDeposit (addressStr,amountIn) = if (!(checkAdmin(i.caller)))
+    then throw("")
+    else {
+        let amount = tryGetInteger((addressStr + "_Deposit"))
+        $Tuple2(internalDeposit(addressStr, amountIn), (amount + amountIn))
+        }
+
+
+
+@Callable(i)
+func Pay (addressStr,amount) = if (!(checkAdmin(i.caller)))
+    then throw("you are not authorized to perform this operation")
+    else $Tuple2(internalPay(addressStr, amount), amount)
+
+
+
+@Callable(i)
+func CallerPay (amount) = {
+    let callerAddr = toString(i.caller)
+    internalPay(callerAddr, amount)
+    }
+
+
+
+@Callable(i)
+func transferCoins (fromAddress,toAddress,amount) = if (if ((i.caller != adminWallet))
+    then (i.caller.bytes != assetsAddress)
+    else false)
+    then throw("you are not authorized to perform this operation")
+    else $Tuple2(internalTransfer(fromAddress, toAddress, amount), amount)
+
+
+
+@Callable(i)
+func callerTransferCoins (toAddress,amount) = internalTransfer(toString(i.caller), toAddress, amount)
+
+
+
+@Callable(i)
+func arbitraryAddCoins (toAddress,amount) = if (!(checkAdmin(i.caller)))
+    then throw("you are not authorized to perform this operation")
+    else $Tuple2(internalDeposit(toAddress, amount), amount)
+
+
+
+@Callable(i)
+func Redeem () = {
+    let addressStr = toString(i.caller)
+    let reservedAmount = tryGetInteger((addressStr + "_Reserved"))
+    if ((reservedAmount == 0))
+        then throw("Nothing to redeem")
+        else [DeleteEntry((addressStr + "_Reserved")), ScriptTransfer(i.caller, reservedAmount, shinywggid)]
+    }
+
+
+
+@Callable(i)
+func addReward (addressStr,amount) = if (!(checkAdmin(i.caller)))
+    then throw("you are not authorized to perform this operation")
+    else {
+        let reservedAmount = tryGetInteger((addressStr + "_Reserved"))
+        $Tuple2([IntegerEntry((addressStr + "_Reserved"), (reservedAmount + amount))], (reservedAmount + amount))
+        }
+
+
+
+@Callable(i)
+func addRewards (addr) = {
+    let chunks = split(addr, "#")
+    if (!(checkAdmin(i.caller)))
+        then throw("you are not authorized to perform this operation")
+        else {
+            let $l = chunks
+            let $s = size($l)
+            let $acc0 = nil
+            func $f0_1 ($a,$i) =             if (($i >= $s))
+                then $a
+                else insertRedeem($a, $l[$i])
+
+            func $f0_2 ($a,$i) =             if (($i >= $s))
+                then $a
+                else throw("List size exceeds 30")
+
+            $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18), 19), 20), 21), 22), 23), 24), 25), 26), 27), 28), 29), 30)
+            }
+    }
+
+
+
+@Callable(i)
+func increaseNationWallet (NationKey,amount) = if (!(checkAdmin(i.caller)))
+    then throw("you are not authorized to perform this operation")
+    else {
+        let key = getTreasuryKey(NationKey)
+        let reservedAmount = tryGetInteger(key)
+        $Tuple2([IntegerEntry(key, (reservedAmount + amount))], (reservedAmount + amount))
+        }
+
+
+
+@Callable(i)
+func decreaseNationWallet (NationKey,amount) = if (!(checkAdmin(i.caller)))
+    then throw("you are not authorized to perform this operation")
+    else {
+        let key = getTreasuryKey(NationKey)
+        let reservedAmount = tryGetInteger(key)
+        $Tuple2([IntegerEntry(key, (reservedAmount - amount))], amount)
+        }
+
+
+
+@Callable(i)
+func adminTransfer (toaddr,amount) = if (!(checkAdmin(i.caller)))
+    then throw("you are not authorized to perform this operation")
+    else $Tuple2([ScriptTransfer(addressFromStringValue(toaddr), amount, shinywggid)], amount)
+
+
+
+@Callable(i)
+func distributeNationPayRewards (assetBuildCost) = if (!(checkAdmin(i.caller)))
+    then throw("you are not authorized to perform this operation")
+    else {
+        let ToAdminWallet = ((assetBuildCost * 5) / 100)
+        let ToGameRewardsWallet = ((assetBuildCost * 10) / 100)
+        let ToStakingRewardsWallet = ((assetBuildCost * 65) / 100)
+        $Tuple2([ScriptTransfer(adminWallet, ToAdminWallet, shinywggid), ScriptTransfer(dailyGameRewardsWallet, ToGameRewardsWallet, shinywggid), ScriptTransfer(dailyStakingRewardsWallet, ToStakingRewardsWallet, shinywggid)], assetBuildCost)
+        }
+

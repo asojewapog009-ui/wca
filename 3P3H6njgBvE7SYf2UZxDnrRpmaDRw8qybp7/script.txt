@@ -1,0 +1,125 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+func writeConstString (key,value) = if (!(isDefined(getString(this, key))))
+    then StringEntry(key, value)
+    else throw(("already initialized: " + key))
+
+
+func writeInt (key,value) = if ((0 > value))
+    then throw(((("writing negative value " + toString(value)) + " for key ") + key))
+    else IntegerEntry(key, value)
+
+
+let configAddressStore = "config"
+
+let configAddress = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(this, configAddressStore), "withdrawal: config address not found")), "invalid config address")
+
+func allowed (op) = invoke(configAddress, "opAllowed", [op], nil)
+
+
+let pwrAssetId = fromBase58String(valueOrErrorMessage(getString(configAddress, "powerAssetId"), "pwr asset id not found"))
+
+let HEIGHT = height
+
+func withdrawHeightStore (dao,user) = (((dao + "_") + user) + "_withdraw_height")
+
+
+func withdrawAmountStore (dao,user) = (((dao + "_") + user) + "_withdraw_amount")
+
+
+let stakingContract = valueOrErrorMessage(getString(configAddress, "contract_staking"), "no contract_staking")
+
+let childrenContract = valueOrErrorMessage(getString(configAddress, "contract_children"), "no contract_children")
+
+func adviseUser (dao,user) = {
+    let wh = valueOrElse(getInteger(withdrawHeightStore(dao, user)), -1)
+    let wa = valueOrElse(getInteger(withdrawAmountStore(dao, user)), 0)
+    ((((((((("height: " + toString(HEIGHT)) + ", dao: ") + dao) + ", user: ") + user) + ", withdraw_height: ") + toString(wh)) + ", withdraw_amount: ") + toString(wa))
+    }
+
+
+@Callable(i)
+func parkFor (dao,user,withdrawHeight) = {
+    let caller = toString(i.caller)
+    if (if ((caller != stakingContract))
+        then (caller != childrenContract)
+        else false)
+        then throw("denied")
+        else if ((HEIGHT >= withdrawHeight))
+            then throw("withdrawHeight must be in the future")
+            else if (isDefined(getInteger(withdrawHeightStore(dao, user))))
+                then throw("pending withdrawal already exists")
+                else if ((size(i.payments) != 1))
+                    then throw("exactly one payment expected")
+                    else {
+                        let p = i.payments[0]
+                        if ((p.assetId != pwrAssetId))
+                            then throw("only PWR accepted")
+                            else [IntegerEntry(withdrawHeightStore(dao, user), withdrawHeight), IntegerEntry(withdrawAmountStore(dao, user), p.amount)]
+                        }
+    }
+
+
+
+@Callable(i)
+func withdraw (dao) = {
+    let a = allowed("withdraw")
+    if ((a == a))
+        then {
+            let user = toString(i.caller)
+            let wh = valueOrErrorMessage(getInteger(withdrawHeightStore(dao, user)), "no pending withdrawal")
+            if ((wh > HEIGHT))
+                then throw(("cooldown not over, withdraw available at height " + toString(wh)))
+                else {
+                    let amount = valueOrErrorMessage(getInteger(withdrawAmountStore(dao, user)), "no withdraw amount")
+[ScriptTransfer(i.caller, amount, pwrAssetId), DeleteEntry(withdrawHeightStore(dao, user)), DeleteEntry(withdrawAmountStore(dao, user))]
+                    }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func slashParked (dao,address,amount) = {
+    let a = allowed("slashParked")
+    if ((a == a))
+        then if ((toString(i.caller) != childrenContract))
+            then throw("denied")
+            else if ((0 >= amount))
+                then throw("amount must be positive")
+                else {
+                    let currentAmount = valueOrElse(getInteger(withdrawAmountStore(dao, address)), 0)
+                    if ((currentAmount == 0))
+                        then nil
+                        else {
+                            let actualSlash = min([currentAmount, amount])
+                            let remaining = (currentAmount - actualSlash)
+                            if ((remaining == 0))
+                                then [DeleteEntry(withdrawAmountStore(dao, address)), DeleteEntry(withdrawHeightStore(dao, address)), Burn(pwrAssetId, actualSlash)]
+                                else [IntegerEntry(withdrawAmountStore(dao, address), remaining), Burn(pwrAssetId, actualSlash)]
+                            }
+                    }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Verifier(tx)
+func verify () = {
+    func opAllowedStore (op) =     (("op_" + op) + "_allowed")
+
+    let byVoting = {
+        let enabled = valueOrElse(getBoolean(configAddress, opAllowedStore("governance_apply_tx")), true)
+        if (!(enabled))
+            then throw("tx application through governance not enabled")
+            else {
+                let id = toBase58String(tx.id)
+                let votingResults = valueOrErrorMessage(addressFromString(valueOrErrorMessage(getString(configAddress, "contract_voting_result"), "withdrawal: no contract_voting_result")), "invalid contract_voting_result")
+                (HEIGHT >= getIntegerValue(votingResults, ((("proposal_allow_broadcast_" + toString(this)) + "_") + id)))
+                }
+        }
+    if (sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey))
+        then true
+        else byVoting
+    }

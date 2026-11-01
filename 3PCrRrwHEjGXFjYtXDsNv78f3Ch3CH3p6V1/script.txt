@@ -1,0 +1,391 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let WavesId = "WAVES"
+
+let PuzzleBuybackFee = 25
+
+let PayoutEmptyStatus = 0
+
+let PayoutInitiatedStatus = 1
+
+let PayoutCompletedStatus = 2
+
+let BlocksBatchMaxSize = 10
+
+let RecipientsBatchMaxSize = 100
+
+let Height = height
+
+let Arr10 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+let ConfigAddressKey = "configAddress"
+
+let LastPayoutKey = "lastPayout"
+
+let MassTransferFeesKey = "massTransferFees"
+
+let WavesChainIdKey = ("chainId_" + WavesId)
+
+let DaemonAddressKey = "daemonAddress"
+
+let DaemonPublicKeyKey = "daemonPublicKey"
+
+let MaintainerAddressKey = "maintainerAddress"
+
+let PuzzleAggregatorAddressKey = "puzzleAggregatorAddress"
+
+let PuzzleBuybackAddressKey = "puzzleBuybackAddress"
+
+let SettingsAddressKey = "settingsAddress"
+
+let SignerPublicKeyKey = "signerPublicKey"
+
+let WavesDaoFactoryAddressKey = "wavesDaoFactoryAddress"
+
+let ConfigAddress = addressFromStringValue(getStringValue(this, ConfigAddressKey))
+
+let WavesChainId = getIntegerValue(ConfigAddress, WavesChainIdKey)
+
+let DaemonAddress = addressFromStringValue(getStringValue(ConfigAddress, DaemonAddressKey))
+
+let DaemonPublicKey = getBinaryValue(ConfigAddress, DaemonPublicKeyKey)
+
+let MaintainerAddress = addressFromStringValue(getStringValue(ConfigAddress, MaintainerAddressKey))
+
+let PuzzleAggregatorAddress = addressFromStringValue(getStringValue(ConfigAddress, PuzzleAggregatorAddressKey))
+
+let PuzzleBuybackAddress = addressFromStringValue(getStringValue(ConfigAddress, PuzzleBuybackAddressKey))
+
+let SignerPublicKey = getBinary(ConfigAddress, SignerPublicKeyKey)
+
+let WavesDaoFactoryAddress = addressFromStringValue(getStringValue(ConfigAddress, WavesDaoFactoryAddressKey))
+
+func makePayoutDataKey (payoutId) = ("payoutData_" + toString(payoutId))
+
+
+func makePayoutStatusKey (payoutId) = ("payoutStatus_" + toString(payoutId))
+
+
+func makePayoutAdditionalRewardsKey (payoutId) = ("payoutAdditionalRewards_" + toString(payoutId))
+
+
+func getLastPayout () = getIntegerValue(this, LastPayoutKey)
+
+
+func getPayoutData (payoutId) = {
+    let payoutString = getStringValue(makePayoutDataKey(payoutId))
+    let payoutDataList = split(payoutString, "_")
+    let startHeight = parseIntValue(payoutDataList[0])
+    let endHeight = parseIntValue(payoutDataList[1])
+    $Tuple2(startHeight, endHeight)
+    }
+
+
+func getPayoutStatus (payoutId) = valueOrElse(getInteger(makePayoutStatusKey(payoutId)), PayoutEmptyStatus)
+
+
+func getPayoutAdditionalRewards (payoutId) = valueOrElse(getInteger(makePayoutAdditionalRewardsKey(payoutId)), 0)
+
+
+@Callable(i)
+func setup (configAddress) = if ((i.caller != this))
+    then throw("Access denied")
+    else if ((size(i.payments) != 0))
+        then throw("Payments are prohibited")
+        else if ((addressFromString(configAddress) == unit))
+            then throw(("Invalid configAddress: " + configAddress))
+            else [StringEntry(ConfigAddressKey, configAddress)]
+
+
+
+@Callable(i)
+func initiatePayout (payoutId,startHeight,endHeight,amounts,assets) = if ((i.caller != DaemonAddress))
+    then throw("Access denied")
+    else if ((size(i.payments) != 0))
+        then throw("Payments are prohibited")
+        else {
+            let lastPayout = getLastPayout()
+            if ((payoutId != (lastPayout + 1)))
+                then throw(((("Wrong payoutId: " + toString(payoutId)) + ", should be: ") + toString((lastPayout + 1))))
+                else {
+                    let lastPayoutStatus = getPayoutStatus(lastPayout)
+                    if ((lastPayoutStatus != PayoutCompletedStatus))
+                        then throw((("Last payout: " + toString(lastPayout)) + " was not completed"))
+                        else {
+                            let $t036053669 = getPayoutData(lastPayout)
+                            let lastStartHeight = $t036053669._1
+                            let lastEndHeight = $t036053669._2
+                            if ((startHeight != (lastEndHeight + 1)))
+                                then throw(((("Wrong startHeight: " + toString(startHeight)) + ", should be: ") + toString((lastEndHeight + 1))))
+                                else if ((startHeight > endHeight))
+                                    then throw(((("endHeight: " + toString(endHeight)) + " less than startHeight: ") + toString(startHeight)))
+                                    else {
+                                        let amountsSize = size(amounts)
+                                        let assetsSize = size(assets)
+                                        if ((amountsSize != assetsSize))
+                                            then throw("Wrong size of amounts or assets")
+                                            else {
+                                                let availableWavesDaoLpToClaim = valueOrElse(getInteger(WavesDaoFactoryAddress, ("%s%s__available__" + toString(this))), 0)
+                                                let wavesDaoNextBlockToProcess = getIntegerValue(WavesDaoFactoryAddress, "%s__nextBlockToProcess")
+                                                let wavesDlpClaim = if (if ((availableWavesDaoLpToClaim > 0))
+                                                    then ((wavesDaoNextBlockToProcess + BlocksBatchMaxSize) >= Height)
+                                                    else false)
+                                                    then invoke(WavesDaoFactoryAddress, "claimLP", nil, nil)
+                                                    else unit
+                                                if ((wavesDlpClaim == wavesDlpClaim))
+                                                    then {
+                                                        let currentAdditionalRewards = getPayoutAdditionalRewards(payoutId)
+                                                        func assetsFold (accum,index) =                                                         if ((index >= assetsSize))
+                                                            then accum
+                                                            else {
+                                                                let assetStr = assets[index]
+                                                                if ((getInteger(ConfigAddress, ("assetIndex_" + assetStr)) == unit))
+                                                                    then throw(("Unknown asset: " + assetStr))
+                                                                    else {
+                                                                        let $t049555134 = if ((assetStr == WavesId))
+                                                                            then $Tuple2(unit, (amounts[index] + currentAdditionalRewards))
+                                                                            else $Tuple2(fromBase58String(assetStr), amounts[index])
+                                                                        let asset = $t049555134._1
+                                                                        let amount = $t049555134._2
+                                                                        if ((0 > amount))
+                                                                            then throw((("Wrong asset amount: " + toString(amount)) + ", should be positive or zero"))
+                                                                            else {
+                                                                                let maintainerFeePercent = getIntegerValue(ConfigAddress, ("assetFee_" + assetStr))
+                                                                                let maintainerFee = fraction(amount, maintainerFeePercent, 1000)
+                                                                                let puzzleBuybackFee = fraction(amount, PuzzleBuybackFee, 1000)
+                                                                                let lessorsAmount = ((amount - maintainerFee) - puzzleBuybackFee)
+                                                                                $Tuple2(((accum._1 :+ ScriptTransfer(MaintainerAddress, maintainerFee, asset)) :+ ScriptTransfer(PuzzleBuybackAddress, puzzleBuybackFee, asset)), (accum._2 :+ toString(lessorsAmount)))
+                                                                                }
+                                                                        }
+                                                                }
+
+                                                        let $t058005867 = {
+                                                            let $l = Arr10
+                                                            let $s = size($l)
+                                                            let $acc0 = $Tuple2(nil, nil)
+                                                            func $f0_1 ($a,$i) =                                                             if (($i >= $s))
+                                                                then $a
+                                                                else assetsFold($a, $l[$i])
+
+                                                            func $f0_2 ($a,$i) =                                                             if (($i >= $s))
+                                                                then $a
+                                                                else throw("List size exceeds 10")
+
+                                                            $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+                                                            }
+                                                        let transfers = $t058005867._1
+                                                        let amountKeys = $t058005867._2
+                                                        let newPayoutData = makeString(([toString(startHeight), toString(endHeight)] ++ amountKeys), "_")
+                                                        (transfers ++ [IntegerEntry(LastPayoutKey, payoutId), StringEntry(makePayoutDataKey(payoutId), newPayoutData), IntegerEntry(makePayoutStatusKey(payoutId), PayoutInitiatedStatus)])
+                                                        }
+                                                    else throw("Strict value is not equal to itself.")
+                                                }
+                                        }
+                            }
+                    }
+            }
+
+
+
+@Callable(i)
+func swap (payoutId,swapFrom,amountIn,route,minToReceive) = if ((i.caller != DaemonAddress))
+    then throw("Access denied")
+    else if ((size(i.payments) != 0))
+        then throw("Payments are prohibited")
+        else {
+            let lastPayout = getLastPayout()
+            if ((lastPayout != payoutId))
+                then throw(((("Wrong payoutId: " + toString(payoutId)) + ", should be: ") + toString(lastPayout)))
+                else {
+                    let payoutStatus = getPayoutStatus(payoutId)
+                    if ((payoutStatus != PayoutInitiatedStatus))
+                        then throw((("Wrong payout status: " + toString(payoutStatus)) + ", should be 1"))
+                        else {
+                            let $t068187067 = if ((swapFrom == WavesId))
+                                then $Tuple2(wavesBalance(this).available, unit)
+                                else {
+                                    let assetId = fromBase58String(swapFrom)
+                                    $Tuple2(assetBalance(this, assetId), assetId)
+                                    }
+                            let balanceInBeforeSwap = $t068187067._1
+                            let swapFromId = $t068187067._2
+                            let swapInvoke = invoke(PuzzleAggregatorAddress, "swapWithReferral", [route, minToReceive, "puzzlenode"], [AttachedPayment(swapFromId, amountIn)])
+                            if ((swapInvoke == swapInvoke))
+                                then {
+                                    let balanceInAfterSwap = if ((swapFrom == WavesId))
+                                        then wavesBalance(this).available
+                                        else assetBalance(this, value(swapFromId))
+                                    let refund = (balanceInAfterSwap - (balanceInBeforeSwap - amountIn))
+                                    if ((refund > 10))
+                                        then throw(("Rollback aggregator refund: " + toString(refund)))
+                                        else nil
+                                    }
+                                else throw("Strict value is not equal to itself.")
+                            }
+                    }
+            }
+
+
+
+@Callable(i)
+func distributeTokens (payoutId,recipients,amounts,assets,attachment) = if ((i.caller != DaemonAddress))
+    then throw("Access denied")
+    else if ((size(i.payments) != 0))
+        then throw("Payments are prohibited")
+        else {
+            let lastPayout = getLastPayout()
+            if ((lastPayout != payoutId))
+                then throw(((("Wrong payoutId: " + toString(payoutId)) + ", should be: ") + toString(lastPayout)))
+                else {
+                    let payoutStatus = getPayoutStatus(payoutId)
+                    if ((payoutStatus != PayoutInitiatedStatus))
+                        then throw((("Wrong payout status: " + toString(payoutStatus)) + ", should be 1"))
+                        else {
+                            let recipientsSize = size(recipients)
+                            let amountsSize = size(amounts)
+                            let assetsSize = size(assets)
+                            if (if ((recipientsSize != amountsSize))
+                                then true
+                                else (recipientsSize != assetsSize))
+                                then throw(((((("Wrong recipients size: " + toString(recipientsSize)) + ", amounts size: ") + toString(amountsSize)) + ", assets size: ") + toString(assetsSize)))
+                                else if ((recipientsSize == 0))
+                                    then throw("Recipients list should not be empty")
+                                    else if ((recipientsSize > RecipientsBatchMaxSize))
+                                        then throw(((("Should be not greater than " + toString(RecipientsBatchMaxSize)) + " recipients, current: ") + toString(recipientsSize)))
+                                        else {
+                                            let magicByte = drop(toBytes(1), 7)
+                                            let chainIdByte = drop(toBytes(WavesChainId), 7)
+                                            let addressPrefix = (magicByte + chainIdByte)
+                                            func scriptTransfersFold (accum,index) =                                             if ((index >= recipientsSize))
+                                                then accum
+                                                else {
+                                                    let publicKeyHash = recipients[index]
+                                                    let addressData = (addressPrefix + publicKeyHash)
+                                                    let addressChecksum = take(keccak256(blake2b256(addressData)), 4)
+                                                    let recipient = Address((addressData + addressChecksum))
+                                                    let amount = amounts[index]
+                                                    let assetIndex = assets[index]
+                                                    let assetId = getBinaryValue(ConfigAddress, ("assetId_" + toString(assetIndex)))
+                                                    let asset = if ((assetId == base58''))
+                                                        then unit
+                                                        else assetId
+                                                    (accum :+ ScriptTransfer(recipient, amount, asset))
+                                                    }
+
+                                            let indexes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99]
+                                            let $l = indexes
+                                            let $s = size($l)
+                                            let $acc0 = nil
+                                            func $f0_1 ($a,$i) =                                             if (($i >= $s))
+                                                then $a
+                                                else scriptTransfersFold($a, $l[$i])
+
+                                            func $f0_2 ($a,$i) =                                             if (($i >= $s))
+                                                then $a
+                                                else throw("List size exceeds 100")
+
+                                            $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18), 19), 20), 21), 22), 23), 24), 25), 26), 27), 28), 29), 30), 31), 32), 33), 34), 35), 36), 37), 38), 39), 40), 41), 42), 43), 44), 45), 46), 47), 48), 49), 50), 51), 52), 53), 54), 55), 56), 57), 58), 59), 60), 61), 62), 63), 64), 65), 66), 67), 68), 69), 70), 71), 72), 73), 74), 75), 76), 77), 78), 79), 80), 81), 82), 83), 84), 85), 86), 87), 88), 89), 90), 91), 92), 93), 94), 95), 96), 97), 98), 99), 100)
+                                            }
+                            }
+                    }
+            }
+
+
+
+@Callable(i)
+func finalizePayout (payoutId) = if ((i.caller != DaemonAddress))
+    then throw("Access denied")
+    else {
+        let lastPayout = getLastPayout()
+        if ((lastPayout != payoutId))
+            then throw(((("Wrong payoutId: " + toString(payoutId)) + ", should be: ") + toString(lastPayout)))
+            else {
+                let payoutStatus = getPayoutStatus(lastPayout)
+                if ((payoutStatus != PayoutInitiatedStatus))
+                    then throw((("Wrong payout status: " + toString(payoutStatus)) + ", should be: 1"))
+                    else [IntegerEntry(makePayoutStatusKey(lastPayout), PayoutCompletedStatus)]
+                }
+        }
+
+
+
+@Callable(i)
+func addAdditionalRewards () = if ((size(i.payments) != 1))
+    then throw("At least one payment should be attached")
+    else if ((i.payments[0].assetId != unit))
+        then throw("Only waves can be attached")
+        else {
+            let lastPayout = getLastPayout()
+            let lastPayoutStatus = getPayoutStatus(lastPayout)
+            if ((lastPayoutStatus != PayoutCompletedStatus))
+                then throw((("Last payout: " + toString(lastPayout)) + " was not completed"))
+                else {
+                    let nextPayoutId = (lastPayout + 1)
+                    let currentAdditionalRewards = getPayoutAdditionalRewards(nextPayoutId)
+                    let newAdditionalRewards = (currentAdditionalRewards + i.payments[0].amount)
+[IntegerEntry(makePayoutAdditionalRewardsKey(nextPayoutId), newAdditionalRewards)]
+                    }
+            }
+
+
+
+@Callable(i)
+func addMassTransferFees () = if ((size(i.payments) != 1))
+    then throw("At least one payment should be attached")
+    else if ((i.payments[0].assetId != unit))
+        then throw("Only waves can be attached")
+        else {
+            let currentMassTransferFees = valueOrElse(getInteger(MassTransferFeesKey), 0)
+            let newMassTransferFees = (currentMassTransferFees + i.payments[0].amount)
+[IntegerEntry(MassTransferFeesKey, newMassTransferFees)]
+            }
+
+
+
+@Callable(i)
+func withdrawMassTransferFees () = if ((i.caller != MaintainerAddress))
+    then throw("Access denied")
+    else if ((size(i.payments) != 0))
+        then throw("Payments are prohibited")
+        else {
+            let currentMassTransferFees = valueOrElse(getInteger(MassTransferFeesKey), 0)
+            if ((currentMassTransferFees == 0))
+                then throw("Nothing to withdraw")
+                else [IntegerEntry(MassTransferFeesKey, 0), ScriptTransfer(MaintainerAddress, currentMassTransferFees, unit)]
+            }
+
+
+@Verifier(tx)
+func verify () = match tx {
+    case massTx: MassTransferTransaction => 
+        let configAddressStr = getString(this, ConfigAddressKey)
+        let configAddress = addressFromStringValue(value(configAddressStr))
+        let publicKey = if (isDefined(configAddressStr))
+            then valueOrElse(getBinary(configAddress, DaemonPublicKeyKey), tx.senderPublicKey)
+            else tx.senderPublicKey
+        sigVerify_8Kb(massTx.bodyBytes, massTx.proofs[0], publicKey)
+    case invokeTx: InvokeScriptTransaction => 
+        let configAddressStr = getString(this, ConfigAddressKey)
+        let configAddress = addressFromStringValue(value(configAddressStr))
+        let unitsChain = getString(configAddress, ("unitsChainName_" + toString({
+            let @ = invokeTx.dApp
+            if ($isInstanceOf(@, "Address"))
+                then @
+                else throw(($getType(@) + " couldn't be cast to Address"))
+            })))
+        let signerPublicKey = valueOrElse(getBinary(configAddress, SignerPublicKeyKey), tx.senderPublicKey)
+        let publicKey = if (isDefined(configAddressStr))
+            then if (isDefined(unitsChain))
+                then tx.senderPublicKey
+                else signerPublicKey
+            else tx.senderPublicKey
+        sigVerify_8Kb(invokeTx.bodyBytes, invokeTx.proofs[0], publicKey)
+    case _ => 
+        let configAddressStr = getString(this, ConfigAddressKey)
+        let configAddress = addressFromStringValue(value(configAddressStr))
+        let publicKey = if (isDefined(configAddressStr))
+            then valueOrElse(getBinary(configAddress, SignerPublicKeyKey), tx.senderPublicKey)
+            else tx.senderPublicKey
+        sigVerify_128Kb(tx.bodyBytes, tx.proofs[0], publicKey)
+}

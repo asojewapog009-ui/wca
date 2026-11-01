@@ -1,0 +1,535 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let SEP = "__"
+
+let EMPTY = ""
+
+let PRECISION = 1000000000000
+
+let MAX_RATE_HEIGHT_DELTA = 5
+
+let ORACLE_DECIMALS = 1000000
+
+let LIQUIDATION_BONUS = ((PRECISION / 100) * 5)
+
+let LIQUIDATION_PROTOCOL_FEE = ((PRECISION / 100) * 2)
+
+let IdxVaultAssetCount = 1
+
+let IdxVaultAssetAmount = 2
+
+let IdxVaultAssetRate = 3
+
+func divp (_x,_y) = fraction(_x, PRECISION, _y, HALFEVEN)
+
+
+func mulp (_x,_y) = fraction(_x, _y, PRECISION, HALFEVEN)
+
+
+func join (ar) = makeString(ar, SEP)
+
+
+func keyInitialized () = join(["%s", "initialized"])
+
+
+func keyCoordinatorAddress () = join(["%s", "coordinatorAddress"])
+
+
+func keyVerifierAddress () = join(["%s", "verifierAddress"])
+
+
+func keyFrontendAddress () = join(["%s", "frontendAddress"])
+
+
+func keyTreasuryAddress () = join(["%s", "treasuryAddress"])
+
+
+func keyOracleAddress () = join(["%s", "oracleAddress"])
+
+
+func keyVaultAsset (address,asset) = join(["%s%s%s", "vault", address, asset])
+
+
+func keyBackingRatio () = join(["%s", "backingRatio"])
+
+
+func keyLiquidationRatio () = join(["%s", "liquidationRatio"])
+
+
+func keyLiquidationProtocolFee () = join(["%s", "liquidationProtocolFee"])
+
+
+func keyTicker () = join(["%s", "ticker"])
+
+
+func keyMaxRateHeightDelta () = join(["%s", "maxRateHeightDelta"])
+
+
+func keyContractAssetId () = join(["%s", "contractAssetId"])
+
+
+func keyOracleTickerPrice (ticker) = join(["%s%s", "price", ticker])
+
+
+func keyOracleTickerPriceHeight (ticker) = join(["%s%s", "lastHeight", ticker])
+
+
+func keySigned (_address,_txId) = join(["%s%s%s", "signed", _address, _txId])
+
+
+func keyProtocolActive () = join(["%s", "protocolActive"])
+
+
+func isInitialized () = valueOrElse(getBoolean(this, keyInitialized()), false)
+
+
+func mustInitialized () = if (!(isInitialized()))
+    then throw("Not initialized")
+    else unit
+
+
+func mustNotInitialized () = if (isInitialized())
+    then throw("Already initialized")
+    else unit
+
+
+func mustSelf (i) = if ((i.caller != this))
+    then throw("Only self invocation allowed.")
+    else unit
+
+
+func coordinator () = addressFromStringValue(valueOrErrorMessage(getString(keyCoordinatorAddress()), "Coordinator is not set"))
+
+
+func oracle () = addressFromStringValue(valueOrErrorMessage(getString(keyOracleAddress()), "Oracle is not set"))
+
+
+func verifier () = match getString(keyCoordinatorAddress()) {
+    case s: String => 
+        getString(addressFromStringValue(s), keyVerifierAddress())
+    case _: Unit => 
+        unit
+    case _ => 
+        throw("Match error")
+}
+
+
+func getAddress (key,err) = addressFromStringValue(valueOrErrorMessage(getString(coordinator(), key), err))
+
+
+func getFrontendAddress () = getAddress(keyFrontendAddress(), "Frontend is not set")
+
+
+func getTreasuryAddress () = getAddress(keyTreasuryAddress(), "Treasury is not set")
+
+
+func getMaxRateHeightDelta () = valueOrElse(getInteger(coordinator(), keyMaxRateHeightDelta()), MAX_RATE_HEIGHT_DELTA)
+
+
+func getLiquidationProtocolFee () = valueOrElse(getInteger(coordinator(), keyLiquidationProtocolFee()), LIQUIDATION_PROTOCOL_FEE)
+
+
+func getAssetId () = getStringValue(keyContractAssetId())
+
+
+func isActive () = valueOrElse(getBoolean(coordinator(), keyProtocolActive()), false)
+
+
+func mustActive () = if (if (!(isActive()))
+    then true
+    else !(isInitialized()))
+    then throw("Protocol is disabled. Please contact support.")
+    else unit
+
+
+func mustFrontend (i) = if ((i.caller != getFrontendAddress()))
+    then throw("Not allowed")
+    else unit
+
+
+func mustHaveOnePayment (i) = if ((size(i.payments) != 1))
+    then throw("Must have one payment.")
+    else unit
+
+
+func isPositive (number) = if ((0 >= number))
+    then throw("Attribute should be positive.")
+    else unit
+
+
+func isNotNegative (number) = if ((0 > number))
+    then throw("Attribute should be positive or zero.")
+    else unit
+
+
+func getAssetIdFromString (assetId) = if ((assetId == "WAVES"))
+    then unit
+    else fromBase58String(assetId)
+
+
+func isAsset (p,checkingAsset) = {
+    let assetId =     match checkingAsset {
+        case bv: ByteVector => 
+            bv
+        case s: String => 
+            getAssetIdFromString(s)
+        case _: Unit => 
+            unit
+        case _ => 
+            throw("Match error")
+    }
+    match assetId {
+        case bv: ByteVector => 
+            let name =             match assetInfo(bv) {
+                case asset: Asset => 
+                    asset.name
+                case _: Unit => 
+                    throw(("Can't find asset " + toBase58String(bv)))
+                case _ => 
+                    throw("Match error")
+            }
+            let err = throw(("Attached payment asset is not " + name))
+            match p.assetId {
+                case paymentAsset: ByteVector => 
+                    if ((paymentAsset != assetId))
+                        then err
+                        else unit
+                case _: Unit => 
+                    err
+                case _ => 
+                    throw("Match error")
+            }
+        case _: Unit => 
+            if ((p.assetId != unit))
+                then throw("Attached payment asset is not WAVES")
+                else unit
+        case _ => 
+            throw("Match error")
+    }
+    }
+
+
+func getBackingRatio () = valueOrErrorMessage(getInteger(keyBackingRatio()), "Backing ratio is not set")
+
+
+func getLiquidationRatio () = valueOrErrorMessage(getInteger(keyLiquidationRatio()), "Liquidation ratio is not set")
+
+
+func checkAddress (_address) = match addressFromString(_address) {
+    case address: Address => 
+        true
+    case _: Unit => 
+        throw("Invalid address")
+    case _ => 
+        throw("Match error")
+}
+
+
+func keyTotalAssetAccepted () = join(["%s", "totalAssetAccepted"])
+
+
+func keyTotalEastMinted () = join(["%s", "totalEastMinted"])
+
+
+func keyEastMintedLimit () = join(["%s", "eastMintedLimit"])
+
+
+func keyStakerAddress () = join(["%s", "stakerAddress"])
+
+
+func getTotalAssetAccepted () = valueOrElse(getInteger(keyTotalAssetAccepted()), 0)
+
+
+func getTotalEastMinted () = valueOrElse(getInteger(keyTotalEastMinted()), 0)
+
+
+func getEastMintedLimit () = valueOrElse(getInteger(keyEastMintedLimit()), 0)
+
+
+func getStakerAddress () = valueOrElse(getString(keyStakerAddress()), EMPTY)
+
+
+func staker () = addressFromStringValue(getStakerAddress())
+
+
+func isStaked () = (getStakerAddress() != EMPTY)
+
+
+func checkBackingRatios (_br,_lr) = if (if ((0 > _lr))
+    then true
+    else (0 > _br))
+    then throw("Backing ratio must be positive")
+    else if (((PRECISION + LIQUIDATION_BONUS) > _lr))
+        then throw("Liquidation ratio must be higher than 105%")
+        else if ((_lr >= _br))
+            then throw("Backing ratio must be higher than liquidation ratio")
+            else unit
+
+
+func getVaultData (_address) = {
+    let asset = getAssetId()
+    let frontend = getFrontendAddress()
+    let vault = getString(frontend, keyVaultAsset(_address, asset))
+    let v =     match vault {
+        case _: Unit => 
+["%d%d%d", "0", "0", "0"]
+        case s: String => 
+            split(s, SEP)
+        case _ => 
+            throw("Match error")
+    }
+    let count = parseIntValue(v[IdxVaultAssetCount])
+    let assetAmount = parseIntValue(v[IdxVaultAssetAmount])
+    let rate = parseIntValue(v[IdxVaultAssetRate])
+    $Tuple3(assetAmount, count, rate)
+    }
+
+
+func checkHeightDelta (priceHeight) = {
+    let maxHeightDelta = getMaxRateHeightDelta()
+    let currentDiff = (lastBlock.height - priceHeight)
+    if ((maxHeightDelta >= currentDiff))
+        then unit
+        else throw("Large price delta.")
+    }
+
+
+func getAssetUsdPrice () = {
+    let ticker = getStringValue(keyTicker())
+    let priceHeight = getIntegerValue(oracle(), keyOracleTickerPriceHeight(ticker))
+    let checkHeight = checkHeightDelta(priceHeight)
+    if ((checkHeight == checkHeight))
+        then {
+            let price = getIntegerValue(oracle(), keyOracleTickerPrice(ticker))
+            fraction(price, PRECISION, ORACLE_DECIMALS)
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func updateVault (_address,_amount) = {
+    let $t01160711656 = getVaultData(_address)
+    let assetAmount = $t01160711656._1
+    let count = $t01160711656._2
+    let newCount = (count + 1)
+    let newAssetAmount = (assetAmount + _amount)
+    if ((0 > newAssetAmount))
+        then throw("Something went wrong. Contact support.")
+        else {
+            let assetRate = getAssetUsdPrice()
+            makeString(["%d%d%d", toString(newCount), toString(newAssetAmount), toString(assetRate)], SEP)
+            }
+    }
+
+
+func countEquivalent (_amount) = {
+    let backingRatio = getBackingRatio()
+    let assetRate = getAssetUsdPrice()
+    let usdEq = mulp(_amount, assetRate)
+    let eastEq = divp(usdEq, backingRatio)
+    $Tuple2(usdEq, eastEq)
+    }
+
+
+@Callable(i)
+func initialize (_coordinatorAddress,_oracleAddress,_backingRatio,_liquidationRatio,_assetId,_ticker) = {
+    let checks = [mustNotInitialized(), checkAddress(_coordinatorAddress), checkAddress(_oracleAddress), checkBackingRatios(_backingRatio, _liquidationRatio)]
+    if ((checks == checks))
+        then [IntegerEntry(keyBackingRatio(), _backingRatio), IntegerEntry(keyLiquidationRatio(), _liquidationRatio), StringEntry(keyCoordinatorAddress(), _coordinatorAddress), StringEntry(keyOracleAddress(), _oracleAddress), StringEntry(keyTicker(), _ticker), StringEntry(keyContractAssetId(), _assetId), BooleanEntry(keyInitialized(), true)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setRatios (_backingRatio,_liquidationRatio) = {
+    let checks = [mustInitialized(), mustSelf(i), checkBackingRatios(_backingRatio, _liquidationRatio)]
+    if ((checks == checks))
+        then [IntegerEntry(keyBackingRatio(), _backingRatio), IntegerEntry(keyLiquidationRatio(), _liquidationRatio)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setOracle (_address) = {
+    let check = [mustSelf(i), checkAddress(_address)]
+    if ((check == check))
+        then [StringEntry(keyOracleAddress(), _address)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setEastMintedLimit (_eastMintedLimit) = {
+    let checks = [mustInitialized(), mustSelf(i), isNotNegative(_eastMintedLimit)]
+    if ((checks == checks))
+        then [IntegerEntry(keyEastMintedLimit(), _eastMintedLimit)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func setStaker (_address) = {
+    let checks = [mustInitialized(), mustSelf(i), checkAddress(_address)]
+    if ((checks == checks))
+        then if (isStaked())
+            then throw("Unable to proceed. Staker is already set.")
+            else [StringEntry(keyStakerAddress(), _address)]
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func mint (_address) = {
+    let payment = i.payments[0]
+    let vaultAsset = getAssetId()
+    let check = [mustActive(), mustFrontend(i), mustHaveOnePayment(i), isAsset(payment, vaultAsset)]
+    if ((check == check))
+        then {
+            let $t01426014313 = countEquivalent(payment.amount)
+            let usdEq = $t01426014313._1
+            let eastEq = $t01426014313._2
+            let vault = updateVault(_address, payment.amount)
+            let newTotalAssetAccepted = (getTotalAssetAccepted() + payment.amount)
+            let newTotalEastMinted = (getTotalEastMinted() + (eastEq / 100))
+            let eastMintedLimit = getEastMintedLimit()
+            if (if ((eastMintedLimit > 0))
+                then (newTotalEastMinted > eastMintedLimit)
+                else false)
+                then throw("Unable to proceed. Too much EAST minted with this asset.")
+                else {
+                    let doAction = if (isStaked())
+                        then invoke(staker(), "stake", nil, [payment])
+                        else unit
+                    if ((doAction == doAction))
+                        then $Tuple2([IntegerEntry(keyTotalAssetAccepted(), newTotalAssetAccepted), IntegerEntry(keyTotalEastMinted(), newTotalEastMinted)], $Tuple2(vault, eastEq))
+                        else throw("Strict value is not equal to itself.")
+                    }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func supply (_address) = {
+    let payment = i.payments[0]
+    let vaultAsset = getAssetId()
+    let check = [mustActive(), mustFrontend(i), mustHaveOnePayment(i), isAsset(payment, vaultAsset)]
+    if ((check == check))
+        then {
+            let vault = updateVault(_address, payment.amount)
+            let newTotalAssetAccepted = (getTotalAssetAccepted() + payment.amount)
+            let doAction = if (isStaked())
+                then invoke(staker(), "stake", nil, [payment])
+                else unit
+            if ((doAction == doAction))
+                then $Tuple2([IntegerEntry(keyTotalAssetAccepted(), newTotalAssetAccepted)], vault)
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func close (_address,_amount) = {
+    let check = [mustActive(), mustFrontend(i), checkAddress(_address), isPositive(_amount)]
+    if ((check == check))
+        then {
+            let assetAmount = getVaultData(_address)._1
+            if ((_amount > assetAmount))
+                then throw("Unable to proceed. Not enough asset in vault.")
+                else if ((_amount > getTotalAssetAccepted()))
+                    then throw("Unable to proceed. Not enough asset in treasury.")
+                    else {
+                        let updatedVault = updateVault(_address, -(_amount))
+                        let $t01598716033 = countEquivalent(_amount)
+                        let usdEq = $t01598716033._1
+                        let eastEq = $t01598716033._2
+                        let doAction = if (isStaked())
+                            then invoke(staker(), "unstake", [_amount], nil)
+                            else unit
+                        if ((doAction == doAction))
+                            then {
+                                let assetId = getAssetIdFromString(getAssetId())
+                                let address = addressFromStringValue(_address)
+                                let newTotalAssetAccepted = (getTotalAssetAccepted() - _amount)
+                                let newTotalEastMinted = (getTotalEastMinted() - (eastEq / 100))
+                                $Tuple2([IntegerEntry(keyTotalAssetAccepted(), newTotalAssetAccepted), IntegerEntry(keyTotalEastMinted(), newTotalEastMinted), ScriptTransfer(address, _amount, assetId)], $Tuple3(updatedVault, eastEq, usdEq))
+                                }
+                            else throw("Strict value is not equal to itself.")
+                        }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func liquidate (_liquidatorAddress,_address,_ratio) = {
+    let check = [mustActive(), mustFrontend(i)]
+    if ((check == check))
+        then {
+            let assetAmount = getVaultData(_address)._1
+            let assetRequested = mulp(assetAmount, _ratio)
+            if ((assetRequested > assetAmount))
+                then throw("Unable to proceed. Not enough asset in vault.")
+                else if ((assetRequested > getTotalAssetAccepted()))
+                    then throw("Unable to proceed. Not enough asset.")
+                    else {
+                        let updatedVault = updateVault(_address, -(assetRequested))
+                        let $t01712317176 = countEquivalent(assetRequested)
+                        let usdEq = $t01712317176._1
+                        let eastEq = $t01712317176._2
+                        let doAction = if (isStaked())
+                            then invoke(staker(), "unstake", [assetRequested], nil)
+                            else unit
+                        if ((doAction == doAction))
+                            then {
+                                let fee = mulp(assetRequested, getLiquidationProtocolFee())
+                                let liquidated = (assetRequested - fee)
+                                let newTotalAssetAccepted = (getTotalAssetAccepted() - assetRequested)
+                                let newTotalEastMinted = (getTotalEastMinted() - (eastEq / 100))
+                                let treasuryAddress = getTreasuryAddress()
+                                let liquidatorAddress = addressFromStringValue(_liquidatorAddress)
+                                let assetId = getAssetIdFromString(getAssetId())
+                                $Tuple2([IntegerEntry(keyTotalAssetAccepted(), newTotalAssetAccepted), IntegerEntry(keyTotalEastMinted(), newTotalEastMinted), ScriptTransfer(liquidatorAddress, liquidated, assetId), ScriptTransfer(treasuryAddress, fee, assetId)], $Tuple2(updatedVault, eastEq))
+                                }
+                            else throw("Strict value is not equal to itself.")
+                        }
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func getCurrentUsdPrice () = $Tuple2(nil, getAssetUsdPrice())
+
+
+
+@Callable(i)
+func getSubvaultInfo (_address) = {
+    let assetAmount = getVaultData(_address)._1
+    let $t01816318213 = countEquivalent(assetAmount)
+    let usdEq = $t01816318213._1
+    let eastEq = $t01816318213._2
+    let liquidationRatio = getLiquidationRatio()
+    let threshold = mulp(usdEq, liquidationRatio)
+    $Tuple2(nil, $Tuple3(usdEq, eastEq, threshold))
+    }
+
+
+@Verifier(tx)
+func verify () = match verifier() {
+    case address: String => 
+        valueOrElse(getBoolean(addressFromStringValue(address), keySigned(toString(this), toBase58String(tx.id))), false)
+    case _ => 
+        sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)
+}

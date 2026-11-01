@@ -1,0 +1,197 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let Rounds = 24
+
+let Interval = (1440 * 7)
+
+let daoAddress = Address(base58'3PEwRcYNAUtoFvKpBhKoiwajnZfdoDR6h4h')
+
+let limitsAddress = Address(base58'3PFB6LJyShsCKEA1AU1U1WLbDazqyj6ZL9b')
+
+let configAddress = addressFromStringValue(getStringValue(daoAddress, "config"))
+
+let votingResultsAddress = addressFromStringValue(getStringValue(configAddress, "contract_voting_result"))
+
+let tokens = [base58'B45iYkZVC9cudR2yxrsJnrM75StiTrwphbfQ7xkyisip', base58'AEvGpbS2BkKMtvpQAe2fdKVKg3yampiMvrNVLPXy25ML', base58'CPhNn4f754kvEvt7UFbC5NScGT7BNWuZivuEwPF2BpPY', base58'EbTKFzaVrrc4ZTdybxt6xVN4iNVmMUzxMrxKzBiaihU8']
+
+let prices = [[51000000, 55000000, 59000000, 107000000, 109000000, 111000000, 113000000, 115000000, 117000000, 119000000, 121000000, 123000000, 125000000, 127000000, 129000000, 131000000, 133000000, 135000000, 137000000, 139000000, 140000000, 141000000, 142000000, 143000000], [92013000000, 100826000000, 109639000000, 215396000000, 219803000000, 224210000000, 228616500000, 233023000000, 237429500000, 241836000000, 246242500000, 250649000000, 255055500000, 259462000000, 263868500000, 268275000000, 272681500000, 277088000000, 281494500000, 285901000000, 288104250000, 290307500000, 292510750000, 294714000000], [3321606000000, 3601412000000, 3881218000000, 7238889000000, 7378792000000, 7518695000000, 7658598000000, 7798501000000, 7938404000000, 8078307000000, 8218210000000, 8358113000000, 8498016000000, 8637919000000, 8777822000000, 8917725000000, 9057628000000, 9197531000000, 9337434000000, 9477337000000, 9547288500000, 9617240000000, 9687191500000, 9757143000000], [50000000, 54000000, 58000000, 107000000, 109000000, 111000000, 113000000, 115000000, 117000000, 119000000, 121000000, 123000000, 125000000, 127000000, 129000000, 131000000, 133000000, 135000000, 137000000, 139000000, 140000000, 141000000, 142000000, 143000000]]
+
+let buybackShares = [6391, 1961, 1425, 223]
+
+let tokenScales = [1000000, 100000000, 100000000, 1000000]
+
+@Callable(i)
+func withdraw () = [ScriptTransfer(daoAddress, assetBalance(this, tokens[0]), tokens[0]), ScriptTransfer(daoAddress, assetBalance(this, tokens[1]), tokens[1]), ScriptTransfer(daoAddress, assetBalance(this, tokens[2]), tokens[2]), ScriptTransfer(daoAddress, assetBalance(this, tokens[3]), tokens[3])]
+
+
+
+@Callable(i)
+func nextRound () = {
+    let step = valueOrElse(getInteger("lastStep"), 0)
+    let lastMove = valueOrElse(getInteger("lastMove"), 0)
+    if (((lastMove + Interval) > height))
+        then throw("can't start new round, yet")
+        else if ((step >= Rounds))
+            then throw("last round was already reached")
+            else {
+                let wavesBal0 = wavesBalance(this).available
+                if ((wavesBal0 == wavesBal0))
+                    then {
+                        let inv1 = invoke(daoAddress, "Claim", nil, nil)
+                        if ((inv1 == inv1))
+                            then {
+                                let wavesAdded = (wavesBalance(this).available - wavesBal0)
+                                if ((wavesAdded == wavesAdded))
+                                    then {
+                                        func doMove (accum,num) =                                         {
+                                            let inv2 = invoke(this, "nextRoundForToken", [num, wavesAdded], nil)
+                                            if ((inv2 == inv2))
+                                                then nil
+                                                else throw("Strict value is not equal to itself.")
+                                            }
+
+                                        let result = {
+                                            let $l = [0, 1, 2, 3]
+                                            let $s = size($l)
+                                            let $acc0 = nil
+                                            func $f0_1 ($a,$i) =                                             if (($i >= $s))
+                                                then $a
+                                                else doMove($a, $l[$i])
+
+                                            func $f0_2 ($a,$i) =                                             if (($i >= $s))
+                                                then $a
+                                                else throw("List size exceeds 4")
+
+                                            $f0_2($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4)
+                                            }
+                                        if ((result == result))
+                                            then [IntegerEntry("lastStep", (step + 1)), IntegerEntry("lastMove", (lastMove + Interval))]
+                                            else throw("Strict value is not equal to itself.")
+                                        }
+                                    else throw("Strict value is not equal to itself.")
+                                }
+                            else throw("Strict value is not equal to itself.")
+                        }
+                    else throw("Strict value is not equal to itself.")
+                }
+    }
+
+
+
+@Callable(i)
+func cancelLastOrder (tokenNum) = if ((i.caller != this))
+    then throw("self invoke only")
+    else {
+        let tokenId = tokens[tokenNum]
+        let tokenIdStr = toBase58String(tokenId)
+        let lastOrder = getString((tokenIdStr + "_lastOrder"))
+        let inv1 = if (if ((lastOrder != unit))
+            then (getString(limitsAddress, (("order_" + value(lastOrder)) + "_status")) == "active")
+            else false)
+            then invoke(limitsAddress, "cancelOrder", [lastOrder, ""], nil)
+            else unit
+        if ((inv1 == inv1))
+            then nil
+            else throw("Strict value is not equal to itself.")
+        }
+
+
+
+@Callable(i)
+func nextRoundForToken (tokenNum,wavesAddedForRound) = if ((i.caller != this))
+    then throw("self invoke only")
+    else {
+        let tokenId = tokens[tokenNum]
+        let tokenIdStr = toBase58String(tokenId)
+        let tokenPrices = prices[tokenNum]
+        let tokenBuybackShare = buybackShares[tokenNum]
+        let wavesBalance0 = wavesBalance(this).available
+        if ((wavesBalance0 == wavesBalance0))
+            then {
+                let inv1 = invoke(this, "cancelLastOrder", [tokenNum], nil)
+                if ((inv1 == inv1))
+                    then {
+                        let wavesBalance1 = wavesBalance(this).available
+                        if ((wavesBalance1 == wavesBalance1))
+                            then {
+                                let step = (valueOrElse(getInteger((tokenIdStr + "_lastStep")), -1) + 1)
+                                let newPrice = prices[tokenNum][step]
+                                let wavesBalanceToUse = (fraction(wavesAddedForRound, tokenBuybackShare, 10000) + (wavesBalance1 - wavesBalance0))
+                                if ((wavesBalanceToUse == wavesBalanceToUse))
+                                    then {
+                                        let inv2 = invoke(limitsAddress, "createOrder", [tokenIdStr, fraction(wavesBalanceToUse, tokenScales[tokenNum], newPrice)], [AttachedPayment(unit, wavesBalanceToUse)])
+                                        if ((inv2 == inv2))
+                                            then {
+                                                let orderId = toString(getIntegerValue(limitsAddress, "global_ordersAmount"))
+                                                if ((orderId == orderId))
+                                                    then [ScriptTransfer(daoAddress, assetBalance(this, tokenId), tokenId), StringEntry((tokenIdStr + "_lastOrder"), orderId), IntegerEntry((tokenIdStr + "_lastStep"), step)]
+                                                    else throw("Strict value is not equal to itself.")
+                                                }
+                                            else throw("Strict value is not equal to itself.")
+                                        }
+                                    else throw("Strict value is not equal to itself.")
+                                }
+                            else throw("Strict value is not equal to itself.")
+                        }
+                    else throw("Strict value is not equal to itself.")
+                }
+            else throw("Strict value is not equal to itself.")
+        }
+
+
+
+@Callable(i)
+func finishParty () = {
+    let step = valueOrElse(getInteger("lastStep"), 0)
+    let blockTimeStamp = value(blockInfoByHeight(height)).timestamp
+    if ((Rounds > step))
+        then throw("last round didn't happen")
+        else if ((1798761600000 > blockTimeStamp))
+            then throw("Will become available in 2027")
+            else {
+                func proceedWithToken (accum,tokenNum) =                 {
+                    let inv1 = invoke(this, "cancelLastOrder", [tokenNum], nil)
+                    if ((inv1 == inv1))
+                        then {
+                            let tokenBal = assetBalance(this, tokens[tokenNum])
+                            if ((tokenBal == tokenBal))
+                                then (accum ++ [ScriptTransfer(daoAddress, tokenBal, tokens[tokenNum])])
+                                else throw("Strict value is not equal to itself.")
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+
+                let result = {
+                    let $l = [0, 1, 2, 3]
+                    let $s = size($l)
+                    let $acc0 = nil
+                    func $f0_1 ($a,$i) =                     if (($i >= $s))
+                        then $a
+                        else proceedWithToken($a, $l[$i])
+
+                    func $f0_2 ($a,$i) =                     if (($i >= $s))
+                        then $a
+                        else throw("List size exceeds 4")
+
+                    $f0_2($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4)
+                    }
+                if ((result == result))
+                    then (result ++ [ScriptTransfer(daoAddress, wavesBalance(this).available, unit)])
+                    else throw("Strict value is not equal to itself.")
+                }
+    }
+
+
+@Verifier(tx)
+func verify () = {
+    let allowed = valueOrElse(getBoolean(daoAddress, ("3PBVAd4SQzGD7ae8aEVRbNvM8RcrnV8muVT_allow_tx_" + toBase58String(tx.id))), false)
+    if (allowed)
+        then true
+        else {
+            let enabled = valueOrElse(getBoolean(configAddress, "op_child_governance_apply_tx_allowed"), true)
+            if (!(enabled))
+                then throw("tx application throw governance not enabled")
+                else (height >= getIntegerValue(votingResultsAddress, ((("proposal_allow_broadcast_" + toString(daoAddress)) + "_") + toBase58String(tx.id))))
+            }
+    }

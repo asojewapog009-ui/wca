@@ -1,0 +1,303 @@
+{-# STDLIB_VERSION 5 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let adminPubKey1 = base58'Eaf4FwUufqN2GjEDu6h1w8UT5zB58jCghAoQRg1H3Pv1'
+
+let adminPubKey2 = base58'Nnj1pusHPSQysh2F9xyJ25uUsZxd5v7BKbESmG3XQiV'
+
+let adminPubKey3 = base58'FDsrvY7JUrdpr5TWMCkqbnM9YnLABWJhCgpaKbqszWxq'
+
+let adminPubKeyStartStop = base58'Eaf4FwUufqN2GjEDu6h1w8UT5zB58jCghAoQRg1H3Pv1'
+
+let keyActive = "active"
+
+let keyCause = "shutdown_cause"
+
+let keyVoteStart = "vote_start_height"
+
+let keyVoteEnd = "vote_end_height"
+
+let keyVoteYes = "yes_amount"
+
+let keyVoteNo = "no_amount"
+
+let keyUserENNOVoted = "_ENNO_vote"
+
+let keyUserENNOVotedHeight = "_ENNO_vote_height"
+
+let keyUserENNOVotedValue = "_ENNO_vote_value"
+
+let keyUserENNOVotedYESValue = "_ENNO_vote_yes_share"
+
+let keyTotalYesVoted = "total_ENNO_vote_yes"
+
+let keyUserENNOLocked = "_ENNO_amount"
+
+let keyTotalENNOLocked = "total_ENNO_amount"
+
+let keyTotalVoted = "total_ENNO_vote"
+
+let keyTotalVoteShare = "total_ENNO_vote_share"
+
+let activeAirdropToken = "active_airdrop_token"
+
+let activeAirdropAmount = "active_airdrop_amount"
+
+let claimAvailable = "active_airdrop_claim_status"
+
+let keyUserENNOClaimedAmount = "_ENNO_claimed_amount"
+
+let keyUserENNOLastClaimedAmount = "_ENNO_last_claimed_amount"
+
+let keyUserENNOLockedTag = "share_"
+
+let isActive = valueOrElse(getBoolean(this, keyActive), true)
+
+let isAirdropClaim = valueOrElse(getBoolean(this, claimAvailable), false)
+
+let shareData = base58'8PYLQhGnktNwGZo5AKLxwBLnAvUc25v4Cw52ihHM6iyE'
+
+let ENNO = base58'7LMV3s1J4dKpMQZqge5sKYoFkZRLojnnU49aerqos4yg'
+
+func suspend (cause) = [BooleanEntry(keyActive, false), StringEntry(keyCause, cause)]
+
+
+func getUserENNOLocked (user) = valueOrElse(getInteger(this, (toString(user) + keyUserENNOLocked)), 0)
+
+
+func getTotalENNOLocked () = valueOrElse(getInteger(this, keyTotalENNOLocked), 0)
+
+
+func getUserVoteData (user,key) = valueOrElse(getInteger(this, (toString(user) + key)), 0)
+
+
+func getVal (key) = valueOrElse(getInteger(this, key), 0)
+
+
+func getCallerShare (caller) = {
+    let callerShare = getInteger(addressFromPublicKey(shareData), (keyUserENNOLockedTag + toString(caller)))
+    let callerShareAmount =     match callerShare {
+        case share: Int => 
+            share
+        case share: Unit => 
+            throw("Only governance qualifiers can call this function.")
+        case _ => 
+            throw("Match error")
+    }
+    callerShareAmount
+    }
+
+
+func getClaimedAmount (caller) = {
+    let callerWithdrawn = getInteger(this, (toString(caller) + keyUserENNOClaimedAmount))
+    let callerWithdrawnAmount =     match callerWithdrawn {
+        case share: Int => 
+            share
+        case share: Unit => 
+            0
+        case _ => 
+            throw("Match error")
+    }
+    callerWithdrawnAmount
+    }
+
+
+func setShare (amount) = {
+    let deltaHeight = (getVal(keyVoteEnd) - height)
+    let share = fraction(amount, deltaHeight, 100000000)
+    share
+    }
+
+
+@Callable(i)
+func initVote (start,end,token,amount) = if (!(isActive))
+    then throw("DApp is inactive at this moment")
+    else if (!(containsElement([adminPubKey1, adminPubKey2, adminPubKey3, adminPubKeyStartStop], i.callerPublicKey)))
+        then throw("Only admin can call this function")
+        else [StringEntry(activeAirdropToken, token), IntegerEntry(activeAirdropAmount, amount), IntegerEntry(keyVoteStart, start), IntegerEntry(keyVoteEnd, end), IntegerEntry(keyTotalYesVoted, 0), BooleanEntry(claimAvailable, false)]
+
+
+
+@Callable(i)
+func activateAirdropClaim (set) = if (!(isActive))
+    then throw("DApp is inactive at this moment")
+    else if (!(containsElement([adminPubKey1, adminPubKey2, adminPubKey3, adminPubKeyStartStop], i.callerPublicKey)))
+        then throw("Only admin can call this function")
+        else [BooleanEntry(claimAvailable, set)]
+
+
+
+@Callable(i)
+func claimAirdrop () = if (!(isActive))
+    then throw("DApp is inactive at this moment")
+    else if (!(isAirdropClaim))
+        then throw("Claim has not started yet.")
+        else if ((getVal(keyVoteStart) > height))
+            then throw("Voting has not started yet.")
+            else if ((getVal(keyVoteEnd) > height))
+                then throw("Voting has not ended yet.")
+                else {
+                    let token = getStringValue(this, activeAirdropToken)
+                    let airdropAmount = getVal(activeAirdropAmount)
+                    let airdropAssetId = fromBase58String(token)
+                    let airdropTokenString = ("_" + token)
+                    let share = getVal(((toString(i.caller) + airdropTokenString) + keyUserENNOVotedYESValue))
+                    if ((0 >= share))
+                        then throw("You already claimed or you have not participated.")
+                        else {
+                            let total = getVal(keyTotalYesVoted)
+                            let result = fraction(share, airdropAmount, total)
+[DeleteEntry(((toString(i.caller) + airdropTokenString) + keyUserENNOVotedYESValue)), DeleteEntry((toString(i.caller) + keyUserENNOVoted)), ScriptTransfer(i.caller, result, airdropAssetId)]
+                            }
+                    }
+
+
+
+@Callable(i)
+func vote (voteAmount) = if (!(isActive))
+    then throw("DApp is inactive at this moment")
+    else if ((getVal(keyVoteStart) > height))
+        then throw("Voting has not started yet.")
+        else if ((height > getVal(keyVoteEnd)))
+            then throw("Voting has already ended.")
+            else {
+                let totalYes = getVal(keyTotalYesVoted)
+                let airdropTokenString = ("_" + valueOrElse(getString(this, activeAirdropToken), "N/A"))
+                let userVotedYes = getUserVoteData(i.caller, (airdropTokenString + keyUserENNOVotedYESValue))
+                let userENNOVoted = getUserVoteData(i.caller, keyUserENNOVoted)
+                let userENNOLocked = getUserVoteData(i.caller, keyUserENNOLocked)
+                let userENNOVotedNew = (userENNOVoted + voteAmount)
+                if ((0 > userENNOVotedNew))
+                    then throw("Vote must be more than 0.")
+                    else {
+                        let availableVote = (userENNOLocked - userENNOVoted)
+                        let userVoteValue = setShare(voteAmount)
+                        if ((voteAmount > availableVote))
+                            then throw("Vote amount is more than available.")
+                            else {
+                                let userENNOVotedNewShare = (userVotedYes + userVoteValue)
+                                let newTotalYesVoted = (totalYes + userVoteValue)
+[IntegerEntry(((toString(i.caller) + airdropTokenString) + keyUserENNOVotedYESValue), userENNOVotedNewShare), IntegerEntry((toString(i.caller) + keyUserENNOVoted), userENNOVotedNew), IntegerEntry(keyTotalYesVoted, newTotalYesVoted)]
+                                }
+                        }
+                }
+
+
+
+@Callable(i)
+func lockENNO () = if (!(isActive))
+    then throw("DApp is inactive at this moment")
+    else {
+        let $t066676742 = $Tuple2(i.payments[0].amount, i.payments[0].assetId)
+        let pmtAmount = $t066676742._1
+        let pmtAssetId = $t066676742._2
+        if ((pmtAssetId != ENNO))
+            then throw("Incorrect payment assetId only Enno Cash is allowed.")
+            else {
+                let userENNOLocked = getUserENNOLocked(i.caller)
+                let userENNOLockedNew = (userENNOLocked + pmtAmount)
+                let totalENNOLocked = getTotalENNOLocked()
+                let totalENNOLockedNew = (totalENNOLocked + pmtAmount)
+[IntegerEntry((toString(i.caller) + keyUserENNOLocked), userENNOLockedNew), IntegerEntry(keyTotalENNOLocked, totalENNOLockedNew)]
+                }
+        }
+
+
+
+@Callable(i)
+func withdrawENNO (withdrawAmount) = if (!(isActive))
+    then throw("DApp is inactive at this moment")
+    else {
+        let userENNOLocked = getUserENNOLocked(i.caller)
+        let availableToWithdraw = (userENNOLocked - getVal((toString(i.caller) + keyUserENNOVoted)))
+        if ((withdrawAmount > availableToWithdraw))
+            then throw("Your Enno is locked")
+            else if ((0 >= withdrawAmount))
+                then throw("withdrawAmount <= 0")
+                else {
+                    let totalENNOLocked = getTotalENNOLocked()
+                    if ((withdrawAmount > totalENNOLocked))
+                        then throw("withdrawAmount is more than available to withdraw")
+                        else if ((withdrawAmount > userENNOLocked))
+                            then throw("You are trying to unstake more than you have staked.")
+                            else {
+                                let totalENNOLockedNew = (totalENNOLocked - withdrawAmount)
+                                let userENNOamountNew = (userENNOLocked - withdrawAmount)
+[IntegerEntry((toString(i.caller) + keyUserENNOLocked), userENNOamountNew), IntegerEntry(keyTotalENNOLocked, totalENNOLockedNew), ScriptTransfer(i.caller, withdrawAmount, ENNO)]
+                                }
+                    }
+        }
+
+
+
+@Callable(i)
+func claimAndWithdrawENNO () = if (!(isActive))
+    then throw("DApp is inactive at this moment")
+    else {
+        let userShare = getCallerShare(i.originCaller)
+        let userClaimedAmount = getClaimedAmount(i.originCaller)
+        let claimAmount = (userShare - userClaimedAmount)
+        let totalENNOLocked = getTotalENNOLocked()
+        if ((claimAmount > totalENNOLocked))
+            then throw("claimAmount is more than available to withdraw")
+            else if ((0 >= claimAmount))
+                then throw("Claim amount must be bigger than 0")
+                else {
+                    let userClaimedAmountNew = (userClaimedAmount + claimAmount)
+[IntegerEntry((toString(i.originCaller) + keyUserENNOClaimedAmount), userClaimedAmountNew), IntegerEntry((toString(i.originCaller) + keyUserENNOLastClaimedAmount), claimAmount), ScriptTransfer(i.originCaller, claimAmount, ENNO)]
+                    }
+        }
+
+
+
+@Callable(i)
+func claimAndStakeENNO () = if (!(isActive))
+    then throw("DApp is inactive at this moment")
+    else {
+        let userShare = getCallerShare(i.originCaller)
+        let userClaimedAmount = getClaimedAmount(i.originCaller)
+        let claimAmount = (userShare - userClaimedAmount)
+        if ((0 >= claimAmount))
+            then throw("Claim amount must be bigger than 0")
+            else {
+                let userClaimedAmountNew = (userClaimedAmount + claimAmount)
+                let userENNOLocked = getUserENNOLocked(i.originCaller)
+                let userENNOLockedNew = (userENNOLocked + claimAmount)
+                let totalENNOLocked = getTotalENNOLocked()
+                let totalENNOLockedNew = (totalENNOLocked + claimAmount)
+[IntegerEntry((toString(i.originCaller) + keyUserENNOLocked), userENNOLockedNew), IntegerEntry((toString(i.originCaller) + keyUserENNOClaimedAmount), userClaimedAmountNew), IntegerEntry((toString(i.originCaller) + keyUserENNOLastClaimedAmount), claimAmount), IntegerEntry(keyTotalENNOLocked, totalENNOLockedNew)]
+                }
+        }
+
+
+
+@Callable(i)
+func shutdown () = if (!(isActive))
+    then throw(("DApp is already suspended. Cause: " + valueOrElse(getString(this, keyCause), "the cause wasn't specified")))
+    else if (!(containsElement([adminPubKey1, adminPubKey2, adminPubKey3, adminPubKeyStartStop], i.callerPublicKey)))
+        then throw("Only admin can call this function")
+        else suspend("Paused by admin")
+
+
+
+@Callable(i)
+func activate () = if (isActive)
+    then throw("DApp is already active")
+    else if (!(containsElement([adminPubKey1, adminPubKey2, adminPubKey3, adminPubKeyStartStop], i.callerPublicKey)))
+        then throw("Only admin can call this function")
+        else [BooleanEntry(keyActive, true), DeleteEntry(keyCause)]
+
+
+@Verifier(tx)
+func verify () = {
+    let adminPubKey1Signed = if (sigVerify(tx.bodyBytes, tx.proofs[0], adminPubKey1))
+        then 1
+        else 0
+    let adminPubKey2Signed = if (sigVerify(tx.bodyBytes, tx.proofs[1], adminPubKey2))
+        then 1
+        else 0
+    let adminPubKey3Signed = if (sigVerify(tx.bodyBytes, tx.proofs[2], adminPubKey3))
+        then 1
+        else 0
+    (((adminPubKey1Signed + adminPubKey2Signed) + adminPubKey3Signed) >= 2)
+    }

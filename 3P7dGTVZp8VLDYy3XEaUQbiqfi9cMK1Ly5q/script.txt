@@ -1,0 +1,225 @@
+{-# STDLIB_VERSION 5 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let VERSION = "PLUTOSTAKING-2.1.0"
+
+let plutoId = base58'Ajso6nTTjptu2UHLx6hfSXVtHFtRBJCkKYd5SAyj7zf5'
+
+let parametersAddress = Address(base58'3P3a1jssxc2CGdyC7SGbTJc9ZvTjZ5jBMLZ')
+
+let issuerAddress = Address(base58'3PPKvu6x52MFaMGfw3i2byPVXXBuH7FTNMU')
+
+let Scale8 = 100000000
+
+let dayDepth = (24 * 60)
+
+func tryGetInteger (key) = match getInteger(this, key) {
+    case x: Int => 
+        x
+    case _ => 
+        0
+}
+
+
+func tryGetString (key) = match getString(this, key) {
+    case x: String => 
+        x
+    case _ => 
+        ""
+}
+
+
+func tryGetIntParameter (key) = match getInteger(parametersAddress, key) {
+    case x: Int => 
+        x
+    case _ => 
+        0
+}
+
+
+func calculateSRate () = {
+    let stakingEmission =     match invoke(parametersAddress, "getStakingBlockEmission", [false], nil) {
+        case in: Int => 
+            in
+        case _ => 
+            throw("bad invoke")
+    }
+    if ((stakingEmission == stakingEmission))
+        then {
+            let lastCheckSRate = tryGetInteger("global_lastCheckSRate")
+            let sPlutoAmount = tryGetInteger("global_sPluto")
+            let lastCheckHeight = tryGetInteger("global_lastCheckSRateHeight")
+            let blocks = (height - lastCheckHeight)
+            if ((sPlutoAmount == 0))
+                then Scale8
+                else (tryGetInteger("global_lastCheckSRate") + fraction((blocks * Scale8), stakingEmission, sPlutoAmount))
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func recalcResult (sPlutoChange) = {
+    let sPlutoAmount = (tryGetInteger("global_sPluto") + sPlutoChange)
+    let sRate = calculateSRate()
+[IntegerEntry("global_sPluto", sPlutoAmount), IntegerEntry("global_pluto", fraction(sPlutoAmount, sRate, Scale8)), IntegerEntry("global_lastCheckSRate", sRate), IntegerEntry("global_lastCheckSRateHeight", height)]
+    }
+
+
+func calculateStakedAmount (user) = {
+    let amount = tryGetInteger((user + "_sPluto"))
+    fraction(amount, calculateSRate(), Scale8)
+    }
+
+
+func stakeResult (user,amount,lockedUntil) = {
+    let sAmount = fraction(amount, Scale8, calculateSRate())
+    ((recalcResult(sAmount) ++ [IntegerEntry((user + "_sPluto"), (tryGetInteger((user + "_sPluto")) + sAmount))]) ++ (if ((lockedUntil > 0))
+        then [StringEntry((user + "_lockHeights"), ((((toString(lockedUntil) + ":") + toString(sAmount)) + ";") + tryGetString((user + "_vestingHeights"))))]
+        else nil))
+    }
+
+
+func unstakeResult (user,sAmount) = {
+    let currentSAmount = tryGetInteger((user + "_sPluto"))
+    if (if ((0 >= sAmount))
+        then true
+        else (sAmount > currentSAmount))
+        then throw("this amount is not available to unclaim")
+        else (recalcResult(-(sAmount)) ++ [IntegerEntry((user + "_sPluto"), (currentSAmount - sAmount))])
+    }
+
+
+func finishOnboardingResult (onboardingNum) = {
+    let data = split(tryGetString(("onboarding_" + onboardingNum)), ",")
+    let user = split(data[0], "_")[0]
+    let block = parseIntValue(data[1])
+    let plutoAmount = parseIntValue(data[2])
+    if ((height >= block))
+        then {
+            let statusKey = (("onboarding_" + onboardingNum) + "_status")
+            if ((tryGetString(statusKey) == "started"))
+                then ([StringEntry(statusKey, "finished")] ++ stakeResult(user, plutoAmount, 0))
+                else throw("onboarding was finished already")
+            }
+        else throw(("onboarding will be finished in: " + toString((block - height))))
+    }
+
+
+@Callable(i)
+func getSRate (debug) = {
+    let parameter = calculateSRate()
+    if (debug)
+        then throw(toString(parameter))
+        else $Tuple2(nil, parameter)
+    }
+
+
+
+@Callable(i)
+func getStakedAmount (debug,userAddress) = {
+    let parameter = calculateStakedAmount(userAddress)
+    if (debug)
+        then throw(toString(parameter))
+        else $Tuple2(nil, parameter)
+    }
+
+
+
+@Callable(i)
+func getTotalStakedAmount (debug) = {
+    let amount = tryGetInteger("global_sPluto")
+    let parameter = fraction(amount, calculateSRate(), Scale8)
+    if (debug)
+        then throw(toString(parameter))
+        else $Tuple2(nil, parameter)
+    }
+
+
+
+@Callable(i)
+func getOnboardings (debug,userAddress) = {
+    let li = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40", "41", "42", "43", "44", "45", "46", "47", "48", "49", "50", "51", "52", "53", "54", "55", "56", "57", "58", "59", "60", "61", "62", "63", "64", "65", "66", "67", "68", "69", "70", "71", "72", "73", "74", "75", "76", "77", "78", "79", "80", "81", "82", "83", "84", "85", "86", "87", "88", "89", "90", "91", "92", "93", "94", "95", "96", "97", "98", "99"]
+    let sPrefix = (("onboarding_" + userAddress) + "_")
+    func f (accum,next) =     {
+        let key = ((sPrefix + next) + "_data")
+        match getString(key) {
+            case s: String => 
+                ((accum + s) + ", ")
+            case _ => 
+                accum
+        }
+        }
+
+    let parameter = {
+        let $l = li
+        let $s = size($l)
+        let $acc0 = ""
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else f($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 100")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10), 11), 12), 13), 14), 15), 16), 17), 18), 19), 20), 21), 22), 23), 24), 25), 26), 27), 28), 29), 30), 31), 32), 33), 34), 35), 36), 37), 38), 39), 40), 41), 42), 43), 44), 45), 46), 47), 48), 49), 50), 51), 52), 53), 54), 55), 56), 57), 58), 59), 60), 61), 62), 63), 64), 65), 66), 67), 68), 69), 70), 71), 72), 73), 74), 75), 76), 77), 78), 79), 80), 81), 82), 83), 84), 85), 86), 87), 88), 89), 90), 91), 92), 93), 94), 95), 96), 97), 98), 99), 100)
+        }
+    if (debug)
+        then throw(parameter)
+        else $Tuple2(nil, parameter)
+    }
+
+
+
+@Callable(i)
+func stake () = {
+    let user = toString(i.caller)
+    let amount = i.payments[0].amount
+    if (if ((0 >= amount))
+        then true
+        else (i.payments[0].assetId != plutoId))
+        then throw("invalid token attached")
+        else stakeResult(user, amount, 0)
+    }
+
+
+
+@Callable(i)
+func unstake (amount) = {
+    let user = toString(i.caller)
+    let sAmount = fraction(amount, Scale8, calculateSRate())
+    (unstakeResult(user, sAmount) ++ [ScriptTransfer(i.caller, amount, plutoId)])
+    }
+
+
+
+@Callable(i)
+func startOnboarding (user,plutoAmount,premiumAmount,period,premium,assetId) = {
+    let paymentAmount = value(i.payments[0].amount)
+    let address = addressFromStringValue(user)
+    let onboardingNum = (tryGetInteger((user + "_onboardingAmount")) + 1)
+    let onboardingId = ((user + "_") + toString(onboardingNum))
+    let globalNum = (tryGetInteger("global_onboardingAmount") + 1)
+    let finishHeightStr = toString((height + (period * dayDepth)))
+    let toReceiveStr = toString((plutoAmount + premiumAmount))
+    if ((i.caller != issuerAddress))
+        then throw("admin only")
+        else if ((0 >= (plutoAmount + premiumAmount)))
+            then throw("needs to be positive amount")
+            else if (if ((0 >= paymentAmount))
+                then true
+                else (i.payments[0].assetId != plutoId))
+                then throw("invalid token attached")
+                else if (((plutoAmount + premiumAmount) > paymentAmount))
+                    then throw("not enough tokens attached")
+                    else [StringEntry((("onboarding_" + onboardingId) + "_data"), (((((((((((((("{\"startHeight\": " + toString(height)) + ", \"finishHeight\": ") + finishHeightStr) + ", \"startAmount\": ") + toString(plutoAmount)) + ", \"finishAmount\": ") + toReceiveStr) + ", \"premium\": ") + toString(premium)) + ", \"assetId\": \"") + assetId) + "\", \"globalNum\": ") + toString(globalNum)) + "}")), StringEntry(("onboarding_" + toString(globalNum)), ((((onboardingId + ",") + finishHeightStr) + ",") + toReceiveStr)), StringEntry((("onboarding_" + toString(globalNum)) + "_status"), "started"), IntegerEntry((user + "_onboardingAmount"), onboardingNum), IntegerEntry("global_onboardingAmount", globalNum)]
+    }
+
+
+
+@Callable(i)
+func finishOnboardings (numListStr) = throw("onboardings closed")
+
+
+@Verifier(tx)
+func verify () = sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)

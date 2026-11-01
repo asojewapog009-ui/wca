@@ -1,0 +1,586 @@
+{-# STDLIB_VERSION 7 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let SEP = "__"
+
+let WAVES = "WAVES"
+
+let contractFilename = "factory.ride"
+
+func wrapErr (s) = ((contractFilename + ": ") + s)
+
+
+func throwErr (s) = throw(wrapErr(s))
+
+
+func stringToAssetId (s) = if ((s == WAVES))
+    then unit
+    else fromBase58String(s)
+
+
+let QUORUM = 3
+
+let TXID_BYTES_LENGTH = 32
+
+func keyAllowedTxIdVotePrefix (txId) = makeString(["%s%s%s", "allowTxId", txId], SEP)
+
+
+func keyFullAdminVote (prefix,adminAddress) = makeString([prefix, adminAddress], SEP)
+
+
+func keyAdminAddressList () = makeString(["%s", "adminAddressList"], SEP)
+
+
+func keyAllowedTxId () = makeString(["%s", "txId"], SEP)
+
+
+func getAdminVote (prefix,admin) = {
+    let voteKey = keyFullAdminVote(prefix, admin)
+    valueOrElse(getInteger(voteKey), 0)
+    }
+
+
+func getAdminsList () = match getString(this, keyAdminAddressList()) {
+    case s: String => 
+        split(s, SEP)
+    case _ => 
+        nil
+}
+
+
+func isInAdminList (address) = containsElement(getAdminsList(), address)
+
+
+func genVotesKeysHelper (a,adminAddress) = {
+    let $t013511375 = a
+    let result = $t013511375._1
+    let prefix = $t013511375._2
+    $Tuple2((result :+ keyFullAdminVote(prefix, adminAddress)), prefix)
+    }
+
+
+func genVotesKeys (keyPrefix) = {
+    let adminList = keyAdminAddressList()
+    let $t015221607 = {
+        let $l = getAdminsList()
+        let $s = size($l)
+        let $acc0 = $Tuple2(nil, keyPrefix)
+        func $f0_1 ($a,$i) =         if (($i >= $s))
+            then $a
+            else genVotesKeysHelper($a, $l[$i])
+
+        func $f0_2 ($a,$i) =         if (($i >= $s))
+            then $a
+            else throw("List size exceeds 10")
+
+        $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+        }
+    let result = $t015221607._1
+    let prefix = $t015221607._2
+    result
+    }
+
+
+func countVotesHelper (result,voteKey) = (result + valueOrElse(getInteger(voteKey), 0))
+
+
+func countVotes (prefix) = {
+    let votes = genVotesKeys(prefix)
+    let $l = votes
+    let $s = size($l)
+    let $acc0 = 0
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else countVotesHelper($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 10")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+    }
+
+
+func clearVotesHelper (result,key) = (result :+ DeleteEntry(key))
+
+
+func getClearVoteEntries (prefix) = {
+    let votes = genVotesKeys(prefix)
+    let $l = votes
+    let $s = size($l)
+    let $acc0 = nil
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else clearVotesHelper($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 10")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+    }
+
+
+func voteINTERNAL (callerAddressString,keyPrefix,minVotes,voteResult) = {
+    let voteKey = keyFullAdminVote(keyPrefix, callerAddressString)
+    let adminCurrentVote = getAdminVote(keyPrefix, callerAddressString)
+    let err = if (!(isInAdminList(callerAddressString)))
+        then throwErr((("Address: " + callerAddressString) + " not in Admin list"))
+        else if ((adminCurrentVote == 1))
+            then throwErr((voteKey + " you already voted"))
+            else unit
+    if ((err == err))
+        then {
+            let votes = countVotes(keyPrefix)
+            if (((votes + 1) >= minVotes))
+                then {
+                    let clearVoteEntries = getClearVoteEntries(keyPrefix)
+                    (clearVoteEntries ++ voteResult)
+                    }
+                else [IntegerEntry(voteKey, 1)]
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+func keyCalculatorAddress () = "%s__calculator"
+
+
+func keyProxyTreasuryAddress () = "%s__proxyTreasury"
+
+
+func keyPowerContractAddress () = "%s__powerContract"
+
+
+func keySwapContractAddress () = "%s__swapContract"
+
+
+func keyChildAddress () = "%s__child"
+
+
+func keyBlockProcessingReward () = "%s__blockProcessingReward"
+
+
+func keyNextBlockToProcess () = "%s__nextBlockToProcess"
+
+
+func keyLpAssetId () = "%s__lpAssetId"
+
+
+let calculatorAddressOption = match getString(this, keyCalculatorAddress()) {
+    case s: String => 
+        addressFromString(s)
+    case _: Unit => 
+        unit
+    case _ => 
+        throw("Match error")
+}
+
+let calculatorAddressOrFail = valueOrErrorMessage(calculatorAddressOption, wrapErr("invalid calculator address"))
+
+let proxyTreasuryAddressOption = match getString(this, keyProxyTreasuryAddress()) {
+    case s: String => 
+        addressFromString(s)
+    case _: Unit => 
+        unit
+    case _ => 
+        throw("Match error")
+}
+
+let proxyTreasuryAddressOrFail = valueOrErrorMessage(proxyTreasuryAddressOption, wrapErr("invalid proxy treasury address"))
+
+let powerContractAddressOption = match getString(this, keyPowerContractAddress()) {
+    case s: String => 
+        addressFromString(s)
+    case _: Unit => 
+        unit
+    case _ => 
+        throw("Match error")
+}
+
+let powerContractAddressOrFail = valueOrErrorMessage(powerContractAddressOption, wrapErr("invalid power contract address"))
+
+let swapContractAddressOption = match getString(this, keySwapContractAddress()) {
+    case s: String => 
+        addressFromString(s)
+    case _: Unit => 
+        unit
+    case _ => 
+        throw("Match error")
+}
+
+let swapContractAddressOrFail = valueOrErrorMessage(swapContractAddressOption, wrapErr("invalid swap contract address"))
+
+func keyConfigAddress () = "%s__config"
+
+
+func keyChildrenAddress () = "contract_children"
+
+
+func keyVotingResultAddress () = "contract_voting_result"
+
+
+func keyProposalAllowBroadcast (address,txId) = ((("proposal_allow_broadcast_" + toString(address)) + "_") + toBase58String(txId))
+
+
+func keyInvestedByUser (childAddress,userAddress) = makeString(["investor", toString(childAddress), toString(userAddress)], "_")
+
+
+let configAddressOption = match getString(this, keyConfigAddress()) {
+    case s: String => 
+        addressFromString(s)
+    case _: Unit => 
+        unit
+    case _ => 
+        throw("Match error")
+}
+
+let configAddressOrFail = valueOrErrorMessage(configAddressOption, wrapErr("invalid config address"))
+
+let votingResultAddressOption = match configAddressOption {
+    case a: Address => 
+        match getString(a, keyVotingResultAddress()) {
+            case s: String => 
+                addressFromString(s)
+            case _: Unit => 
+                unit
+            case _ => 
+                throw("Match error")
+        }
+    case _: Unit => 
+        unit
+    case _ => 
+        throw("Match error")
+}
+
+let votingResultAddressOrFail = valueOrErrorMessage(votingResultAddressOption, wrapErr("invalid voting result address"))
+
+let childrenAddressOption = match configAddressOption {
+    case a: Address => 
+        match getString(a, keyChildrenAddress()) {
+            case s: String => 
+                addressFromString(s)
+            case _: Unit => 
+                unit
+            case _ => 
+                throw("Match error")
+        }
+    case _: Unit => 
+        unit
+    case _ => 
+        throw("Match error")
+}
+
+let childrenAddressOrFail = valueOrErrorMessage(childrenAddressOption, wrapErr("invalid children address"))
+
+let lpAssetIdOption = match getString(this, keyLpAssetId()) {
+    case s: String => 
+        fromBase58String(s)
+    case _: Unit => 
+        unit
+    case _ => 
+        throw("Match error")
+}
+
+let lpAssetIdOrFail = valueOrErrorMessage(lpAssetIdOption, wrapErr("invalid lpAssetId"))
+
+func onlyAddress (i,address) = if ((i.caller == address))
+    then true
+    else throwErr("permission denied")
+
+
+func onlyThis (i) = onlyAddress(i, this)
+
+
+func onlyCalculator (i) = onlyAddress(i, calculatorAddressOrFail)
+
+
+@Callable(i)
+func stringEntry (key,val) = if (onlyCalculator(i))
+    then $Tuple2([StringEntry(key, val)], key)
+    else $Tuple2(nil, unit)
+
+
+
+@Callable(i)
+func integerEntry (key,val) = if (onlyCalculator(i))
+    then $Tuple2([IntegerEntry(key, val)], key)
+    else $Tuple2(nil, unit)
+
+
+
+@Callable(i)
+func booleanEntry (key,val) = if (onlyCalculator(i))
+    then $Tuple2([BooleanEntry(key, val)], key)
+    else $Tuple2(nil, unit)
+
+
+
+@Callable(i)
+func binaryEntry (key,val) = if (onlyCalculator(i))
+    then $Tuple2([BinaryEntry(key, val)], key)
+    else $Tuple2(nil, unit)
+
+
+
+@Callable(i)
+func deleteEntry (key) = if (onlyCalculator(i))
+    then $Tuple2([DeleteEntry(key)], key)
+    else $Tuple2(nil, unit)
+
+
+
+@Callable(i)
+func reissue (amount) = if (onlyCalculator(i))
+    then $Tuple2([Reissue(lpAssetIdOrFail, amount, true)], amount)
+    else $Tuple2(nil, unit)
+
+
+
+@Callable(i)
+func burn (amount) = if (onlyCalculator(i))
+    then $Tuple2([Burn(lpAssetIdOrFail, amount)], amount)
+    else $Tuple2(nil, unit)
+
+
+
+@Callable(i)
+func transferAsset (recipientBytes,amount,assetId) = if (onlyCalculator(i))
+    then $Tuple2([ScriptTransfer(Address(recipientBytes), amount, assetId)], amount)
+    else $Tuple2(nil, unit)
+
+
+
+@Callable(i)
+func transferAssets (recipientBytes,assetsList,amountsList) = if (onlyCalculator(i))
+    then {
+        func addNewTransfer (acc,nextAssetId) =         {
+            let $t080978121 = acc
+            let transfers = $t080978121._1
+            let j = $t080978121._2
+            let newTransfer = ScriptTransfer(Address(recipientBytes), parseIntValue(amountsList[j]), stringToAssetId(assetsList[j]))
+            let updatedTransfers = (transfers :+ newTransfer)
+            $Tuple2(updatedTransfers, (j + 1))
+            }
+
+        let $t083818462 = {
+            let $l = assetsList
+            let $s = size($l)
+            let $acc0 = $Tuple2(nil, 0)
+            func $f0_1 ($a,$i) =             if (($i >= $s))
+                then $a
+                else addNewTransfer($a, $l[$i])
+
+            func $f0_2 ($a,$i) =             if (($i >= $s))
+                then $a
+                else throw("List size exceeds 10")
+
+            $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+            }
+        let assetsTransfers = $t083818462._1
+        let _lastIndex = $t083818462._2
+        $Tuple2(assetsTransfers, unit)
+        }
+    else $Tuple2(nil, unit)
+
+
+
+@Callable(i)
+func transferWaves (recipientBytes,amount) = if (onlyCalculator(i))
+    then $Tuple2([ScriptTransfer(Address(recipientBytes), amount, unit)], amount)
+    else $Tuple2(nil, unit)
+
+
+
+@Callable(i)
+func transferFromProxyTreasury (recipientBytes,rewardsAmount) = if (onlyCalculator(i))
+    then $Tuple2(nil, invoke(proxyTreasuryAddressOrFail, "transferWaves", [recipientBytes, rewardsAmount], nil))
+    else $Tuple2(nil, unit)
+
+
+
+@Callable(i)
+func finalize (donationPartInWaves,lpPartInWaves,claimPartInWaves,powerStakePartInWaves) = $Tuple2(nil, reentrantInvoke(calculatorAddressOrFail, "finalize", [i.caller.bytes, donationPartInWaves, lpPartInWaves, claimPartInWaves, powerStakePartInWaves], i.payments))
+
+
+
+@Callable(i)
+func finalizeREADONLY (donationPartInWaves,lpPartInWaves,claimPartInWaves,powerStakePartInWaves) = $Tuple2(nil, reentrantInvoke(calculatorAddressOrFail, "finalizeREADONLY", [donationPartInWaves, lpPartInWaves, claimPartInWaves, powerStakePartInWaves], nil))
+
+
+
+@Callable(i)
+func rewardSplitREADONLY () = $Tuple2(nil, reentrantInvoke(calculatorAddressOrFail, "rewardSplitREADONLY", nil, nil))
+
+
+
+@Callable(i)
+func claimLP () = $Tuple2(nil, reentrantInvoke(calculatorAddressOrFail, "claimLP", [i.caller.bytes], i.payments))
+
+
+
+@Callable(i)
+func claimCollateral (txIdStr) = $Tuple2(nil, reentrantInvoke(calculatorAddressOrFail, "claimCollateral", [i.caller.bytes, txIdStr], i.payments))
+
+
+
+@Callable(i)
+func claimCollateralBulk (txIds) = $Tuple2(nil, reentrantInvoke(calculatorAddressOrFail, "claimCollateralBulk", [i.caller.bytes, txIds], i.payments))
+
+
+
+@Callable(i)
+func invest () = $Tuple2(nil, reentrantInvoke(calculatorAddressOrFail, "invest", [i.caller.bytes], i.payments))
+
+
+
+@Callable(i)
+func withdraw () = $Tuple2(nil, reentrantInvoke(calculatorAddressOrFail, "withdraw", [i.caller.bytes], i.payments))
+
+
+
+@Callable(i)
+func cancelWithdraw (txIdStr) = $Tuple2(nil, reentrantInvoke(calculatorAddressOrFail, "cancelWithdraw", [i.caller.bytes, fromBase58String(txIdStr)], i.payments))
+
+
+
+@Callable(i)
+func processBlocks () = $Tuple2(nil, reentrantInvoke(calculatorAddressOrFail, "processBlocks", [i.caller.bytes], i.payments))
+
+
+
+@Callable(i)
+func claimCollateralREADONLY (userAddress,txIdStr) = $Tuple2(nil, reentrantInvoke(calculatorAddressOrFail, "claimCollateralREADONLY", [fromBase58String(userAddress), txIdStr], nil))
+
+
+
+@Callable(i)
+func claimCollateralBulkREADONLY (userAddress,txIds) = $Tuple2(nil, reentrantInvoke(calculatorAddressOrFail, "claimCollateralBulkREADONLY", [fromBase58String(userAddress), txIds], nil))
+
+
+
+@Callable(i)
+func swap (assetId,paymentAssetId,paymentAmount) = {
+    let check = [onlyCalculator(i)]
+    if ((check == check))
+        then {
+            let paymentAsset = if ((paymentAssetId == "WAVES"))
+                then unit
+                else fromBase58String(paymentAssetId)
+            let initAssetBalance = if ((assetId == "WAVES"))
+                then wavesBalance(this).available
+                else assetBalance(this, fromBase58String(assetId))
+            if ((initAssetBalance == initAssetBalance))
+                then {
+                    let swapInvoke = invoke(swapContractAddressOrFail, "swap", [0, assetId, toString(this)], [AttachedPayment(paymentAsset, paymentAmount)])
+                    if ((swapInvoke == swapInvoke))
+                        then {
+                            let newAssetBalance = if ((assetId == "WAVES"))
+                                then wavesBalance(this).available
+                                else assetBalance(this, fromBase58String(assetId))
+                            if ((newAssetBalance == newAssetBalance))
+                                then $Tuple2(nil, (newAssetBalance - initAssetBalance))
+                                else throw("Strict value is not equal to itself.")
+                            }
+                        else throw("Strict value is not equal to itself.")
+                    }
+                else throw("Strict value is not equal to itself.")
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func powerStake (recipientBytes,assetIdBytes,amount) = if (onlyCalculator(i))
+    then $Tuple2(nil, invoke(powerContractAddressOrFail, "commitForMiner", [toString(Address(recipientBytes))], [AttachedPayment(assetIdBytes, amount)]))
+    else $Tuple2(nil, unit)
+
+
+
+@Callable(i)
+func subWavesDeposit (recipientBytes,amount) = if (onlyCalculator(i))
+    then $Tuple2(nil, invoke(Address(recipientBytes), "deposit", nil, [AttachedPayment(unit, amount)]))
+    else $Tuple2(nil, unit)
+
+
+
+@Callable(i)
+func swapLp () = $Tuple2(nil, reentrantInvoke(calculatorAddressOrFail, "swapLp", [i.caller.bytes], i.payments))
+
+
+
+@Callable(i)
+func swapLpREADONLY (lpAmount) = $Tuple2(nil, reentrantInvoke(calculatorAddressOrFail, "swapLpREADONLY", [lpAmount], nil))
+
+
+
+@Callable(i)
+func addWavesForSwapLp () = {
+    let check = [if ((size(i.payments) == 1))
+        then true
+        else throwErr("must be 1 payment"), if ((i.payments[0].assetId == unit))
+        then true
+        else throwErr("payment must be in waves")]
+    if ((check == check))
+        then {
+            let keyWavesForSwapLp = makeString(["%s", "wavesForSwapLp"], SEP)
+            let oldWavesAmount = valueOrElse(getInteger(this, keyWavesForSwapLp), 0)
+            let newWavesAmount = (oldWavesAmount + i.payments[0].amount)
+[IntegerEntry(keyWavesForSwapLp, newWavesAmount)]
+            }
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+
+@Callable(i)
+func voteForTxId (txId) = {
+    let callerAddressString = toBase58String(i.caller.bytes)
+    let keyPrefix = keyAllowedTxIdVotePrefix(txId)
+    let result = [StringEntry(keyAllowedTxId(), txId)]
+    let allowedTxIdOption = getString(this, keyAllowedTxId())
+    let err = [if ((size(fromBase58String(txId)) == TXID_BYTES_LENGTH))
+        then true
+        else throwErr((txId + " is not valid txId")), if (if ((allowedTxIdOption == unit))
+        then true
+        else (value(allowedTxIdOption) != txId))
+        then true
+        else throwErr((txId + " is already allowed"))]
+    if ((err == err))
+        then voteINTERNAL(callerAddressString, keyPrefix, QUORUM, result)
+        else throw("Strict value is not equal to itself.")
+    }
+
+
+@Verifier(tx)
+func verify () = {
+    let byProposal =     match votingResultAddressOption {
+        case proposalAddress: Address => 
+            valueOrElse(getBoolean(proposalAddress, keyProposalAllowBroadcast(this, tx.id)), false)
+        case _ => 
+            false
+    }
+    let byProposalNewFormat =     match votingResultAddressOption {
+        case proposalAddress: Address => 
+            match getInteger(proposalAddress, keyProposalAllowBroadcast(this, tx.id)) {
+                case allowedHeight: Int => 
+                    (height >= allowedHeight)
+                case _ => 
+                    false
+            }
+        case _ => 
+            false
+    }
+    let byAdmins = (tx.id == fromBase58String(valueOrElse(getString(this, keyAllowedTxId()), "")))
+    let byOwner = if ((size(getAdminsList()) >= QUORUM))
+        then false
+        else sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)
+    if (if (if (byProposal)
+        then true
+        else byProposalNewFormat)
+        then true
+        else byAdmins)
+        then true
+        else byOwner
+    }

@@ -1,0 +1,416 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let SCALE8 = 100000000
+
+let SCALE10 = 10000000000
+
+let PERCENT_SCALE = 10000
+
+let SEPARATOR = "__"
+
+let kInterest = "interest"
+
+let kUserInterest = "_userInterest"
+
+let kUserAvailable = "_userAvailableClaim"
+
+let kUserTokenStaked = "_userTokenStaked"
+
+let kTotalTokenStaked = "totalTokenStaked"
+
+let kNFTInterest = "NFTInterest"
+
+let kNFTUserInterest = "_NFTUserInterest"
+
+let kNFTUserAvailableClaim = "_NFTUserAvailableClaim"
+
+let kNFTTotalStaked = "NFTTotalStaked"
+
+let kuserNFTStaked = "_userNFTStaked"
+
+let kuserNFTStakedId = "_userNFTStakedId"
+
+let kNFTCreated = "_NFTCreated"
+
+let kLastAirdrop = "_lastAirdrop"
+
+let kLastAirdropUSDT = "_lastAirdropUSDT"
+
+let kTokenid = "tokenId"
+
+let kActive = "active"
+
+let kInterestUSDT = "interestUSDT"
+
+let kUserInterestUSDT = "_userInterestUSDT"
+
+let kUserAvailableUSDT = "_userAvailableClaimUSDT"
+
+let kAdmin1PK = "admin_pub_1"
+
+let kAdmin2PK = "admin_pub_2"
+
+let kAdmin3PK = "admin_pub_3"
+
+let admin1PK = fromBase58String(valueOrErrorMessage(getString(this, kAdmin1PK), "Can't get admin1PK"))
+
+let admin2PK = fromBase58String(valueOrErrorMessage(getString(this, kAdmin2PK), "Can't get admin2PK"))
+
+let admin3PK = fromBase58String(valueOrErrorMessage(getString(this, kAdmin3PK), "Can't get operatorPK"))
+
+let tokenId = valueOrErrorMessage(getString(this, kTokenid), "Can't get staking token")
+
+let USDT = base58'9wc3LXNA4TEBsXyKtoLE9mrbDD7WMHXvXrCjZvabLAsi'
+
+func isAdminCall (i) = if (containsElement([admin1PK, admin2PK, admin3PK], i.callerPublicKey))
+    then unit
+    else throw("Only admin can call this function")
+
+
+func isAirdropAllowed (i) = if (if (containsElement([admin1PK, admin2PK, admin3PK], i.callerPublicKey))
+    then true
+    else containsElement(["3PAKab5QibKS99RSoqx6eZydWqENyfUSBTF"], toBase58String(i.caller.bytes)))
+    then unit
+    else throw("Only admins can call this function")
+
+
+func isSelfCall (i) = if ((i.caller == this))
+    then unit
+    else throw("Only contract itself can call this function")
+
+
+func isActive () = if (valueOrElse(getBoolean(this, kActive), true))
+    then unit
+    else throw("DApp is inactive at this moment")
+
+
+func assetIdToStr (assetId) = match assetId {
+    case id: ByteVector => 
+        toBase58String(id)
+    case waves: Unit => 
+        "WAVES"
+    case _ => 
+        throw("Not Asset id")
+}
+
+
+func claimCalc (user) = {
+    let totalTokenStaked = valueOrElse(getInteger(this, kTotalTokenStaked), 0)
+    let curInterest = valueOrElse(getInteger(this, kInterest), 0)
+    let availableForClaim = valueOrElse(getInteger(this, (user + kUserAvailable)), 0)
+    let userInterest = valueOrElse(getInteger(this, (user + kUserInterest)), curInterest)
+    let userTokenStaked = valueOrElse(getInteger(this, (user + kUserTokenStaked)), 0)
+    let claimAmount = fraction(userTokenStaked, (curInterest - userInterest), SCALE8)
+    $Tuple4(curInterest, (claimAmount + availableForClaim), userTokenStaked, totalTokenStaked)
+    }
+
+
+func claimCalcUSDT (user) = {
+    let totalTokenStaked = valueOrElse(getInteger(this, kTotalTokenStaked), 0)
+    let curInterest = valueOrElse(getInteger(this, kInterestUSDT), 0)
+    let availableForClaim = valueOrElse(getInteger(this, (user + kUserAvailableUSDT)), 0)
+    let userTokenStaked = valueOrElse(getInteger(this, (user + kUserTokenStaked)), 0)
+    let userInterest = valueOrElse(getInteger(this, (user + kUserInterestUSDT)), if ((userTokenStaked > 0))
+        then 0
+        else curInterest)
+    let claimAmount = fraction(userTokenStaked, (curInterest - userInterest), SCALE10)
+    $Tuple4(curInterest, (claimAmount + availableForClaim), userTokenStaked, totalTokenStaked)
+    }
+
+
+func claimCalcNft (user) = {
+    let totalNftStaked = valueOrElse(getInteger(this, kNFTTotalStaked), 0)
+    let curInterest = valueOrElse(getInteger(this, kNFTInterest), 0)
+    let availableForClaim = valueOrElse(getInteger(this, (user + kNFTUserAvailableClaim)), 0)
+    let userInterest = valueOrElse(getInteger(this, (user + kNFTUserInterest)), curInterest)
+    let userNftStaked = valueOrElse(getInteger(this, (user + kuserNFTStaked)), 0)
+    let claimAmount = (userNftStaked * (curInterest - userInterest))
+    $Tuple4(curInterest, (claimAmount + availableForClaim), userNftStaked, totalNftStaked)
+    }
+
+
+func calcTokenApr () = {
+    let lastAirdrop = valueOrElse(getInteger(this, kLastAirdrop), 0)
+    let totalTokenStaked = valueOrElse(getInteger(this, kTotalTokenStaked), 0)
+    let totalNFTStaked = valueOrElse(getInteger(this, kNFTTotalStaked), 0)
+    let tokenAirdrop = if ((totalNFTStaked == 0))
+        then lastAirdrop
+        else fraction(lastAirdrop, (100 - totalNFTStaked), 100)
+    (fraction(tokenAirdrop, PERCENT_SCALE, totalTokenStaked) * 52)
+    }
+
+
+@Callable(i)
+func getStatsREADONLY () = {
+    let apr = calcTokenApr()
+    let totalTokenStaked = valueOrElse(getInteger(this, kTotalTokenStaked), 0)
+    let totalNftStaked = valueOrElse(getInteger(this, kNFTTotalStaked), 0)
+    $Tuple2(nil, makeString(["%d%d%d", toString(apr), toString(totalTokenStaked), toString(totalNftStaked)], SEPARATOR))
+    }
+
+
+
+@Callable(i)
+func getStatsByUserREADONLY (user) = {
+    let userAddr = valueOrErrorMessage(addressFromString(user), "Wrong user address")
+    let $t050905186 = claimCalc(user)
+    let userNewInterest = $t050905186._1
+    let claimAmountAvailable = $t050905186._2
+    let userTokenStaked = $t050905186._3
+    let totalTokenStaked = $t050905186._4
+    let $t051895290 = claimCalcNft(user)
+    let userNewInterestNFT = $t051895290._1
+    let claimAmountAvailableNFT = $t051895290._2
+    let userNFTStaked = $t051895290._3
+    let totalNFTStaked = $t051895290._4
+    let userTokenBalance = assetBalance(userAddr, fromBase58String(tokenId))
+    $Tuple2(nil, makeString(["%d%d%d%d%s", toString(userTokenBalance), toString(userTokenStaked), toString(claimAmountAvailable), toString(claimAmountAvailableNFT)], SEPARATOR))
+    }
+
+
+
+@Callable(i)
+func init (tokenId,adm1Pub,adm2Pub,adm3Pub) = valueOrElse(isSelfCall(i), if (isDefined(getString(this, kTokenid)))
+    then throw("DApp already inited")
+    else if (!(isDefined(assetInfo(fromBase58String(tokenId)))))
+        then throw("asset id is not correct asset id")
+        else if ((size(fromBase58String(adm1Pub)) != 32))
+            then throw("group1Admin1PubKey is not correct")
+            else if ((size(fromBase58String(adm2Pub)) != 32))
+                then throw("group1Admin1PubKey is not correct")
+                else if ((size(fromBase58String(adm3Pub)) != 32))
+                    then throw("group1Admin1PubKey is not correct")
+                    else [StringEntry(kTokenid, tokenId), StringEntry(kAdmin1PK, adm1Pub), StringEntry(kAdmin2PK, adm2Pub), StringEntry(kAdmin3PK, adm3Pub)])
+
+
+
+@Callable(i)
+func stake () = valueOrElse(isActive(), if ((size(i.payments) != 1))
+    then throw("One payment expected")
+    else {
+        let $t064796554 = $Tuple2(i.payments[0].amount, i.payments[0].assetId)
+        let pmtAmount = $t064796554._1
+        let pmtAssetId = $t064796554._2
+        if ((pmtAssetId != fromBase58String(tokenId)))
+            then throw("Wrong payment asset")
+            else {
+                let user = toString(i.caller)
+                let $t066756771 = claimCalc(user)
+                let userNewInterest = $t066756771._1
+                let claimAmountAvailable = $t066756771._2
+                let userTokenStaked = $t066756771._3
+                let totalTokenStaked = $t066756771._4
+                let $t067746853 = claimCalcUSDT(user)
+                let userNewInterestUSDT = $t067746853._1
+                let claimAmountAvailableUSDT = $t067746853._2
+                let u = $t067746853._3
+                let t = $t067746853._4
+[IntegerEntry((user + kUserInterest), userNewInterest), IntegerEntry((user + kUserInterestUSDT), userNewInterestUSDT), IntegerEntry((user + kUserAvailable), claimAmountAvailable), IntegerEntry((user + kUserAvailableUSDT), claimAmountAvailableUSDT), IntegerEntry((user + kUserTokenStaked), (userTokenStaked + pmtAmount)), IntegerEntry(kTotalTokenStaked, (totalTokenStaked + pmtAmount))]
+                }
+        })
+
+
+
+@Callable(i)
+func unstake (amount) = valueOrElse(isActive(), {
+    let user = toString(i.caller)
+    if ((0 >= amount))
+        then throw("Amount must be greater than 0")
+        else {
+            let $t074277523 = claimCalc(user)
+            let userNewInterest = $t074277523._1
+            let claimAmountAvailable = $t074277523._2
+            let userTokenStaked = $t074277523._3
+            let totalTokenStaked = $t074277523._4
+            let $t075267605 = claimCalcUSDT(user)
+            let userNewInterestUSDT = $t075267605._1
+            let claimAmountAvailableUSDT = $t075267605._2
+            let u = $t075267605._3
+            let t = $t075267605._4
+            if ((amount > userTokenStaked))
+                then throw("You can't unstake more than staked")
+                else [IntegerEntry((user + kUserInterest), userNewInterest), IntegerEntry((user + kUserInterestUSDT), userNewInterestUSDT), IntegerEntry((user + kUserAvailable), claimAmountAvailable), IntegerEntry((user + kUserAvailableUSDT), claimAmountAvailableUSDT), IntegerEntry((user + kUserTokenStaked), (userTokenStaked - amount)), IntegerEntry(kTotalTokenStaked, (totalTokenStaked - amount)), ScriptTransfer(i.caller, amount, fromBase58String(tokenId))]
+            }
+    })
+
+
+
+@Callable(i)
+func claim () = valueOrElse(isActive(), {
+    let user = toString(i.caller)
+    let $t082478343 = claimCalc(user)
+    let userNewInterest = $t082478343._1
+    let claimAmountAvailable = $t082478343._2
+    let userTokenStaked = $t082478343._3
+    let totalTokenStaked = $t082478343._4
+    let $t083468447 = claimCalcNft(user)
+    let userNewInterestNFT = $t083468447._1
+    let claimAmountAvailableNFT = $t083468447._2
+    let userNFTStaked = $t083468447._3
+    let totalNFTStaked = $t083468447._4
+    let $t084508529 = claimCalcUSDT(user)
+    let userNewInterestUSDT = $t084508529._1
+    let claimAmountAvailableUSDT = $t084508529._2
+    let u = $t084508529._3
+    let t = $t084508529._4
+[IntegerEntry((user + kUserInterest), userNewInterest), IntegerEntry((user + kUserAvailable), 0), IntegerEntry((user + kUserInterestUSDT), userNewInterestUSDT), IntegerEntry((user + kUserAvailableUSDT), 0), IntegerEntry((user + kNFTUserInterest), userNewInterestNFT), IntegerEntry((user + kNFTUserAvailableClaim), 0), ScriptTransfer(i.caller, (claimAmountAvailable + claimAmountAvailableNFT), fromBase58String(tokenId)), ScriptTransfer(i.caller, claimAmountAvailableUSDT, USDT)]
+    })
+
+
+
+@Callable(i)
+func stakeNFT () = valueOrElse(isActive(), if ((size(i.payments) != 1))
+    then throw("One payment expected")
+    else {
+        let $t091649239 = $Tuple2(i.payments[0].amount, i.payments[0].assetId)
+        let pmtAmount = $t091649239._1
+        let pmtAssetId = $t091649239._2
+        let pmtAssetIdStr = assetIdToStr(pmtAssetId)
+        if (!(isDefined(getString(this, (pmtAssetIdStr + kNFTCreated)))))
+            then throw("Wrong nft asset")
+            else {
+                let user = toString(i.caller)
+                let $t094209515 = claimCalcNft(user)
+                let userNewInterest = $t094209515._1
+                let claimAmountAvailable = $t094209515._2
+                let userNFTStaked = $t094209515._3
+                let totalNFTStaked = $t094209515._4
+[IntegerEntry((user + kNFTUserInterest), userNewInterest), IntegerEntry((user + kNFTUserAvailableClaim), claimAmountAvailable), IntegerEntry((user + kuserNFTStaked), (userNFTStaked + 1)), IntegerEntry(kNFTTotalStaked, (totalNFTStaked + 1)), BooleanEntry((((user + "_") + pmtAssetIdStr) + kuserNFTStakedId), true)]
+                }
+        })
+
+
+
+@Callable(i)
+func unstakeNFT (id) = valueOrElse(isActive(), {
+    let user = toString(i.caller)
+    if (!(isDefined(getBoolean(this, (((user + "_") + id) + kuserNFTStakedId)))))
+        then throw("You didn't staked")
+        else {
+            let $t01005310148 = claimCalcNft(user)
+            let userNewInterest = $t01005310148._1
+            let claimAmountAvailable = $t01005310148._2
+            let userNFTStaked = $t01005310148._3
+            let totalNFTStaked = $t01005310148._4
+[IntegerEntry((user + kNFTUserInterest), userNewInterest), IntegerEntry((user + kNFTUserAvailableClaim), claimAmountAvailable), IntegerEntry((user + kuserNFTStaked), (userNFTStaked - 1)), IntegerEntry(kNFTTotalStaked, (totalNFTStaked - 1)), DeleteEntry((((user + "_") + id) + kuserNFTStakedId)), ScriptTransfer(i.caller, 1, fromBase58String(id))]
+            }
+    })
+
+
+
+@Callable(i)
+func issueNFT (userAddr,name,descr) = valueOrElse(isActive(), valueOrElse(isAdminCall(i), {
+    let uAddr = valueOrErrorMessage(addressFromString(userAddr), "Wrong user address")
+    let issue = Issue(name, descr, 1, 0, false)
+    let nftId = calculateAssetId(issue)
+[issue, StringEntry((toBase58String(nftId) + kNFTCreated), userAddr), ScriptTransfer(uAddr, 1, nftId)]
+    }))
+
+
+
+@Callable(i)
+func airdrop () = valueOrElse(isActive(), valueOrElse(isAirdropAllowed(i), if ((size(i.payments) != 1))
+    then throw("One payment expected")
+    else {
+        let $t01109411169 = $Tuple2(i.payments[0].amount, i.payments[0].assetId)
+        let pmtAmount = $t01109411169._1
+        let pmtAssetId = $t01109411169._2
+        if ((pmtAssetId != fromBase58String(tokenId)))
+            then throw("Wrong payment asset")
+            else {
+                let totalTokenStaked = valueOrElse(getInteger(this, kTotalTokenStaked), 0)
+                let totalNFTStaked = valueOrElse(getInteger(this, kNFTTotalStaked), 0)
+                let curInterest = valueOrElse(getInteger(this, kInterest), 0)
+                let curNFTInterest = valueOrElse(getInteger(this, kNFTInterest), 0)
+                let $t01153311709 = if ((totalNFTStaked == 0))
+                    then $Tuple2(0, pmtAmount)
+                    else {
+                        let nftP = fraction(pmtAmount, totalNFTStaked, 100)
+                        $Tuple2(nftP, (pmtAmount - nftP))
+                        }
+                let pmtNFT = $t01153311709._1
+                let pmtToken = $t01153311709._2
+                let interestNew = if ((totalTokenStaked > 0))
+                    then (curInterest + fraction(pmtToken, SCALE8, totalTokenStaked))
+                    else curInterest
+                let interestNFTNew = if ((totalNFTStaked > 0))
+                    then (curNFTInterest + (pmtNFT / totalNFTStaked))
+                    else curNFTInterest
+[IntegerEntry(kInterest, interestNew), IntegerEntry(kNFTInterest, interestNFTNew), IntegerEntry(kLastAirdrop, pmtAmount)]
+                }
+        }))
+
+
+
+@Callable(i)
+func airdropUSDT () = valueOrElse(isActive(), if (("3PEYw8BkEzYwk4NXEDdDDAanyduYZPCEbYr" != toString(i.caller)))
+    then throw("You can't call this function")
+    else if ((size(i.payments) != 1))
+        then throw("One payment expected")
+        else {
+            let $t01233712412 = $Tuple2(i.payments[0].amount, i.payments[0].assetId)
+            let pmtAmount = $t01233712412._1
+            let pmtAssetId = $t01233712412._2
+            if ((pmtAssetId != USDT))
+                then throw("Wrong payment asset need USDT")
+                else {
+                    let totalTokenStaked = valueOrElse(getInteger(this, kTotalTokenStaked), 0)
+                    let curInterest = valueOrElse(getInteger(this, kInterestUSDT), 0)
+                    let interestNew = if ((totalTokenStaked > 0))
+                        then (curInterest + fraction(pmtAmount, SCALE10, totalTokenStaked))
+                        else curInterest
+[IntegerEntry(kInterestUSDT, interestNew), IntegerEntry(kLastAirdropUSDT, pmtAmount)]
+                    }
+            })
+
+
+
+@Callable(i)
+func activate () = valueOrElse(isAdminCall(i), if (valueOrElse(getBoolean(this, kActive), true))
+    then throw("dApp already active")
+    else [BooleanEntry(kActive, true)])
+
+
+
+@Callable(i)
+func shutdown () = valueOrElse(isAdminCall(i), if (!(valueOrElse(getBoolean(this, kActive), true)))
+    then throw("dApp already shutdown")
+    else [BooleanEntry(kActive, false)])
+
+
+@Verifier(tx)
+func verify () = {
+    let multiSignedByAdmins = {
+        let adminPubKey1Signed = if (sigVerify(tx.bodyBytes, tx.proofs[0], admin1PK))
+            then 1
+            else 0
+        let adminPubKey2Signed = if (sigVerify(tx.bodyBytes, tx.proofs[1], admin2PK))
+            then 1
+            else 0
+        let adminPubKey3Signed = if (sigVerify(tx.bodyBytes, tx.proofs[2], admin3PK))
+            then 1
+            else 0
+        (((adminPubKey1Signed + adminPubKey2Signed) + adminPubKey3Signed) >= 2)
+        }
+    match tx {
+        case inv: InvokeScriptTransaction => 
+            let isSelf = sigVerify(tx.bodyBytes, tx.proofs[0], tx.senderPublicKey)
+            let isRightFee = if ((inv.fee == 900000))
+                then (inv.feeAssetId == unit)
+                else false
+            let isInitCall = (inv.function == "init")
+            let isnoPayments = (size(inv.payments) == 0)
+            if (if (if (if (isRightFee)
+                then isInitCall
+                else false)
+                then isSelf
+                else false)
+                then isnoPayments
+                else false)
+                then true
+                else multiSignedByAdmins
+        case _ => 
+            multiSignedByAdmins
+    }
+    }

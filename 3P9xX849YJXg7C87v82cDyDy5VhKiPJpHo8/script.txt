@@ -1,0 +1,87 @@
+{-# STDLIB_VERSION 6 #-}
+{-# SCRIPT_TYPE ACCOUNT #-}
+{-# CONTENT_TYPE DAPP #-}
+let VERSION = "RK-1.0.1"
+
+let Scale8 = 100000000
+
+let aggregatorAddress = valueOrElse(addressFromString(valueOrElse(getString("setup_aggregator"), "")), Address(base58'3PGFHzVGT4NTigwCKP1NcwoXkodVZwvBuuU'))
+
+let maxSwapAmount = valueOrElse(getInteger("setup_maxSwapAmount"), 10000000)
+
+func getAssetString (assetId) = match assetId {
+    case b: ByteVector => 
+        toBase58String(b)
+    case _ => 
+        "WAVES"
+}
+
+
+func getAssetBytes (assetIdStr) = if ((assetIdStr == "WAVES"))
+    then unit
+    else fromBase58String(assetIdStr)
+
+
+func getBalance (assetIdStr) = if ((assetIdStr == "WAVES"))
+    then wavesBalance(this).available
+    else assetBalance(this, fromBase58String(assetIdStr))
+
+
+func getTargetReturn (assetFrom,assetsRatio) = {
+    let ratios = split(getStringValue(("setup_targets_" + assetFrom)), ";")
+    func f (accum,next) =     {
+        let li = split(next, ",")
+        if ((parseIntValue(li[0]) > assetsRatio))
+            then li[1]
+            else accum
+        }
+
+    let $l = ratios
+    let $s = size($l)
+    let $acc0 = 100000000
+    func $f0_1 ($a,$i) =     if (($i >= $s))
+        then $a
+        else f($a, $l[$i])
+
+    func $f0_2 ($a,$i) =     if (($i >= $s))
+        then $a
+        else throw("List size exceeds 10")
+
+    $f0_2($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($f0_1($acc0, 0), 1), 2), 3), 4), 5), 6), 7), 8), 9), 10)
+    }
+
+
+@Callable(i)
+func init () = if ((i.caller != this))
+    then throw("available for self-invoke only")
+    else [StringEntry("setup_targets_9wc3LXNA4TEBsXyKtoLE9mrbDD7WMHXvXrCjZvabLAsi", "80000000,103000000;50000000,105000000;30000000,110000000;10000000,120000000;0,200000000"), StringEntry("setup_targets_AP4Cb5xLYGH6ZigHreCZHoXpQTWDkPsG2BHqfDUx6taJ", "80000000,103000000;50000000,105000000;30000000,110000000;10000000,120000000;0,200000000")]
+
+
+
+@Callable(i)
+func doSwap (asset0Str,asset1Str,amount,route) = nil
+
+
+
+@Callable(i)
+func mintLP () = nil
+
+
+
+@Callable(i)
+func redeemLP () = nil
+
+
+
+@Callable(i)
+func updateString (key,val) = if ((this != i.caller))
+    then throw("admin only")
+    else [StringEntry(key, val)]
+
+
+
+@Callable(i)
+func updateInt (key,val) = if ((this != i.caller))
+    then throw("admin only")
+    else [IntegerEntry(key, val)]
+
